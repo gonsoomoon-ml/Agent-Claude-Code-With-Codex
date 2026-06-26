@@ -22,7 +22,7 @@ Claude Code 와 Codex 를 같이 사용을 합니다.
 
 **1) 제품 (What).** 커스터마이즈 가능한 **개인용 매일 아침 뉴스 브리핑** + 핵심 차별점 **검증 후 발행(verify-before-publish) 게이트.** Claude=작성자, Codex=독립 인증자. → [`prd_news.md`](prd_news.md)
 
-**2) 스택 (How).** **Strands(author 에이전트) + Bedrock AgentCore Runtime(호스트) + Claude Code(author 하니스) + Codex(certifier 하니스).** 오케스트레이션·비가역 발송 결정은 **얇은 결정론 게이트 코드**가 소유하고, **게이트가 certifier를 호출**(author 아님 — narration 차단을 토폴로지로 강제). → [`../architecture/four-component-analysis.md`](../architecture/four-component-analysis.md)
+**2) 스택 (How) — Design B.** **author = headless Claude Code(`claude -p`) on Bedrock** — Skill 로 TYPE/DEPTH/PROFILE 정의(이게 *두 하니스를 쓰는 이유*). **certifier = Codex(`codex exec`)**(모델은 codex 자신의 `~/.codex/config.toml` 소유 = GPT-5.5) · **호스트 = Bedrock AgentCore Runtime** · **Strands = fabric**(수집·큐레이션·렌더 배선 — *요약 안 함; author 아님*). 오케스트레이션·비가역 발송 결정은 **얇은 결정론 게이트 코드**가 소유하고 **게이트가 certifier를 호출**(author 아님 — narration 차단을 토폴로지로 강제). *(headless `claude -p` on Bedrock = 스모크 검증됨.)* → [`../architecture/four-component-analysis.md`](../architecture/four-component-analysis.md)
 
 **3) 리전 (Region).** **us-east-1 정렬.** 신규 관리형 리트리벌(Web Search·Browser Tool)이 us-east-1 전용이고, 모델은 inference-profile(`global.`/`us.` prefix) 사용. → [`../research/agentcore-summit-and-reference-repos.md`](../research/agentcore-summit-and-reference-repos.md)
 
@@ -44,3 +44,12 @@ Claude Code 와 Codex 를 같이 사용을 합니다.
 - aiops-multi-agent-workshop
     - keyword: AgentCore Gateway, Strands Agent, AgentCore Runtime, Project Setting Environment(UV, .env, folder structure )
     - https://github.com/gonsoomoon-ml/aiops-multi-agent-workshop    
+- Developer Briefing Agent
+    - keyword: AgentCore Gateway, Strands Agent, AgentCore Runtime, Skill
+    - https://github.com/gonsoomoon-ml/developer-briefing-agent
+- Deep Insight
+    - keyword: Data Analysis, AgentCore Gateway, Strands Agent, AgentCore Runtime, Prompt
+    - https://github.com/aws-samples/sample-deep-insight
+- Self-Correcting Explainable Translation Agent
+    - keyword: Standard Operation Procedure(SOP), Strands Agent Grpah Pattern
+    - https://github.com/gonsoomoon-ml/Self-Correcting-Explainable-Translation-Agent     

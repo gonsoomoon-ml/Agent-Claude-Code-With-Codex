@@ -1,0 +1,7 @@
+# AgentCore Runtime 컨테이너 의존성 — 컨테이너는 uv.lock 대신 최소 목록 사용.
+strands-agents
+strands-agents-tools
+bedrock-agentcore
+boto3
+python-dotenv
+feedparser

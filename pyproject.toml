@@ -1,0 +1,28 @@
+[project]
+name = "briefing-agent"
+version = "0.1.0"
+description = "검증 후 발행(verify-before-publish) 데일리 AI 뉴스 브리핑 — Claude(author) + Codex(certifier) 듀얼 하니스"
+requires-python = ">=3.12"
+dependencies = [
+    "strands-agents",
+    "strands-agents-tools",
+    "bedrock-agentcore",
+    "boto3>=1.35",
+    "python-dotenv",
+    "pyyaml",            # users/<id>/profile.yaml 파싱
+    "feedparser",        # 클린 RSS 출처 파싱
+]
+
+[dependency-groups]
+dev = ["ruff", "pytest"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/briefing"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

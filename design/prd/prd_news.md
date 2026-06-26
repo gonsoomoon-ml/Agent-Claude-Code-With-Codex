@@ -16,9 +16,10 @@
 - **단일 모델 한계:** 90% 충실해도 나머지를 *확신*하며 내보내고, 같은 weights가 그 오류를 그럴듯하다고 평가해 스스로 못 잡는다(correlated error) → 비상관 두 번째 검증 필요.
 
 ## 3. 제품 정의 (What)
-커스터마이즈 가능한 **개인용(personal-first)** 뉴스 브리핑 에이전트. 커스터마이즈 표면은 **Skill로 정의**. *v1 MVP 노브 = TYPE · DEPTH · PROFILE* (BRAND는 v1 고정):
-- **TYPE(뉴스 종류):** AI News / Stock News 등 — 출처·어휘 결정.
+커스터마이즈 가능한 **개인용(personal-first)** 뉴스 브리핑 에이전트. 커스터마이즈 표면은 **Skill로 정의**. *v1 MVP 노브 = TYPE · DEPTH · LENS · PROFILE* (BRAND는 v1 고정):
+- **TYPE(뉴스 종류):** AI News / Stock News 등 — 출처 *집합*·어휘 결정. 사용자는 그 안에서 **개별 출처를 선택**(vetted `catalog.yaml`에서; 미선택=전체).
 - **DEPTH(요약 정도):** 제목+링크만 / +간결 요약 / +"What is Important". **v1 기본값 = 풀(제목 + 요약 + What is Important + 신뢰 칩).** 같은 검증을 다른 밀도로 렌더.
+- **LENS(요약 관점):** 같은 기사를 *누구의 눈*으로 요약할지 — `general` / `executive`(영향·비용·결정) / `engineer`(작동원리·아키텍처) / `business`(시장·자금·경쟁). vetted 라이브러리(`lenses.yaml`)에서 선택, 기본 `general`. **편집 렌즈일 뿐 사실/검증은 못 바꿈** — certifier는 lens 미열람(각 claim은 lens 무관하게 원문으로 검증). PROFILE이 *누구*면 LENS는 *어느 각도*.
 - **PROFILE(개인화 프로필):** *명시적* 1~3줄 — `역할`(예: AWS·AI 에이전트 실무자) · `관심 기술/토픽`(LLM/Bedrock/AgentCore/Strands) · (선택)`가벼운 벤더`. "What is Important"는 이 프로필에 대해 작성되고, 그 *정량/인과 주장*을 인증자가 검증. (보유종목 등 금융 *노출(exposure)* 신호는 Stock 타입 확장 시.)
 - **BRAND(편집 보이스):** v1은 **고정 기본 보이스**(차분·anti-doomscroll·한국어친화). 설정 노브화는 후속.
 
@@ -37,13 +38,13 @@
 - **Claude = 작성자:** 클러스터링·요약·"What is Important" 작성.
 - **Codex = 인증자 (`codex exec` on Bedrock):** 작성자 추론을 *보지 않고*(최소 컨텍스트) 발행 *전에* 독립 재도출. **v1 게이트 = (a) 함의(NLI) 요약↔원문 + (b) 숫자/날짜/% 산술 재도출**, *이미 가져온 원문 텍스트에만* 적용(신규 fetch 없음 → 법적 리스크 회피). (c) liveness/superseded(정정을 잡는 *재페치* grounding)는 **v2**.
 - **출력 3종·실패 정책:** VERIFIED(발행) / **DEMOTED → "(미확인)" 라벨로 *남김*** / **BLOCKED → 발행 제외.** *조용한 드롭 금지(거짓 안심 방지).*
-- **근거:** Harness 블로그가 코드 협업에서 실증(46:1, 다른 계열이 같은 계열 못 본 결함 포착) → 본 프로젝트는 *사실 콘텐츠*로 옮기고 narration 차단으로 강화. **라이브 데모에서 환각 3/3 실제 차단 확인**(Anthropic 서울 기사, Bedrock 2-모델). v1 인증자 = **Codex on Bedrock**(모델: GPT-5.5 Bedrock 액세스 시 / 아니면 gpt-oss-120b — 둘 다 *다른 계열*).
+- **근거:** Harness 블로그가 코드 협업에서 실증(46:1, 다른 계열이 같은 계열 못 본 결함 포착) → 본 프로젝트는 *사실 콘텐츠*로 옮기고 narration 차단으로 강화. **라이브 데모에서 환각 3/3 실제 차단 확인**(Anthropic 서울 기사, Bedrock 2-모델). v1 인증자 = **Codex on Bedrock** — 모델은 **GPT-5.5**(codex 자신의 `~/.codex/config.toml` 소유; 우리 .env 가 설정 안 함). Claude(Sonnet 4.6)와 *다른 계열*(decorrelation).
 - **왜 중요:** 이 게이트가 "What is Important"(추론이 섞여 가장 틀리기 쉬운 줄)를 *믿을 수 있게* 만든다. 게이트 없으면 차별점이 곧 책임.
 
 ## 6. 범위 (Scope)
-**MVP 포함(v1):** 단일 사용자 · 매일 아침 이메일 · **출처 5~7개**(briefing-news-agent 5개 베이스 + 한국어 백업 1개; 영어=모델사 공식 블로그 중심; 카테고리 공백은 best-effort)+dedup · 기사별 요약+"What is Important"(PROFILE 기준)+신뢰 칩 · **검증 후 발행 게이트 = 함의+산술**(Codex on Bedrock, 가져온 원문에만; *수동 점검이 아니라 자동*) · **소형 적대적 평가셋(~20~30건)** 수용 게이트 · TYPE/DEPTH/PROFILE 커스터마이즈(BRAND는 v1 고정).
+**MVP 포함(v1):** **운영=단일 사용자**(데이터 모델은 *다중 사용자-ready*: `users/<id>/{profile.yaml,skill.md}`, design-for-N) · 매일 아침 이메일 · **출처 5~7개**(vetted `catalog.yaml`, **per-user 선택**; briefing-news-agent 5개 베이스 + 한국어 백업; 영어=모델사 공식 블로그 중심; 카테고리 공백은 best-effort)+dedup · 기사별 요약+"What is Important"(PROFILE 기준)+신뢰 칩 · **검증 후 발행 게이트 = 함의+산술**(Codex on Bedrock, 가져온 원문에만; *수동 점검이 아니라 자동*) · **소형 적대적 평가셋(~20~30건)** 수용 게이트 · TYPE/DEPTH/LENS/PROFILE 커스터마이즈(BRAND는 v1 고정).
 
-**MVP 제외 / 로드맵 parked(v2+, ref [`value-roadmap.md`](../architecture/value-roadmap.md)):** **Tap-to-Source(영수증) — 선택됨, 다음 슬라이스** · grounding 재페치/liveness·superseded(정정 추적) · Diff-Since-Last · Withheld-and-Why · Cross-Source Reconcile · Self-Calibration · Prediction Ledger · Verified Q&A · 오디오/멀티채널 · BRAND 노브화 · 다중 수신자/구독/인증/실시간 push.
+**MVP 제외 / 로드맵 parked(v2+, ref [`value-roadmap.md`](../architecture/value-roadmap.md)):** **Tap-to-Source(영수증) — 선택됨, 다음 슬라이스** · grounding 재페치/liveness·superseded(정정 추적) · Diff-Since-Last · Withheld-and-Why · Cross-Source Reconcile · Self-Calibration · Prediction Ledger · Verified Q&A · 오디오/멀티채널 · BRAND 노브화 · 다중 수신자 *전달*(임의 수신자 SES production)·구독·인증·실시간 push · 웹 UI/DB 백킹·커스텀 피드.
 
 ## 7. 성공 기준 (MVP 합격)
 1. **정시 발송** — 고정 시각 ±15분, 7일 연속 무중단.
@@ -54,7 +55,7 @@
 
 ## 8. 제품 차원 제약·리스크
 - **뉴스 피로 설계:** de-clickbait·차분·"오늘은 이게 다"로 회피 동인 완화.
-- **인증자 독립성:** certifier는 *다른 계열* + *최소 컨텍스트*라야 진짜 비상관(같은 모델 2-pass=가짜 독립). **v1 인증자 = Codex(`codex exec` on Bedrock)** — 블로그의 진짜 두 번째 하니스. 모델 = GPT-5.5(Bedrock 모델 액세스 시) 또는 gpt-oss-120b. (현재 이 계정엔 gpt-oss만 켜져 있어, GPT-5.5 사용엔 Bedrock 액세스 요청이 필요할 수 있음.)
+- **인증자 독립성:** certifier는 *다른 계열* + *최소 컨텍스트*라야 진짜 비상관(같은 모델 2-pass=가짜 독립). **v1 인증자 = Codex(`codex exec` on Bedrock)** — 블로그의 진짜 두 번째 하니스. 모델 = **GPT-5.5**(이 머신 codex 설정 `~/.codex/config.toml`에서 확정; 우리 앱은 모델을 *기록*만, 설정 안 함). 초기 검증 데모는 gpt-oss-120b로 했으나, 둘 다 Claude와 *다른 계열*이라 decorrelation 충족.
 - **합법적 수집 태세:** robots/ToS/TDM 존중 · 사실-only(verbatim 영속 저장 금지) · 변형적 출처 링크(Bartz/Ross 류 회피).
 - **출처 드리프트:** 피드 URL·구조 변동 가정(주기 검증·폴백) — 스펙 리뷰가 OpenAI/DeepMind 피드 변경 이미 적발.
 

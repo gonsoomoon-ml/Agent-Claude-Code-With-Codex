@@ -1,2 +1,20 @@
 # Claude Code machine-local settings (personal overrides) — not committed
 .claude/settings.local.json
+
+# Python / UV
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Local env & data
+.env
+.data/
+
+# users/<id>/ = PII (실제 recipient 이메일·프로필). gonsoo 예시(개발자 본인)만 커밋;
+# 실제 사용자 디렉토리는 무시(웹-UI 다중 사용자는 파일 아닌 DB, v2).
+/users/*
+!/users/gonsoo/
+!/users/README.md

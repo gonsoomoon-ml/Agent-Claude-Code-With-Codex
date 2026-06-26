@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 저장소 현황 (Repository status)
 
-- **현재는 설계/기획 단계입니다.** 소스 코드·빌드 시스템·테스트가 아직 없습니다 — 저장소는 `README.md`, 이 `CLAUDE.md`, 그리고 `design/` 의 설계 문서들로만 구성됩니다. 설계 문서는 세 하위 폴더로 정리되어 있습니다: **`design/prd/`**(제품 요구사항)·**`design/research/`**(외부 사실·랜드스케이프 리서치)·**`design/architecture/`**(아키텍처·전략 분석).
-- 따라서 **빌드/린트/테스트 명령은 아직 존재하지 않습니다.** 첫 코드가 들어오면 이 섹션을 실제 명령으로 갱신하세요. (명령을 지어내지 마세요.)
+- **설계 단계에서 구현 스캐폴드로 진입했습니다.** 저장소 = `README.md` · `CLAUDE.md` · `design/`(설계 문서) · **`src/briefing/`(구현 스캐폴드)** · `tests/`. 설계 문서는 세 하위 폴더: **`design/prd/`**(제품 요구사항)·**`design/research/`**(외부 사실·랜드스케이프 리서치)·**`design/architecture/`**(아키텍처·전략 분석).
+- **빌드/실행 (UV):** `uv sync`(의존성·venv) · `uv run python -m briefing.local.run`(로컬 baseline — 결정론 골격 실연) · `uv run ruff check src`(린트) · `uv run pytest`(테스트, 예정). **구조:** `src/briefing/` = `shared/`(진실: config·sources·source_store·author·gate·certifier·render) / `runtime/`(AgentCore 배포 하니스) / `local/`(AWS 없는 baseline). **수동 author 테스트(Bedrock):** `scripts/claude-author.sh -p "..."` — 코드 `bedrock_author_env()`와 동일 라우팅, 글로벌 `~/.claude` 미접촉. **주의:** 현재는 *스캐폴드* — author/certifier/render 등 다수가 `NotImplementedError` stub이며 점진 구현 중(결정론 `source_store`·`gate` 는 실동작).
 - **진실의 원천(source of truth)은 `design/` 문서입니다.** 큰 그림은 여러 문서를 함께 읽어야 드러나므로, 아래 "설계 문서 지도"를 먼저 참고하세요(지도는 출발점이 되는 핵심 문서를 추립니다 — 나머지는 위 세 하위 폴더에 있습니다).
 
 ## 핵심 아키텍처 개념 (The one concept that unifies everything)
@@ -31,6 +31,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 전달 (Deliver) | **Claude Code** | 사용자 대면 실행, Codex 가 만든 렌더러/검증기를 하위 호출 |
 
 **비가역 조치(irreversible action)의 기본값은 "초안 후 승인 대기(draft → human approval queue)"** 입니다. 자율 실행은 옵트인이며, 모델이 불일치(disagree)하면 아무것도 실행/발행하지 않고 사람 검토용으로 격리(QUARANTINE)합니다.
+
+**런타임 하니스 격리 (runtime isolation) — 비협상.** headless author(`claude -p`)·certifier(`codex exec`)는 **반드시 깨끗한 작업 디렉토리에서 실행**한다 — 저장소의 `CLAUDE.md`/`AGENTS.md` 가 *자동 로드되면 안 된다*. author 는 `build_system_prompt` 로만 통제되어야 하고(repo 아키텍처 컨텍스트로 오염 금지), **certifier 는 envelope 4필드 외 어떤 프로젝트 컨텍스트도 보면 안 된다 — `AGENTS.md`/`CLAUDE.md` 자동 로드는 decorrelation 을 *조용히* 깬다.** AgentCore 컨테이너는 자연히 격리되고, 로컬 PoC/테스트는 `scratchpad` 같은 clean dir 에서 돌린다(스모크 테스트가 그 예). → 그래서 repo 에 `AGENTS.md` 를 두면 certifier 를 repo dir 에서 실행할 때 *footgun* 이다(반드시 clean dir).
 
 ## 무엇을 만들지의 제약 (Inclusion test — 범위를 지키는 가드레일)
 

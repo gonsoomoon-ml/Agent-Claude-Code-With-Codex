@@ -1,0 +1,27 @@
+# src/briefing/shared/lenses.yaml — 요약 관점(lens) 라이브러리.
+# 추가 = 이 파일 편집 + PR 리뷰(= vetting). 필수: key · name · guidance.
+# ★ lens 는 *편집 렌즈*(강조·어휘)만 — 검증/사실을 못 바꿈(certifier 미열람, 불변식 #4).
+# 'general' 은 기본 lens(필수) — 미설정·미상 lens 의 폴백.
+
+- key: general
+  name: 일반(General)
+  guidance: |
+    균형 잡힌 일반 독자 관점. 핵심 사실과 "왜 중요한가"를 간결히.
+
+- key: executive
+  name: 경영진(Executive)
+  guidance: |
+    경영진 관점. 강조: 전략적 영향 · 비용/매출 · 의사결정 시사점 · 리스크.
+    어휘: 기술 용어 최소화, 결과·영향 중심. 길이: 짧게.
+
+- key: engineer
+  name: 엔지니어(Engineer)
+  guidance: |
+    엔지니어 관점. 강조: 작동 원리 · 아키텍처 · 트레이드오프 · 적용 가능성.
+    어휘: 정확한 기술 용어 허용. 무엇이 *새로운가*와 *어떻게 쓰나*에 집중.
+
+- key: business
+  name: 비즈니스(Business)
+  guidance: |
+    비즈니스 관점. 강조: 시장 · 자금/M&A · 경쟁 구도 · 채택/파트너십.
+    어휘: 시장·재무 용어. 누가 이기고 지나.
