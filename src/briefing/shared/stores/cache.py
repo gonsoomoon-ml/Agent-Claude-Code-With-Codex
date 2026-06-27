@@ -14,9 +14,9 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Protocol
 
-from .author import Claim, DraftCard
-from .certifier import CertVerdict
-from .gate import GatedCard
+from ..harness.author import Claim, DraftCard
+from ..harness.certifier import CertVerdict
+from ..gate import GatedCard
 
 
 def card_key(source_id: str, lens: str, skill_md: str, author_model_id: str) -> str:

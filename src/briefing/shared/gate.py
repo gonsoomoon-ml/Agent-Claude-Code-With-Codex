@@ -18,11 +18,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from . import _debug, author
-from .author import Claim, DraftCard
-from .certifier import CertVerdict, Envelope, certify
+from . import _debug
 from .config import Settings, UserConfig
-from .source_store import FrozenSource, SourceStore
+from .harness import author
+from .harness.author import Claim, DraftCard
+from .harness.certifier import CertVerdict, Envelope, certify
+from .stores.source_store import FrozenSource, SourceStore
 
 _SCHEMA = '{"verdict":"VERIFIED|DEMOTED|BLOCKED","evidence":"str"}'
 

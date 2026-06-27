@@ -17,12 +17,12 @@ from strands.hooks.events import AfterModelCallEvent, BeforeModelCallEvent, Befo
 from strands.models import BedrockModel
 
 from ..shared import _debug, render
-from ..shared import sources as src
+from ..shared.retrieval import sources as src
 from ..shared.config import Settings, UserConfig, load_settings, load_user
 from ..shared.gate import GatedCard, produce_card
 from ..shared.prompts import apply_prompt_template
-from ..shared.curation import curate
-from ..shared.source_store import SourceStore
+from ..shared.retrieval.curation import curate
+from ..shared.stores.source_store import SourceStore
 
 # supervisor 1회 실행 컨텍스트 — run_supervisor 가 세팅, 세 도구가 공유.
 _CTX: dict = {}

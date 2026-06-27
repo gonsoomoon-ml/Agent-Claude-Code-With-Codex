@@ -1,8 +1,8 @@
 """render — PUBLISH-only · 출처 도메인 reference·발행일·렌즈 · 집계 trust(개별 claim 비노출)."""
 from types import SimpleNamespace
 
-from briefing.shared.author import Claim, DraftCard
-from briefing.shared.certifier import CertVerdict
+from briefing.shared.harness.author import Claim, DraftCard
+from briefing.shared.harness.certifier import CertVerdict
 from briefing.shared.gate import GatedCard
 from briefing.shared.render import render_email
 
@@ -35,7 +35,7 @@ def test_render_excludes_quarantine_and_falls_back_when_empty():
 
 
 def test_render_includes_domain_title_url_date_from_store(tmp_path):
-    from briefing.shared.source_store import SourceStore
+    from briefing.shared.stores.source_store import SourceStore
     store = SourceStore(str(tmp_path / "s"))
     fs = store.freeze(url="https://www.aitimes.com/a", title="원본 제목", raw_text="본문",
                       fetched_at="2026-06-27T06:00:00Z")

@@ -12,12 +12,12 @@ entrypoint 가 payload `{"mode":"smoke"}` 일 때 `smoke_fns()`/`smoke_users()` 
 """
 from __future__ import annotations
 
-from ..shared import sources as src
-from ..shared.author import Claim, DraftCard
-from ..shared.certifier import CertVerdict
+from ..shared.retrieval import sources as src
+from ..shared.harness.author import Claim, DraftCard
+from ..shared.harness.certifier import CertVerdict
 from ..shared.config import Settings, UserConfig, list_users, load_user
-from ..shared.source_store import FrozenSource
-from ..shared.sources import FetchedArticle, Source
+from ..shared.stores.source_store import FrozenSource
+from ..shared.retrieval.sources import FetchedArticle, Source
 
 
 def smoke_fetch_fn(source: Source, window_hours: int) -> list[FetchedArticle]:

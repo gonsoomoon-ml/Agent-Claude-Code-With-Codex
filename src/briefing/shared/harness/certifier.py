@@ -22,7 +22,7 @@ import time
 from dataclasses import dataclass
 from typing import Literal
 
-from . import _debug
+from .. import _debug
 
 Verdict = Literal["VERIFIED", "DEMOTED", "BLOCKED"]
 

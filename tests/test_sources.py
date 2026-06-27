@@ -6,7 +6,7 @@ import pytest
 
 import types
 
-from briefing.shared.sources import (
+from briefing.shared.retrieval.sources import (
     CATALOG,
     MAX_SOURCE_CHARS,
     Source,
@@ -93,7 +93,7 @@ def _src(kind="html"):
 
 
 def test_fetch_generic_html_no_feed(monkeypatch):
-    from briefing.shared import sources as s
+    from briefing.shared.retrieval import sources as s
     monkeypatch.setattr(s, "discover_feed", lambda _u: "")       # 피드 없음 → 리스팅 링크 경로
     monkeypatch.setattr(s, "_http_get", lambda u: '<a href="/news/opus">Opus</a>' if u.endswith("/news") else _ARTICLE_HTML)
     arts = s.fetch_generic_html(_src(), window_hours=0, max_items=3)
@@ -102,7 +102,7 @@ def test_fetch_generic_html_no_feed(monkeypatch):
 
 
 def test_fetch_generic_html_with_feed(monkeypatch):
-    from briefing.shared import sources as s
+    from briefing.shared.retrieval import sources as s
     monkeypatch.setattr(s, "discover_feed", lambda _u: "https://feed.example/rss")  # 피드 발견
     seen = {}
 
@@ -117,7 +117,7 @@ def test_fetch_generic_html_with_feed(monkeypatch):
 
 
 def test_fetch_feed_full_text(monkeypatch):
-    from briefing.shared import sources as s
+    from briefing.shared.retrieval import sources as s
     entry = {"title": "T", "link": "https://x/a", "summary": "짧은 피드 요약", "published_parsed": None}
     monkeypatch.setattr("feedparser.parse", lambda _u: types.SimpleNamespace(entries=[entry]))
     monkeypatch.setattr(s, "_http_get", lambda _u: "<html>full</html>")
@@ -127,7 +127,7 @@ def test_fetch_feed_full_text(monkeypatch):
 
 
 def test_fetch_feed_full_text_fallback(monkeypatch):
-    from briefing.shared import sources as s
+    from briefing.shared.retrieval import sources as s
     entry = {"title": "T", "link": "https://x/a", "summary": "피드 요약 폴백", "published_parsed": None}
     monkeypatch.setattr("feedparser.parse", lambda _u: types.SimpleNamespace(entries=[entry]))
     monkeypatch.setattr(s, "_http_get", lambda _u: "")               # 전문 fetch 실패 → 피드 요약 폴백

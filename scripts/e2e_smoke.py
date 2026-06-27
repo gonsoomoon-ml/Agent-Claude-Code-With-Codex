@@ -12,10 +12,10 @@ from __future__ import annotations
 import sys
 
 from briefing.shared import render
-from briefing.shared import sources as src
+from briefing.shared.retrieval import sources as src
 from briefing.shared.config import load_settings, load_user
 from briefing.shared.gate import produce_card
-from briefing.shared.source_store import SourceStore
+from briefing.shared.stores.source_store import SourceStore
 
 
 def main() -> None:

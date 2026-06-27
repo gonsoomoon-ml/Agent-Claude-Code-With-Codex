@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 
 from .config import Settings, UserConfig
 from .gate import GatedCard
-from .source_store import SourceStore
+from .stores.source_store import SourceStore
 
 _WRAP = (
     '<div style="max-width:680px;margin:0 auto;padding:8px 16px;'

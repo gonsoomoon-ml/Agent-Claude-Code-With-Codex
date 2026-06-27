@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 from ..shared import _debug
-from ..shared.backends import make_stores
+from ..shared.stores.backends import make_stores
 from ..shared.config import list_users, load_settings, load_user
 from ..shared.pipeline import run_briefing
 from ._smoke import harness_fns, smoke_fns, smoke_users

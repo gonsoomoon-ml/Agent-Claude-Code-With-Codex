@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from .cache import CardCache, LocalCardCache
-from .config import Settings
+from ..config import Settings
 from .ledger import Ledger, LocalLedger
 from .source_store import SourceStore
 

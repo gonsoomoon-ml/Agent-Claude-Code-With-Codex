@@ -19,11 +19,11 @@ import time
 from dataclasses import dataclass
 from datetime import date
 
-from . import _debug
-from .config import Settings, UserConfig
-from .lenses import resolve_lens
-from .prompts import apply_prompt_template
-from .source_store import FrozenSource
+from .. import _debug
+from ..config import Settings, UserConfig
+from ..lenses import resolve_lens
+from ..prompts import apply_prompt_template
+from ..stores.source_store import FrozenSource
 
 _AUTHOR_TIMEOUT_S = 180  # `claude -p` 한 카드 작성 타임아웃(초)
 

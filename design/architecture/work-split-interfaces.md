@@ -20,7 +20,7 @@ LANE B — Delivery & UX (사람 B)
   ④ Web UI        → web/ + api/ → profile.yaml(쓰기·검증) · 결과 표시                           ┘ seam: profile.yaml 스키마
   ───────────────────────────────── 통합은 *얼린 contract* 로만 ─────────────────────────────────
 LANE A — Data Fabric (사람 A)
-  ③ DB        → shared/source_store(로컬→DDB/S3) + 새 card/verdict 캐시 층                    ┐ seam: SourceStore
+  ③ DB        → shared/stores/source_store(로컬→DDB/S3) + 새 card/verdict 캐시 층                    ┐ seam: SourceStore
   ① Gateway   → shared/{sources,curation} 의 fetch_article_fn ← Gateway 도구                  ┘ seam: FetchArticleFn
 ```
 
@@ -30,14 +30,14 @@ LANE A — Data Fabric (사람 A)
 
 ## 2. 얼릴 인터페이스 계약 4개 (병렬 시작 전 *합의 + 시그니처 고정*)
 
-**C1 · FetchArticleFn** (①이 구현 / curation 이 호출 — `shared/curation.py`):
+**C1 · FetchArticleFn** (①이 구현 / curation 이 호출 — `shared/retrieval/curation.py`):
 ```python
 FetchArticleFn = Callable[[Source, int], Sequence[FetchedArticle]]
 # Source(key, name, url, kind, lang, fragile) · FetchedArticle(source_key, url, title, raw_text, published_at)
 # ①: Gateway-backed fetch 가 이 시그니처를 만족하면 curate(..., fetch_article_fn=gateway_fetch) 로 끼움. 파이프라인 무변경.
 ```
 
-**C2 · SourceStore 인터페이스 + 캐시 스키마** (③이 구현 — `shared/source_store.py`):
+**C2 · SourceStore 인터페이스 + 캐시 스키마** (③이 구현 — `shared/stores/source_store.py`):
 ```python
 class SourceStore(Protocol):                 # 로컬파일·DDB/S3 둘 다 만족
     def freeze(self, *, url, title, raw_text, fetched_at) -> FrozenSource: ...
@@ -103,7 +103,7 @@ def users_due_now(users: Sequence[UserConfig], now_utc, *, granularity_h: int = 
 |---|---|---|---|---|
 | ② | toolkit `Runtime.configure().launch()` + invoke + teardown; root `.env` 에 ARN writeback; `bedrock-agentcore-starter-toolkit` dep | `runtime/deploy_runtime.py·invoke_runtime.py·teardown.sh` (Dockerfile·requirements 존재) | **C3** run_briefing | 실 AgentCore 에 1회 invoke → 사용자별 결과 SSE; teardown 동작 |
 | ⑤ | EventBridge 시간당 tick → Lambda dispatcher(`users_due_now`) → `run_briefing` + **SES 발송**; sent-log dedup | 새 `scheduler/` + SES `deliver`(entrypoint 의 TODO(deliver) 채움) | **C3·C4·C5·C6** | gonsoo 의 07:00 KST 에 검증 브리핑이 받은편지함 도착(중복 발송 0) |
-| ③ | SourceStore Protocol화 + DDB/S3 impl; (source_id,claim_text) verdict 캐시 + (source_id,lens,skill_hash) card 캐시; run_briefing/gate 에 캐시 조회 | `shared/source_store.py` + 새 `shared/cache.py` | **C2** SourceStore | 같은 (source,lens) 2회 실행 시 둘째는 claude -p·codex 0회(캐시 hit) |
+| ③ | SourceStore Protocol화 + DDB/S3 impl; (source_id,claim_text) verdict 캐시 + (source_id,lens,skill_hash) card 캐시; run_briefing/gate 에 캐시 조회 | `shared/stores/source_store.py` + 새 `shared/stores/cache.py` | **C2** SourceStore | 같은 (source,lens) 2회 실행 시 둘째는 claude -p·codex 0회(캐시 hit) |
 | ① | Gateway MCP 클라이언트 + authed 출처 fetch → `FetchArticleFn`; JWT 정적 주입(headless) | 새 `shared/gateway.py` + `sources.py`(authed 항목) | **C1** FetchArticleFn | authed 출처 1건이 curate→freeze→gate 통과(공개 RSS 경로 무변경) |
 | ④ | profile 쓰기·검증 API + 프론트(출처 선택·이메일·DEPTH·시각·렌즈) + 결과 뷰 | 새 `web/` + `api/` | **C4** profile.yaml | UI 에서 profile 생성 → 파이프라인이 그 사용자 브리핑 산출 |
 

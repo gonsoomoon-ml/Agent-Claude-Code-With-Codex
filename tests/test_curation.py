@@ -1,7 +1,7 @@
 """curation — 출처별 fetch 실패는 skip+기록(non-silent) 후 나머지 계속 (source-level graceful degradation)."""
-from briefing.shared.curation import curate
-from briefing.shared.source_store import SourceStore
-from briefing.shared.sources import FetchedArticle, Source
+from briefing.shared.retrieval.curation import curate
+from briefing.shared.stores.source_store import SourceStore
+from briefing.shared.retrieval.sources import FetchedArticle, Source
 
 
 def _src(key, fragile=False):

@@ -12,9 +12,9 @@ LLM/AWS 단계는 stub — 결정론 골격 + 다중 사용자·출처·lens 로
 from __future__ import annotations
 
 from briefing.shared import lenses
-from briefing.shared import sources as src
+from briefing.shared.retrieval import sources as src
 from briefing.shared.config import list_users, load_settings, load_user
-from briefing.shared.source_store import SourceStore
+from briefing.shared.stores.source_store import SourceStore
 
 
 def main() -> None:

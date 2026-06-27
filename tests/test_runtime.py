@@ -136,7 +136,7 @@ def test_smoke_users_synthesizes_when_no_real_users(tmp_path):
 def test_smoke_invoke_publishes_deterministically(tmp_path):
     from briefing.runtime._smoke import smoke_fns, smoke_users
     from briefing.shared.pipeline import run_briefing
-    from briefing.shared.source_store import SourceStore
+    from briefing.shared.stores.source_store import SourceStore
 
     settings = _settings(tmp_path)
     store = SourceStore(settings.source_store_path)

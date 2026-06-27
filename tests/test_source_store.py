@@ -1,7 +1,7 @@
 """source_store — content-addressed source-of-record (결정론 신뢰 핵심)."""
 import unicodedata
 
-from briefing.shared.source_store import SourceStore, content_id, media_from_url, normalize
+from briefing.shared.stores.source_store import SourceStore, content_id, media_from_url, normalize
 
 
 def test_normalize_crlf_and_trailing_ws():

@@ -11,10 +11,10 @@ PAY_PER_REQUEST 라 idle ≈ $0, 이 스모크 몇 건은 수십원 미만.
 import json
 import os
 
-from briefing.shared.author import Claim, DraftCard
-from briefing.shared.cache import card_key
-from briefing.shared.certifier import CertVerdict
-from briefing.shared.dynamo import DynamoCardCache, DynamoLedger, DynamoSourceStore
+from briefing.shared.harness.author import Claim, DraftCard
+from briefing.shared.stores.cache import card_key
+from briefing.shared.harness.certifier import CertVerdict
+from briefing.shared.stores.dynamo import DynamoCardCache, DynamoLedger, DynamoSourceStore
 from briefing.shared.gate import GatedCard
 
 region = os.getenv("AWS_REGION", "us-east-1")

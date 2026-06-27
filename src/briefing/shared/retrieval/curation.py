@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
-from . import _debug
+from .. import _debug
 from . import sources as src
-from .source_store import FrozenSource, SourceStore
+from ..stores.source_store import FrozenSource, SourceStore
 from .sources import FetchedArticle, Source
 
 FetchArticleFn = Callable[[Source, int], Sequence[FetchedArticle]]

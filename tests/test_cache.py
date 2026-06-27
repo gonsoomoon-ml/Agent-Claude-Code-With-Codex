@@ -1,13 +1,13 @@
 """cache — 공유 결과 캐시: 직렬화 라운드트립 + 같은 (source, lens) 둘째 실행은 파이프라인 재실행 0회."""
 from types import SimpleNamespace
 
-from briefing.shared.author import Claim, DraftCard
-from briefing.shared.cache import LocalCardCache, _deserialize, _serialize, card_key
-from briefing.shared.certifier import CertVerdict
+from briefing.shared.harness.author import Claim, DraftCard
+from briefing.shared.stores.cache import LocalCardCache, _deserialize, _serialize, card_key
+from briefing.shared.harness.certifier import CertVerdict
 from briefing.shared.gate import GatedCard
 from briefing.shared.pipeline import run_briefing
-from briefing.shared.source_store import SourceStore
-from briefing.shared.sources import FetchedArticle
+from briefing.shared.stores.source_store import SourceStore
+from briefing.shared.retrieval.sources import FetchedArticle
 
 
 def _gated():

@@ -1,10 +1,10 @@
 """gate — 오케스트레이터 + Maker-Checker 루프 + 불변식."""
 import inspect
 
-from briefing.shared.author import Claim, DraftCard
-from briefing.shared.certifier import CertVerdict
+from briefing.shared.harness.author import Claim, DraftCard
+from briefing.shared.harness.certifier import CertVerdict
 from briefing.shared.gate import _build_envelope, failed_claim_ids, produce_card, verify_card
-from briefing.shared.source_store import FrozenSource
+from briefing.shared.stores.source_store import FrozenSource
 
 
 def _card(claims=()):
