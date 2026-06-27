@@ -39,6 +39,9 @@ ENV_FILE = PROJECT_ROOT / ".env"
 AGENT_NAME = "briefing_agent"
 ENTRYPOINT_REL = "briefing/runtime/agentcore_runtime.py"  # 빌드 컨텍스트 기준 → 모듈 briefing.runtime.agentcore_runtime
 ENV_SECTION = "# ② Briefing Runtime (deploy_runtime.py)"
+# 컨테이너는 비-root 유저(uid 1000)로 실행 → /app 하위(상대 ./.data) 쓰기 불가(Errno 13).
+# v1 = ephemeral /tmp(invoke 간 비영속); ③ DB(S3/DDB) 백킹이 들어오면 그쪽이 정본 store.
+CONTAINER_STORE_PATH = "/tmp/briefing/source_store"  # noqa: S108 — 비-root writable, 의도된 ephemeral
 
 _G, _Y, _B, _R, _NC = "\033[0;32m", "\033[1;33m", "\033[0;34m", "\033[0;31m", "\033[0m"
 
@@ -56,7 +59,8 @@ def runtime_env(settings: Settings) -> dict[str, str]:
         "AUTHOR_MODEL_ID": settings.author_model_id,
         "SUPERVISOR_MODEL_ID": settings.supervisor_model_id,
         "SES_SENDER": settings.ses_sender,
-        "SOURCE_STORE_PATH": settings.source_store_path,
+        # ★ host 경로(상대 ./.data)와 무관하게 컨테이너엔 writable 절대경로(비-root uid 1000) 주입
+        "SOURCE_STORE_PATH": CONTAINER_STORE_PATH,
         "USERS_DIR": settings.users_dir,
         "CLAUDE_CODE_USE_BEDROCK": "1",   # author=claude -p → Bedrock
         "ENABLE_TOOL_SEARCH": "false",    # Bedrock 가 tool def 선로드(Gateway MCP 사용 시 필수)
@@ -197,8 +201,9 @@ def wait_until_ready(result, region: str) -> None:
         if status in terminal:
             break
     if status != "READY":
+        # ★ agent_id 가 이미 '{AGENT_NAME}-<suffix>' → log group = '{agent_id}-DEFAULT' (prefix 중복 금지)
         sys.exit(f"{_R}❌ Runtime 실패(status={status}) — `aws logs tail "
-                 f"/aws/bedrock-agentcore/runtimes/{AGENT_NAME}-{result.agent_id}-DEFAULT`{_NC}")
+                 f"/aws/bedrock-agentcore/runtimes/{result.agent_id}-DEFAULT`{_NC}")
     print(f"{_G}✅ READY{_NC}\n")
 
 
@@ -244,7 +249,7 @@ def main() -> None:
     print("   invoke:   uv run python -m briefing.runtime.invoke_runtime --mode smoke")
     print("   teardown: bash src/briefing/runtime/teardown.sh")
     if debug_on:
-        print(f"   logs:     aws logs tail /aws/bedrock-agentcore/runtimes/{AGENT_NAME}-{result.agent_id}-DEFAULT --follow --region {region}")
+        print(f"   logs:     aws logs tail /aws/bedrock-agentcore/runtimes/{result.agent_id}-DEFAULT --follow --region {region}")
     print()
 
 

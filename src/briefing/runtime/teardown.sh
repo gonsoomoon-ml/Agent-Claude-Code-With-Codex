@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # teardown.sh — ② Briefing Runtime 자원 reverse 순서 삭제 (deploy_runtime.py 의 역).
 # aiops monitor/runtime/teardown.sh 미러. OAuth/Cognito 단계는 우리(v1 공개 RSS)에 없음 → 제거.
-# 삭제: Runtime → (DELETED 대기) → ECR repo(images 포함) → IAM role(inline+managed detach) → CW log group.
+# 삭제: Runtime → ECR → IAM runtime role → CW log group → **CodeBuild project/role + S3 source**.
+# ★ toolkit role 은 sha256(AGENT_NAME)[:10] suffix(=per-agent) → 다른 agent 와 안 겹침(안전 삭제).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,8 +12,13 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 REGION="${AWS_REGION:-us-east-1}"
 AGENT_NAME="${BRIEFING_RUNTIME_NAME:-briefing_agent}"
 RUNTIME_ID="${BRIEFING_RUNTIME_ID:-}"
+ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo '')"
+AGENT_HASH="$(printf '%s' "$AGENT_NAME" | sha256sum | head -c 10)"   # toolkit suffix = per-agent
 ECR_REPO="bedrock-agentcore-${AGENT_NAME}"
 LOG_GROUP_PREFIX="/aws/bedrock-agentcore/runtimes/${AGENT_NAME}-"
+CB_PROJECT="bedrock-agentcore-${AGENT_NAME}-builder"
+CB_ROLE="AmazonBedrockAgentCoreSDKCodeBuild-${REGION}-${AGENT_HASH}"
+S3_SRC_BUCKET="bedrock-agentcore-codebuild-sources-${ACCOUNT_ID}-${REGION}"
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 echo -e "${YELLOW}=== ② teardown — ${AGENT_NAME} (region=${REGION}) ===${NC}"
@@ -31,19 +37,19 @@ else
     echo -e "  (Runtime 없음 — skip)"
 fi
 
-# ── [2/5] DELETED 대기 ──────────────────────────────────────────
-echo -e "${YELLOW}[2/5] Runtime DELETED 대기 (max 60s)${NC}"
+# ── [2/6] DELETED 대기 (AgentCore runtime 삭제는 1-3분 소요 가능) ──
+echo -e "${YELLOW}[2/6] Runtime DELETED 대기 (max 150s)${NC}"
 if [ -n "${RUNTIME_ID:-}" ] && [ "$RUNTIME_ID" != "None" ]; then
-    for i in $(seq 1 12); do
+    for i in $(seq 1 30); do
         STATUS=$(aws bedrock-agentcore-control get-agent-runtime --region "$REGION" \
             --agent-runtime-id "$RUNTIME_ID" --query 'status' --output text 2>/dev/null || echo "NOT_FOUND")
         { [ "$STATUS" = "NOT_FOUND" ] || [ "$STATUS" = "DELETED" ]; } && { echo -e "  ${GREEN}✓ ${STATUS}${NC}"; break; }
-        echo -e "  [${i}/12] ${STATUS}"; sleep 5
+        echo -e "  [${i}/30] ${STATUS}"; sleep 5
     done
 fi
 
-# ── [3/5] ECR repo 삭제 (images 포함) ───────────────────────────
-echo -e "${YELLOW}[3/5] ECR Repository 삭제${NC}"
+# ── [3/6] ECR repo 삭제 (images 포함) ───────────────────────────
+echo -e "${YELLOW}[3/6] ECR Repository 삭제${NC}"
 if aws ecr describe-repositories --region "$REGION" --repository-names "$ECR_REPO" >/dev/null 2>&1; then
     aws ecr delete-repository --region "$REGION" --repository-name "$ECR_REPO" --force >/dev/null
     echo -e "  ${GREEN}✓ ${ECR_REPO} 삭제${NC}"
@@ -51,8 +57,8 @@ else
     echo -e "  (ECR repo 없음 — skip)"
 fi
 
-# ── [4/5] IAM role 삭제 (inline=BriefingRuntimeExtras 포함 detach → delete) ──
-echo -e "${YELLOW}[4/5] IAM Role 삭제${NC}"
+# ── [4/6] IAM role 삭제 (inline=BriefingRuntimeExtras 포함 detach → delete) ──
+echo -e "${YELLOW}[4/6] IAM Role 삭제${NC}"
 ROLE_NAME="${ROLE_ARN:+${ROLE_ARN##*/}}"
 if [ -n "$ROLE_NAME" ] && [ "$ROLE_NAME" != "None" ] && aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
     for P in $(aws iam list-role-policies --role-name "$ROLE_NAME" --query 'PolicyNames' --output text); do
@@ -67,14 +73,32 @@ else
     echo -e "  (Role 없음 — skip)"
 fi
 
-# ── [5/5] CW log group 삭제 (prefix — redeploy 흔적 포함) ────────
-echo -e "${YELLOW}[5/5] CW Log Group 삭제${NC}"
+# ── [5/6] CW log group 삭제 (prefix — redeploy 흔적 포함) ────────
+echo -e "${YELLOW}[5/6] CW Log Group 삭제${NC}"
 N=0
 for LG in $(aws logs describe-log-groups --region "$REGION" --log-group-name-prefix "$LOG_GROUP_PREFIX" \
     --query 'logGroups[].logGroupName' --output text 2>/dev/null); do
     aws logs delete-log-group --region "$REGION" --log-group-name "$LG" 2>/dev/null && { echo -e "  ${GREEN}✓ ${LG}${NC}"; N=$((N+1)); }
 done
 [ "$N" -eq 0 ] && echo -e "  (Log Group 없음 — skip)"
+
+# ── [6/6] CodeBuild project/role + S3 source (toolkit 빌드 스캐폴드, per-agent) ──
+echo -e "${YELLOW}[6/6] CodeBuild project/role + S3 source 삭제${NC}"
+aws codebuild delete-project --region "$REGION" --name "$CB_PROJECT" 2>/dev/null \
+    && echo -e "  ${GREEN}✓ project ${CB_PROJECT}${NC}" || echo -e "  (project 없음 — skip)"
+if aws iam get-role --role-name "$CB_ROLE" >/dev/null 2>&1; then
+    for P in $(aws iam list-role-policies --role-name "$CB_ROLE" --query 'PolicyNames' --output text); do
+        aws iam delete-role-policy --role-name "$CB_ROLE" --policy-name "$P"
+    done
+    aws iam delete-role --role-name "$CB_ROLE" && echo -e "  ${GREEN}✓ role ${CB_ROLE}${NC}"
+else
+    echo -e "  (CodeBuild role 없음 — skip)"
+fi
+# S3 = 공유 버킷 → 우리 agent prefix object 만 삭제(버킷 미삭제)
+if [ -n "$ACCOUNT_ID" ]; then
+    aws s3 rm "s3://${S3_SRC_BUCKET}/${AGENT_NAME}/" --recursive 2>/dev/null \
+        && echo -e "  ${GREEN}✓ s3://${S3_SRC_BUCKET}/${AGENT_NAME}/${NC}" || echo -e "  (S3 source 없음 — skip)"
+fi
 
 # ── 루트 .env 의 BRIEFING_RUNTIME_* + 섹션 마커 cleanup ─────────
 if [ -f "$PROJECT_ROOT/.env" ]; then

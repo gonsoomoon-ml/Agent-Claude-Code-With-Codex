@@ -54,6 +54,21 @@ def test_runtime_env_debug_off_forwards_empty(tmp_path, monkeypatch):
     assert runtime_env(_settings(tmp_path))["DEBUG"] == ""
 
 
+def test_runtime_env_overrides_store_path_for_container():
+    """컨테이너는 비-root 유저(uid 1000) → /app 하위 상대경로(./.data) 쓰기 불가(Errno 13).
+
+    실 invoke 가 PermissionError 로 잡아낸 회귀 — host 경로와 무관하게 *writable 절대경로* 주입.
+    """
+    from briefing.runtime.deploy_runtime import CONTAINER_STORE_PATH, runtime_env
+
+    s = Settings(
+        region="us-east-1", author_model_id="m", supervisor_model_id="m",
+        ses_sender="x@y.com", source_store_path="./.data/source_store", users_dir="./users",
+    )
+    assert runtime_env(s)["SOURCE_STORE_PATH"] == CONTAINER_STORE_PATH
+    assert CONTAINER_STORE_PATH.startswith("/tmp/")   # ephemeral writable (v1; ③ DB 백킹 후속)
+
+
 # ───────────────────────── .env writeback (idempotent) ─────────────────────────
 
 def test_upsert_env_lines_replaces_value_without_duplicating(tmp_path):
