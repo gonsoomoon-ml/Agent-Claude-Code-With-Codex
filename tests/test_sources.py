@@ -4,13 +4,16 @@ from pathlib import Path
 
 import pytest
 
+import types
+
 from briefing.shared.sources import (
     CATALOG,
-    EXCERPT_CHARS,
+    MAX_SOURCE_CHARS,
     Source,
     _article_links,
     _excerpt,
     _extract_article,
+    _fetch_feed,
     _load_catalog,
     catalog_keys,
     fetch_set,
@@ -71,7 +74,7 @@ def test_extract_article_offline():
     assert art.title == "Introducing Claude Opus 4.8"          # trafilatura: h1/og:title (사이트 접미사 제거)
     assert "upgrading Claude Opus" in art.raw_text
     assert art.published_at.startswith("2026-05-28")            # <time datetime>
-    assert len(art.raw_text) <= EXCERPT_CHARS                   # bounded excerpt(전문 아님)
+    assert len(art.raw_text) <= MAX_SOURCE_CHARS                # 넉넉한 상한(초장문만 컷)
 
 
 def test_excerpt_bounds():
@@ -111,3 +114,22 @@ def test_fetch_generic_html_with_feed(monkeypatch):
     arts = s.fetch_generic_html(_src("auto"))
     assert seen == {"url": "https://feed.example/rss", "key": "anthropic"}  # 피드 → RSS 경로 재사용
     assert len(arts) == 1
+
+
+def test_fetch_feed_full_text(monkeypatch):
+    from briefing.shared import sources as s
+    entry = {"title": "T", "link": "https://x/a", "summary": "짧은 피드 요약", "published_parsed": None}
+    monkeypatch.setattr("feedparser.parse", lambda _u: types.SimpleNamespace(entries=[entry]))
+    monkeypatch.setattr(s, "_http_get", lambda _u: "<html>full</html>")
+    monkeypatch.setattr(s, "_extract_body", lambda _h: ("T", "전문 본문 긴 내용", "2026-06-27"))
+    arts = _fetch_feed("https://feed", "openai", window_hours=0)
+    assert len(arts) == 1 and arts[0].raw_text == "전문 본문 긴 내용"   # 피드 요약 아닌 *전문*
+
+
+def test_fetch_feed_full_text_fallback(monkeypatch):
+    from briefing.shared import sources as s
+    entry = {"title": "T", "link": "https://x/a", "summary": "피드 요약 폴백", "published_parsed": None}
+    monkeypatch.setattr("feedparser.parse", lambda _u: types.SimpleNamespace(entries=[entry]))
+    monkeypatch.setattr(s, "_http_get", lambda _u: "")               # 전문 fetch 실패 → 피드 요약 폴백
+    arts = _fetch_feed("https://feed", "openai", window_hours=0)
+    assert arts[0].raw_text == "피드 요약 폴백"

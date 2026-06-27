@@ -57,9 +57,10 @@ Resources:
       KeySchema:
         - AttributeName: source_id
           KeyType: HASH
-      # TTL 없음(기본 durable) — ledger/cache 의 source_id 포인터가 여기로 resolve(앵커).
-      # 원문 장기보존이 비용/저작권 부담이면 ttl 속성 + TimeToLiveSpecification 추가가 그 knob(전문 페치 시 재검토).
-      # text 가 커지면(전문 페치) DDB(400KB) 대신 S3(blob)+여기(포인터)로 분리 — 인터페이스 동일.
+      TimeToLiveSpecification:               # 원문(저작권 민감) 7일 ephemeral — corpus 아님. ledger 가 source_id+headline 보존(앵커 유지).
+        AttributeName: ttl
+        Enabled: true
+      # 전문(상한 8000자) 저장 — DDB 400KB 한도 밑. 그 이상 긴 기사면 S3(blob)+여기(포인터) 분리(인터페이스 동일).
 
 Outputs:
   CardCacheTableName:

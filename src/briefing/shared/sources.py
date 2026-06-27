@@ -116,11 +116,12 @@ def _clean_text(raw_html: str) -> str:
 
 
 def _fetch_feed(
-    feed_url: str, source_key: str, *, window_hours: int = 24, max_items: int = 5
+    feed_url: str, source_key: str, *, window_hours: int = 24, max_items: int = 5, full_text: bool = True
 ) -> list[FetchedArticle]:
-    """RSS/Atom 피드 URL → FetchedArticle 목록 (feedparser). fetch_clean_rss·제너릭 피드발견 공용.
+    """RSS/Atom 피드 → FetchedArticle 목록 (feedparser). fetch_clean_rss·제너릭 피드발견 공용.
 
-    published_parsed(UTC struct_time)는 `calendar.timegm` 으로 epoch 화(local 해석 방지). title·본문 모두 있어야 채택.
+    full_text 면 entry.link 를 따라가 trafilatura 로 *전문*(상한) 추출 — 실패 시 피드 요약 폴백.
+    published_parsed(UTC)는 calendar.timegm 으로 epoch 화. title·본문 모두 있어야 채택.
     """
     import feedparser  # lazy — feedparser 미설치 환경에서도 sources 모듈 import 가능
 
@@ -139,10 +140,17 @@ def _fetch_feed(
             published = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
         title = (entry.get("title") or "").strip()
         link = (entry.get("link") or "").strip()
-        raw = entry.get("summary") or ""
-        if not raw and entry.get("content"):
-            raw = entry["content"][0].get("value", "")
-        text = _clean_text(raw)
+        text = ""
+        if full_text and link:  # 전문 추적(상한). 실패 시 아래 피드 요약 폴백.
+            page = _http_get(link)
+            if page:
+                _t, body, _d = _extract_body(page)
+                text = body
+        if not text:
+            raw = entry.get("summary") or ""
+            if not raw and entry.get("content"):
+                raw = entry["content"][0].get("value", "")
+            text = _excerpt(_clean_text(raw))
         if not (title and text):
             continue
         out.append(FetchedArticle(source_key, link, title, text, published))
@@ -155,7 +163,7 @@ def fetch_clean_rss(source: Source, *, window_hours: int = 24, max_items: int = 
 
 
 # ── 제너릭 HTML/auto 출처 페치 (사이트별 코드 0; trafilatura 범용 추출 + 피드 자동발견) ──
-EXCERPT_CHARS = 800  # ★ 저작권 자세: 전문 아닌 bounded excerpt 만 동결(검증엔 충분)
+MAX_SOURCE_CHARS = 8000  # 넉넉한 상한 — 대부분 기사엔 사실상 전문, 초장문만 컷. 저작권: 원문은 7일 TTL(DynamoSourceStore)로 ephemeral.
 
 
 def discover_feed(url: str) -> str:
@@ -171,8 +179,8 @@ def _http_get(url: str) -> str:
     return trafilatura.fetch_url(url) or ""
 
 
-def _excerpt(text: str, limit: int = EXCERPT_CHARS) -> str:
-    """단어 경계에서 limit 자로 자른 발췌(전문 저장 회피)."""
+def _excerpt(text: str, limit: int = MAX_SOURCE_CHARS) -> str:
+    """단어 경계에서 limit 자로 자른 본문(초장문만 컷; 상한 = source-of-record 안전판)."""
     if len(text) <= limit:
         return text
     cut = text[:limit]
@@ -198,15 +206,21 @@ def _article_links(listing_html: str, listing_url: str) -> list[str]:
     return out
 
 
-def _extract_article(html_text: str, url: str, source_key: str) -> FetchedArticle | None:
-    """trafilatura 로 임의 기사 HTML → title·본문·date. bounded excerpt. 추출 실패 시 None."""
+def _extract_body(html_text: str) -> tuple[str, str, str]:
+    """trafilatura 로 임의 HTML → (title, 본문(상한 적용), date). 실패 시 ("","",""). RSS 전문·HTML 공용."""
     import trafilatura
     doc = trafilatura.bare_extraction(html_text, with_metadata=True)
     if doc is None:
-        return None
+        return ("", "", "")
     title = (getattr(doc, "title", "") or "").strip()
-    text = _excerpt((getattr(doc, "text", "") or "").strip())
-    published = (getattr(doc, "date", "") or "").strip()
+    body = _excerpt((getattr(doc, "text", "") or "").strip())
+    date = (getattr(doc, "date", "") or "").strip()
+    return (title, body, date)
+
+
+def _extract_article(html_text: str, url: str, source_key: str) -> FetchedArticle | None:
+    """HTML 기사 → FetchedArticle. title·본문 둘 다 있어야 채택."""
+    title, text, published = _extract_body(html_text)
     if not (title and text):
         return None
     return FetchedArticle(source_key, url, title, text, published)

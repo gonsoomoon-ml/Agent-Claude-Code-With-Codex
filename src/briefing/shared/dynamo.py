@@ -18,6 +18,7 @@ from .cache import _deserialize, _serialize
 from .source_store import FrozenSource, content_id, media_from_url, normalize
 
 _CACHE_TTL_DAYS = 30
+_SOURCE_TTL_DAYS = 7  # 원문(저작권 민감)은 7일 ephemeral — corpus 아님(파생물 ledger/card 는 durable)
 _SRC_FIELDS = ("source_id", "url", "title", "text", "fetched_at", "media")
 
 
@@ -103,7 +104,9 @@ class DynamoSourceStore:
             return _to_frozen(existing)            # 불변 — 충돌 시 최초 동결본 반환
         fs = FrozenSource(source_id=source_id, url=url, title=title, text=text,
                           fetched_at=fetched_at, media=media or media_from_url(url))
-        self._t.put_item(Item=asdict(fs))
+        item = asdict(fs)
+        item["ttl"] = int(time.time()) + _SOURCE_TTL_DAYS * 86400  # 7일 후 DDB 자동 만료(ephemeral)
+        self._t.put_item(Item=item)
         return fs
 
     def get_source(self, source_id: str) -> FrozenSource:
