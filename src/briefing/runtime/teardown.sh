@@ -23,8 +23,8 @@ S3_SRC_BUCKET="bedrock-agentcore-codebuild-sources-${ACCOUNT_ID}-${REGION}"
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 echo -e "${YELLOW}=== ② teardown — ${AGENT_NAME} (region=${REGION}) ===${NC}"
 
-# ── [1/5] Runtime 삭제 ──────────────────────────────────────────
-echo -e "${YELLOW}[1/5] Runtime 삭제${NC}"
+# ── [1/6] Runtime 삭제 ──────────────────────────────────────────
+echo -e "${YELLOW}[1/6] Runtime 삭제${NC}"
 RUNTIME_ID="${RUNTIME_ID:-$(aws bedrock-agentcore-control list-agent-runtimes --region "$REGION" \
     --query "agentRuntimes[?agentRuntimeName=='${AGENT_NAME}'].agentRuntimeId" --output text 2>/dev/null || echo '')}"
 # IAM role 은 runtime 삭제 전에 조회(삭제 후엔 못 읽음)
