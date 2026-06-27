@@ -33,6 +33,16 @@ def dprint(label: str, body: object = "", color: str = "cyan") -> None:
     print(f"{c}[DEBUG {label}]{r} {truncate(body)}", file=sys.stderr, flush=True)
 
 
+def warn(label: str, body: object = "") -> None:
+    """운영 경고 — **항상** stderr 출력(DEBUG 무관). 드문 실패(출처 skip 등)를 가시화 → silent failure 방지.
+
+    (dprint 와 달리 DEBUG 게이트 없음: 경고는 hot path 가 아니라 드문 실패 시에만 나므로 overhead 무관.
+     배포 시 stderr → CloudWatch 로 잡혀 "무엇이 왜 빠졌나"가 남는다.)
+    """
+    c, r = _C["yellow"], _C["reset"]
+    print(f"{c}[WARN {label}]{r} {truncate(body)}", file=sys.stderr, flush=True)
+
+
 def dprint_box(top_label: str, lines: list[str], color: str = "magenta") -> None:
     """다중 라인 박스: `┏━━ label ━━ … ┗━━` (stderr)."""
     if not is_debug():

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
+from . import _debug
 from . import sources as src
 from .source_store import FrozenSource, SourceStore
 from .sources import FetchedArticle, Source
@@ -40,7 +41,13 @@ def curate(
     by_key: dict[str, list[FrozenSource]] = {}
     seen: set[str] = set()
     for source in fetch_targets:
-        for art in fetch(source, window_hours):
+        try:
+            articles = fetch(source, window_hours)
+        except Exception as err:  # 출처 1개 실패(fragile NotImplementedError·네트워크·파싱)가 전체 브리핑을 죽이면 안 됨
+            # source-level graceful degradation: skip 후 계속. non-silent — warn(항상 stderr→CloudWatch).
+            _debug.warn("curate skip", f"{source.key}: {type(err).__name__}: {err}")
+            continue
+        for art in articles:
             fs = store.freeze(
                 url=art.url, title=art.title, raw_text=art.raw_text,
                 fetched_at=art.published_at, media=source.name,  # 발행 매체 = catalog 정본명(예 "AI Times")
