@@ -10,9 +10,11 @@ from __future__ import annotations
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
+from ..shared import _debug
 from ..shared.config import list_users, load_settings, load_user
 from ..shared.pipeline import run_briefing
 from ..shared.source_store import SourceStore
+from ._smoke import smoke_fns, smoke_users
 
 app = BedrockAgentCoreApp()
 
@@ -21,16 +23,30 @@ app = BedrockAgentCoreApp()
 async def briefing_entrypoint(payload, context):
     """매일 1회: `run_briefing`(host-agnostic) 실행 → 사용자별 결과를 dict 로 yield(SSE).
 
-    payload: {"users": [id,...]?(기본=전체), "window_hours": 24?}. ★ gate/certifier 는 user-blind(trust 경계).
+    payload:
+      - `mode`: "real"(기본) | "smoke". ★ smoke = ②a 배포 plumbing 검증(claude/codex/네트워크 0,
+        결정론 fake DI fns + 합성 사용자). real = 진짜 검증 후 발행(②b 에서 컨테이너에 CLI 번들 후).
+      - `users`: [id,...]?(real 기본=전체) · `window_hours`: 24?
+    ★ gate/certifier 는 user-blind(trust 경계). DEBUG=1 시 trace=stderr→CloudWatch(SSE 와 분리).
     """
     settings = load_settings()
     store = SourceStore(settings.source_store_path)
     window_hours = int(payload.get("window_hours", 24))
-    users = [load_user(uid, settings) for uid in (payload.get("users") or list_users(settings))]
+    mode = payload.get("mode", "real")
 
-    yield {"type": "stage", "stage": "run_briefing", "users": len(users)}
-    for b in run_briefing(settings, store, users, window_hours=window_hours):
+    if mode == "smoke":
+        users, fns = smoke_users(settings), smoke_fns()   # 결정론 fake — 배포 plumbing 만 증명
+    else:
+        users = [load_user(uid, settings) for uid in (payload.get("users") or list_users(settings))]
+        fns = {}   # None 기본 = 실제 claude -p author + codex certifier
+
+    _debug.dprint("entrypoint", f"mode={mode} · users={len(users)} · window_hours={window_hours}")
+    yield {"type": "stage", "stage": "run_briefing", "mode": mode, "users": len(users)}
+    for b in run_briefing(settings, store, users, window_hours=window_hours, **fns):
         # TODO(deliver): SES send(b.recipient, b.email) · QUARANTINE → 사람-검토 큐(별도 행선지).
+        _debug.dprint("entrypoint ← briefing",
+                      f"{b.user_id}: published={b.published} quarantined={b.quarantined}",
+                      "green" if b.published else "yellow")
         yield {
             "type": "user", "user": b.user_id, "recipient": b.recipient,
             "published": b.published, "quarantined": b.quarantined, "bytes": len(b.email),

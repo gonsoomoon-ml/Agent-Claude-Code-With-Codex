@@ -14,7 +14,8 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["ruff", "pytest"]
+# ruff/pytest = 개발; starter-toolkit = ② 배포(호스트 전용 — 컨테이너 requirements.txt 엔 미포함).
+dev = ["ruff", "pytest", "bedrock-agentcore-starter-toolkit>=0.3"]
 
 [build-system]
 requires = ["hatchling"]
