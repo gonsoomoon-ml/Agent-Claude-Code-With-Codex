@@ -8,11 +8,13 @@ shared(진실)=로직, 이 파일=배포 어댑터. `BedrockAgentCoreApp` + `@ap
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
+from ..shared.backends import make_stores
 from ..shared.config import list_users, load_settings, load_user
 from ..shared.pipeline import run_briefing
-from ..shared.source_store import SourceStore
 
 app = BedrockAgentCoreApp()
 
@@ -24,12 +26,16 @@ async def briefing_entrypoint(payload, context):
     payload: {"users": [id,...]?(기본=전체), "window_hours": 24?}. ★ gate/certifier 는 user-blind(trust 경계).
     """
     settings = load_settings()
-    store = SourceStore(settings.source_store_path)
+    store, card_cache, ledger = make_stores(settings)  # backend(local|dynamo) 일관 선택
     window_hours = int(payload.get("window_hours", 24))
+    # run_date = 이 run 의 논리 날짜(ledger 시간 인덱스). 호스트 경계라 시계 읽기 허용; payload 로 override 가능(replay).
+    run_date = payload.get("run_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     users = [load_user(uid, settings) for uid in (payload.get("users") or list_users(settings))]
 
-    yield {"type": "stage", "stage": "run_briefing", "users": len(users)}
-    for b in run_briefing(settings, store, users, window_hours=window_hours):
+    yield {"type": "stage", "stage": "run_briefing", "users": len(users),
+           "backend": settings.backend, "run_date": run_date}
+    for b in run_briefing(settings, store, users, window_hours=window_hours,
+                          card_cache=card_cache, ledger=ledger, run_date=run_date):
         # TODO(deliver): SES send(b.recipient, b.email) · QUARANTINE → 사람-검토 큐(별도 행선지).
         yield {
             "type": "user", "user": b.user_id, "recipient": b.recipient,
