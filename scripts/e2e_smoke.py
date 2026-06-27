@@ -50,7 +50,7 @@ def main() -> None:
     for v in gated.verdicts:
         print(f"      {v.claim_id}: {v.verdict:8} ({v.model})  {v.evidence[:64]}")
 
-    email = render.render_email([gated], user, settings)
+    email = render.render_email([gated], user, settings, store)
     print(f"[5] render: {len(email)} bytes (depth={user.depth})\n")
     print(email)
 

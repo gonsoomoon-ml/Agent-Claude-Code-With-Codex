@@ -80,7 +80,7 @@ def render_briefing() -> str:
     cards: list[GatedCard] = _CTX.get("cards", [])
     user: UserConfig = _CTX["user"]
     settings: Settings = _CTX["settings"]
-    email = render.render_email(cards, user, settings)
+    email = render.render_email(cards, user, settings, _CTX["store"])
     _CTX["email"] = email
     published = sum(1 for c in cards if c.decision == "PUBLISH")
     return f"Rendered briefing: {published} published / {len(cards) - published} quarantined, {len(email)} bytes."

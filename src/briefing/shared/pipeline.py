@@ -58,7 +58,7 @@ def run_briefing(
                 user_id=u.id,
                 recipient=u.recipient,
                 cards=cards,
-                email=render.render_email(cards, u, settings),
+                email=render.render_email(cards, u, settings, store),
                 published=sum(1 for c in cards if c.decision == "PUBLISH"),
                 quarantined=sum(1 for c in cards if c.decision == "QUARANTINE"),
             )

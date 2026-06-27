@@ -36,7 +36,7 @@ def test_run_briefing_multiuser_end_to_end(tmp_path):
     )
     assert [b.user_id for b in out] == ["alice", "bob"]            # per-user 팬아웃
     assert all(b.published == 1 and b.quarantined == 0 for b in out)
-    assert "검증됨" in out[0].email and out[0].recipient == "alice@example.com"
+    assert "독립 검증" in out[0].email and out[0].recipient == "alice@example.com"
 
 
 def test_run_briefing_degrades_blocked_supporting(tmp_path):
