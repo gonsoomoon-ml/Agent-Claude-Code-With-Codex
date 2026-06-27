@@ -72,15 +72,20 @@ def _print_event(ev: dict) -> None:
               f"published={ev.get('published')} quarantined={ev.get('quarantined')} bytes={ev.get('bytes')}")
     elif etype == "workflow_complete":
         print(f"{_B}■ workflow_complete{_NC}")
+    elif etype == "accepted":   # ⑤ scheduled — 즉시 ack(브리핑은 백그라운드 → CloudWatch 로 확인)
+        print(f"{_B}▶ accepted (scheduled async){_NC} users={ev.get('users')} now={ev.get('now_utc')} dry_run={ev.get('dry_run')}")
     else:
         print(f"{_DIM}{json.dumps(ev, ensure_ascii=False)}{_NC}")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="② Runtime 1회 invoke + SSE 출력")
-    ap.add_argument("--mode", choices=["smoke", "harness", "real"], default="smoke",
-                    help="smoke=전부 fake(plumbing) | harness=fetch만 fake(진짜 claude+codex, ②b) | real=진짜 파이프라인")
+    ap.add_argument("--mode", choices=["smoke", "harness", "real", "scheduled"], default="smoke",
+                    help="smoke|harness|real | scheduled=⑤ async(즉시 accepted, 브리핑 백그라운드)")
     ap.add_argument("--window-hours", type=int, default=24)
+    ap.add_argument("--now-utc", default=None, help="scheduled: now_utc override(ISO, 예 2026-06-27T22:00 → KST 07:00)")
+    ap.add_argument("--users", default=None, help="콤마구분 user id override (예 gonsoo)")
+    ap.add_argument("--dry-run", action="store_true", help="scheduled: 발송 안 함(due+brief 만)")
     args = ap.parse_args()
 
     region = load_settings().region
@@ -96,6 +101,12 @@ def main() -> None:
     cfg = Config(connect_timeout=60, read_timeout=900, retries={"max_attempts": 0})
     client = boto3.client("bedrock-agentcore", region_name=region, config=cfg)
     payload = {"mode": args.mode, "window_hours": args.window_hours}
+    if args.now_utc:
+        payload["now_utc"] = args.now_utc
+    if args.users:
+        payload["users"] = args.users.split(",")
+    if args.dry_run:
+        payload["dry_run"] = True
 
     resp = client.invoke_agent_runtime(
         agentRuntimeArn=arn,
