@@ -27,18 +27,21 @@ except ModuleNotFoundError:  # pragma: no cover
 @dataclass(frozen=True)
 class Settings:
     region: str
-    author_model_id: str   # author=`claude -p` 에 ANTHROPIC_MODEL 로 전달
+    author_model_id: str       # author=`claude -p` 에 ANTHROPIC_MODEL 로 전달
+    supervisor_model_id: str   # Strands supervisor 오케스트레이터 모델(기본=author) — per-role 라우팅
     # certifier 모델은 codex 가 소유(~/.codex/config.toml) — 우리는 설정하지 않음(provenance 만 기록).
-    ses_sender: str        # 공유 발신 신원(수신자는 per-user)
+    ses_sender: str            # 공유 발신 신원(수신자는 per-user)
     source_store_path: str # content-addressed source-of-record(공유)
     users_dir: str         # per-user 설정 디렉토리
 
 
 def load_settings() -> Settings:
     g = os.getenv
+    author_model_id = g("AUTHOR_MODEL_ID", "global.anthropic.claude-sonnet-4-6")
     return Settings(
         region=g("AWS_REGION", "us-east-1"),
-        author_model_id=g("AUTHOR_MODEL_ID", "global.anthropic.claude-sonnet-4-6"),
+        author_model_id=author_model_id,
+        supervisor_model_id=g("SUPERVISOR_MODEL_ID", author_model_id),  # 미설정 시 author 모델 재사용
         ses_sender=g("SES_SENDER", ""),
         source_store_path=g("SOURCE_STORE_PATH", "./.data/source_store"),
         users_dir=g("USERS_DIR", "./users"),

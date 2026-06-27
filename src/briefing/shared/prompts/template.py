@@ -1,8 +1,8 @@
 """prompt 템플릿 로더 — .md 템플릿 로드 + 브레이스-안전 변수 주입.
 
-(aws-samples/sample-deep-insight 의 `prompts/template.py` 패턴 차용 — 단 footgun 회피.)
-그들은 `str.format(**ctx)` 로 `{VAR}` 를 치환하지만, 그러면 *임의 내용*(기사 원문·코드·JSON)에 든
-리터럴 `{`/`}` 가 파이프라인을 깬다(KeyError/ValueError). 우리는 **`string.Template`($VAR)+safe_substitute** 로:
+(흔한 `str.format(**ctx)` 로더의 footgun 회피.)
+`str.format` 은 `{VAR}` 치환 시 *임의 내용*(기사 원문·코드·JSON)에 든 리터럴 `{`/`}` 에서
+파이프라인을 깬다(KeyError/ValueError). 우리는 **`string.Template`($VAR)+safe_substitute** 로:
 - 리터럴 `{`·`}`·미상 `$var` 는 *그대로* 둠(크래시 없음).
 - **큐레이션된 변수(CURRENT_DATE 등)만** 주입. *source 원문은 템플릿에 넣지 않는다* — claude -p 의 user prompt 인자로 별도.
 """
@@ -30,5 +30,5 @@ def render(template: str, **vars: str) -> str:
 
 
 def apply_prompt_template(name: str, **vars: str) -> str:
-    """load_template + render (Deep Insight 의 apply_prompt_template 역할, 단 브레이스-안전·static)."""
+    """load_template + render (이름으로 .md 로드 후 변수 치환; 단 브레이스-안전·static)."""
     return render(load_template(name), **vars)

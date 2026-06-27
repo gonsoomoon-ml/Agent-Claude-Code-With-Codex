@@ -9,8 +9,13 @@
 """
 from __future__ import annotations
 
+import calendar
+import html as _html
+import re
+import time
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -100,9 +105,47 @@ class FetchedArticle:
     published_at: str      # ISO8601 (24h 윈도우 필터용)
 
 
-def fetch_clean_rss(source: Source, *, window_hours: int = 24) -> list[FetchedArticle]:
-    """클린 RSS 페치 (feedparser). TODO: 24h 윈도우 필터 · per-source try/except · 브라우저형 UA."""
-    raise NotImplementedError("clean RSS fetch — feedparser 구현 예정")
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _clean_text(raw_html: str) -> str:
+    """RSS summary/content(HTML 가능) → 평문. 태그 제거 + 엔티티 해제 + 공백 정리."""
+    text = _html.unescape(_TAG_RE.sub(" ", raw_html or ""))
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def fetch_clean_rss(
+    source: Source, *, window_hours: int = 24, max_items: int = 5
+) -> list[FetchedArticle]:
+    """클린 RSS 페치 (feedparser). window_hours 이내 항목만(0=무필터), 최신 max_items 개 cap.
+
+    published_parsed(UTC struct_time)는 `calendar.timegm` 으로 epoch 화(local 해석 방지). title·본문 모두 있어야 채택.
+    """
+    import feedparser  # lazy — feedparser 미설치 환경에서도 sources 모듈 import 가능
+
+    feed = feedparser.parse(source.url)
+    now = time.time()
+    out: list[FetchedArticle] = []
+    for entry in feed.entries:
+        if len(out) >= max_items:
+            break
+        parsed = entry.get("published_parsed") or entry.get("updated_parsed")
+        published = ""
+        if parsed:
+            ts = calendar.timegm(parsed)  # struct_time(UTC) → epoch
+            if window_hours and (now - ts) / 3600.0 > window_hours:
+                continue
+            published = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+        title = (entry.get("title") or "").strip()
+        link = (entry.get("link") or "").strip()
+        raw = entry.get("summary") or ""
+        if not raw and entry.get("content"):
+            raw = entry["content"][0].get("value", "")
+        text = _clean_text(raw)
+        if not (title and text):
+            continue
+        out.append(FetchedArticle(source.key, link, title, text, published))
+    return out
 
 
 def fetch_fragile(source: Source) -> list[FetchedArticle]:
