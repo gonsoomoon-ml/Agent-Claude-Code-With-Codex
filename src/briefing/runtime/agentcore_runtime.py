@@ -8,12 +8,14 @@ shared(진실)=로직, 이 파일=배포 어댑터. `BedrockAgentCoreApp` + `@ap
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 from ..shared import _debug
+from ..shared.backends import make_stores
 from ..shared.config import list_users, load_settings, load_user
 from ..shared.pipeline import run_briefing
-from ..shared.source_store import SourceStore
 from ._smoke import harness_fns, smoke_fns, smoke_users
 
 app = BedrockAgentCoreApp()
@@ -28,12 +30,14 @@ async def briefing_entrypoint(payload, context):
         · smoke   = ②a plumbing 검증 — 전부 fake(claude/codex/네트워크 0) + 합성 사용자.
         · harness = ②b — **fetch 만 fake, draft/verify 는 진짜 claude·codex**(합성 source 로 CLI 실행만 격리 검증).
         · real    = 진짜 RSS fetch + 진짜 claude·codex(실 사용자 — fragile 출처는 ① 필요).
-      - `users`: [id,...]?(real 기본=전체) · `window_hours`: 24?
+      - `users`: [id,...]?(real 기본=전체) · `window_hours`: 24? · `run_date`: "YYYY-MM-DD"?(미지정 시 UTC 오늘)
     ★ gate/certifier 는 user-blind(trust 경계). DEBUG=1 시 trace=stderr→CloudWatch(SSE 와 분리).
     """
     settings = load_settings()
-    store = SourceStore(settings.source_store_path)
+    store, card_cache, ledger = make_stores(settings)  # backend(local|dynamo) 일관 선택(③)
     window_hours = int(payload.get("window_hours", 24))
+    # run_date = 이 run 의 논리 날짜(ledger 시간 인덱스). 호스트 경계라 시계 읽기 허용; payload override(replay).
+    run_date = payload.get("run_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     mode = payload.get("mode", "real")
 
     if mode == "smoke":
@@ -44,9 +48,18 @@ async def briefing_entrypoint(payload, context):
         users = [load_user(uid, settings) for uid in (payload.get("users") or list_users(settings))]
         fns = {}   # None 기본 = 실제 claude -p author + codex certifier
 
-    _debug.dprint("entrypoint", f"mode={mode} · users={len(users)} · window_hours={window_hours}")
-    yield {"type": "stage", "stage": "run_briefing", "mode": mode, "users": len(users)}
-    for b in run_briefing(settings, store, users, window_hours=window_hours, **fns):
+    # ★ 테스트 모드(smoke/harness)는 card_cache/ledger 우회 — 캐시-hit 으로 harness 의 진짜 CLI 실행이 가려지는 것
+    #   + production 원장(③) 오염 방지. store 는 content-addressed 라 그대로 사용(무해).
+    test_mode = mode in ("smoke", "harness")
+
+    _debug.dprint("entrypoint",
+                  f"mode={mode} · backend={settings.backend} · users={len(users)} · run_date={run_date}")
+    yield {"type": "stage", "stage": "run_briefing", "mode": mode, "users": len(users),
+           "backend": settings.backend, "run_date": run_date}
+    for b in run_briefing(settings, store, users, window_hours=window_hours,
+                          card_cache=None if test_mode else card_cache,
+                          ledger=None if test_mode else ledger,
+                          run_date=run_date, **fns):
         # TODO(deliver): SES send(b.recipient, b.email) · QUARANTINE → 사람-검토 큐(별도 행선지).
         _debug.dprint("entrypoint ← briefing",
                       f"{b.user_id}: published={b.published} quarantined={b.quarantined}",

@@ -11,9 +11,11 @@ from dataclasses import dataclass
 
 from . import render
 from . import sources as src
+from .cache import CardCache, card_key
 from .config import Settings, UserConfig
 from .curation import FetchArticleFn, curate
 from .gate import GatedCard, produce_card
+from .ledger import Ledger
 from .source_store import SourceStore
 
 
@@ -37,6 +39,9 @@ def run_briefing(
     draft_fn=None,
     revise_fn=None,
     verify_fn=None,
+    card_cache: CardCache | None = None,
+    ledger: Ledger | None = None,
+    run_date: str = "",
 ) -> list[UserBriefing]:
     """공유 수집(union)→동결 → per-user [gate.produce_card → render]. 사용자별 UserBriefing 목록 반환.
 
@@ -50,7 +55,7 @@ def run_briefing(
         user_keys = [s.key for s in src.resolve_sources(u.sources)]
         frozen = [fs for k in user_keys for fs in by_key.get(k, [])]
         cards = tuple(
-            produce_card(fs, u, settings, store, draft_fn=draft_fn, revise_fn=revise_fn, verify_fn=verify_fn)
+            _process(fs, u, settings, store, card_cache, ledger, run_date, draft_fn, revise_fn, verify_fn)
             for fs in frozen
         )
         out.append(
@@ -64,3 +69,27 @@ def run_briefing(
             )
         )
     return out
+
+
+def _process(fs, u, settings, store, card_cache, ledger, run_date, draft_fn, revise_fn, verify_fn) -> GatedCard:
+    """카드 캐시(재계산 방지) + ledger(history 기록). 둘 다 드라이버 레벨 — gate/trust 무관.
+
+    cache hit 면 claude -p+codex skip; ledger 는 매 (user, source) 처리를 (run_date, source_id, card_key) 로 기록
+    → history 조회가 source_store(원문)·card cache(카드) 를 join 할 수 있게 한다(중복 저장 없음).
+    """
+    if card_cache is None and ledger is None:
+        return produce_card(fs, u, settings, store, draft_fn=draft_fn, revise_fn=revise_fn, verify_fn=verify_fn)
+    key = card_key(
+        fs.source_id,
+        getattr(u, "lens", "") or "",
+        getattr(u, "skill_md", "") or "",
+        getattr(settings, "author_model_id", ""),
+    )
+    gated = card_cache.get(key) if card_cache is not None else None
+    if gated is None:
+        gated = produce_card(fs, u, settings, store, draft_fn=draft_fn, revise_fn=revise_fn, verify_fn=verify_fn)
+        if card_cache is not None:
+            card_cache.put(key, gated)
+    if ledger is not None:
+        ledger.append(run_date, u.id, fs.source_id, key, gated.decision, gated.card.headline)
+    return gated

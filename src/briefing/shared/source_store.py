@@ -15,6 +15,7 @@ import json
 import unicodedata
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,7 @@ class FrozenSource:
     title: str
     text: str        # 정규화된 정본 (단일 정규화 — author·certifier 가 같은 바이트)
     fetched_at: str  # ISO8601 (결정론 위해 호출자가 외부 주입)
+    media: str = ""  # 발행 매체(예: "AI Times"); 빈값이면 freeze 가 url 도메인으로 유도(→ aitimes.com)
 
 
 def normalize(text: str) -> str:
@@ -41,6 +43,15 @@ def content_id(normalized_text: str) -> str:
     return hashlib.sha256(normalized_text.encode("utf-8")).hexdigest()
 
 
+def media_from_url(url: str) -> str:
+    """url → 발행 매체 도메인(www. 제거). 예: https://www.aitimes.com/x → aitimes.com.
+
+    catalog 의 Source.name 이 주어지면 그게 우선(정본); 이건 미제공 시 fallback.
+    """
+    host = urlparse(url).netloc.lower()
+    return host[4:] if host.startswith("www.") else host
+
+
 class SourceStore:
     """sha256 키 content-addressed store. 동결본은 불변(immutable)."""
 
@@ -51,18 +62,21 @@ class SourceStore:
     def _path(self, source_id: str) -> Path:
         return self.root / f"{source_id}.json"
 
-    def freeze(self, *, url: str, title: str, raw_text: str, fetched_at: str) -> FrozenSource:
+    def freeze(self, *, url: str, title: str, raw_text: str, fetched_at: str,
+               media: str = "") -> FrozenSource:
         """정본을 정규화·해시·동결 저장. 동결본은 불변 — 같은 source_id 면 *최초* 동결본을 반환(idempotent).
 
         같은 정규화 텍스트가 다른 url 로 와도 source_id 동일 → 최초 메타데이터가 정본.
         반환 == 저장 == get_source 를 보장(충돌 시 저장본을 읽어 반환).
+        media = 발행 매체(catalog Source.name, 예 "AI Times"); 빈값이면 url 도메인으로 유도.
         """
         text = normalize(raw_text)
         source_id = content_id(text)
         p = self._path(source_id)
         if p.exists():
             return self.get_source(source_id)
-        fs = FrozenSource(source_id=source_id, url=url, title=title, text=text, fetched_at=fetched_at)
+        fs = FrozenSource(source_id=source_id, url=url, title=title, text=text,
+                          fetched_at=fetched_at, media=media or media_from_url(url))
         p.write_text(json.dumps(asdict(fs), ensure_ascii=False, indent=2), encoding="utf-8")
         return fs
 

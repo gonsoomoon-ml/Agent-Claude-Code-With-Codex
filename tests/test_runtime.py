@@ -10,17 +10,22 @@ AWS 호출(configure/launch/teardown)은 실 배포(done-when)로 검증 — 여
 """
 from __future__ import annotations
 
-from briefing.shared.config import Settings
+import dataclasses
+
+from briefing.shared.config import Settings, load_settings
 
 
-def _settings(tmp_path, *, users_dir: str | None = None) -> Settings:
-    return Settings(
+def _settings(tmp_path, *, users_dir: str | None = None, **overrides) -> Settings:
+    # load_settings() 기본값 위에 override — Settings 에 필드가 추가돼도(③ DB 등) 깨지지 않게(replace).
+    return dataclasses.replace(
+        load_settings(),
         region="us-east-1",
         author_model_id="global.anthropic.claude-sonnet-4-6",
         supervisor_model_id="global.anthropic.claude-sonnet-4-6",
         ses_sender="briefing@example.com",
         source_store_path=str(tmp_path / "store"),
         users_dir=users_dir or str(tmp_path / "nousers"),
+        **overrides,
     )
 
 
@@ -37,6 +42,7 @@ def test_runtime_env_includes_container_core_keys(tmp_path, monkeypatch):
     assert env["SES_SENDER"] == "briefing@example.com"
     assert env["CLAUDE_CODE_USE_BEDROCK"] == "1"   # author=claude -p 를 Bedrock 로 라우팅
     assert env["ENABLE_TOOL_SEARCH"] == "false"
+    assert env["BACKEND"] == "dynamo"              # ③ DB: 클라우드는 dynamo backend(영속)
 
 
 def test_runtime_env_forwards_debug_on(tmp_path, monkeypatch):
@@ -61,10 +67,8 @@ def test_runtime_env_overrides_store_path_for_container():
     """
     from briefing.runtime.deploy_runtime import CONTAINER_STORE_PATH, runtime_env
 
-    s = Settings(
-        region="us-east-1", author_model_id="m", supervisor_model_id="m",
-        ses_sender="x@y.com", source_store_path="./.data/source_store", users_dir="./users",
-    )
+    # host 가 비-writable 상대경로(./.data)여도 컨테이너엔 writable 절대경로 주입
+    s = dataclasses.replace(load_settings(), source_store_path="./.data/source_store")
     assert runtime_env(s)["SOURCE_STORE_PATH"] == CONTAINER_STORE_PATH
     assert CONTAINER_STORE_PATH.startswith("/tmp/")   # ephemeral writable (v1; ③ DB 백킹 후속)
 

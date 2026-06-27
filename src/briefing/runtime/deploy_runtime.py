@@ -59,7 +59,10 @@ def runtime_env(settings: Settings) -> dict[str, str]:
         "AUTHOR_MODEL_ID": settings.author_model_id,
         "SUPERVISOR_MODEL_ID": settings.supervisor_model_id,
         "SES_SENDER": settings.ses_sender,
-        # ★ host 경로(상대 ./.data)와 무관하게 컨테이너엔 writable 절대경로(비-root uid 1000) 주입
+        # ★ ③ DB: 클라우드는 dynamo backend(영속 — microVM ephemeral FS 를 넘어 source/cache/ledger 공유).
+        #   테이블명 default 가 CFN(briefing-*)과 일치하므로 그 외 env 불필요. region=settings.region(us-east-1) 일치 필수.
+        "BACKEND": "dynamo",
+        # SOURCE_STORE_PATH 는 local backend 폴백용(dynamo 경로는 미사용). 비-root writable 절대경로 유지.
         "SOURCE_STORE_PATH": CONTAINER_STORE_PATH,
         "USERS_DIR": settings.users_dir,
         "CLAUDE_CODE_USE_BEDROCK": "1",   # author=claude -p → Bedrock
@@ -193,6 +196,17 @@ def attach_runtime_extras(result, region: str) -> None:
                 "Effect": "Allow",
                 "Action": ["ses:SendEmail", "ses:SendRawEmail"],
                 "Resource": "*",
+            },
+            {
+                # ③ DB: dynamo backend(source/cache/ledger) — dynamo.py 가 쓰는 3작업만(최소권한).
+                # ledger 시간-쿼리는 GSI 사용 → index/* 포함. 테이블 prefix=briefing-(CFN infra/ddb.yaml).
+                "Sid": "DynamoStores",
+                "Effect": "Allow",
+                "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"],
+                "Resource": [
+                    f"arn:aws:dynamodb:*:{account}:table/briefing-*",
+                    f"arn:aws:dynamodb:*:{account}:table/briefing-*/index/*",
+                ],
             },
         ],
     }

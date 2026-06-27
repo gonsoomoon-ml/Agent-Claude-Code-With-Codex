@@ -31,7 +31,14 @@ class Settings:
     supervisor_model_id: str   # Strands supervisor 오케스트레이터 모델(기본=author) — per-role 라우팅
     # certifier 모델은 codex 가 소유(~/.codex/config.toml) — 우리는 설정하지 않음(provenance 만 기록).
     ses_sender: str            # 공유 발신 신원(수신자는 per-user)
-    source_store_path: str # content-addressed source-of-record(공유)
+    backend: str           # "local"(기본) | "dynamo" — 세 store(source/cache/ledger) 일관 선택
+    source_store_path: str # local backend: content-addressed source-of-record(공유)
+    cache_path: str        # local backend: 결과 캐시 루트(③ 재실행 방지)
+    ledger_path: str       # local backend: run history(시간·사용자) JSONL 루트
+    cache_table: str       # dynamo backend: card-cache 테이블명(CFN infra/ddb.yaml)
+    ledger_table: str      # dynamo backend: ledger 테이블명(시간·사용자 history)
+    source_table: str      # dynamo backend: source-store 테이블명(content-addressed source-of-record)
+    ddb_endpoint_url: str  # 빈값=실 AWS(기본); 값 주면 DynamoDB Local(무료 에뮬레이터)
     users_dir: str         # per-user 설정 디렉토리
 
 
@@ -43,7 +50,14 @@ def load_settings() -> Settings:
         author_model_id=author_model_id,
         supervisor_model_id=g("SUPERVISOR_MODEL_ID", author_model_id),  # 미설정 시 author 모델 재사용
         ses_sender=g("SES_SENDER", ""),
+        backend=g("BACKEND", "local"),
         source_store_path=g("SOURCE_STORE_PATH", "./.data/source_store"),
+        cache_path=g("CACHE_PATH", "./.data/card_cache"),
+        ledger_path=g("LEDGER_PATH", "./.data/ledger"),
+        cache_table=g("CACHE_TABLE", "briefing-card-cache"),
+        ledger_table=g("LEDGER_TABLE", "briefing-ledger"),
+        source_table=g("SOURCE_TABLE", "briefing-source-store"),
+        ddb_endpoint_url=g("DDB_ENDPOINT_URL", ""),
         users_dir=g("USERS_DIR", "./users"),
     )
 
