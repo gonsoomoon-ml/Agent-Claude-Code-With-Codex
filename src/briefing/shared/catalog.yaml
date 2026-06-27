@@ -30,6 +30,13 @@
   kind: rss
   lang: en
 
+- key: google-research
+  name: Google Research
+  url: https://research.google/blog/rss/
+  kind: rss
+  lang: en
+  # ai.googleblog.com("Google AI Blog") 후신 — 기초 AI/ML 연구. 평문 200·robots Allow
+
 - key: anthropic
   name: Anthropic News
   url: https://www.anthropic.com/news
