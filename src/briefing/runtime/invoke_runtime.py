@@ -78,8 +78,8 @@ def _print_event(ev: dict) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="② Runtime 1회 invoke + SSE 출력")
-    ap.add_argument("--mode", choices=["smoke", "real"], default="smoke",
-                    help="smoke=결정론 plumbing 검증(기본) | real=진짜 파이프라인(②b)")
+    ap.add_argument("--mode", choices=["smoke", "harness", "real"], default="smoke",
+                    help="smoke=전부 fake(plumbing) | harness=fetch만 fake(진짜 claude+codex, ②b) | real=진짜 파이프라인")
     ap.add_argument("--window-hours", type=int, default=24)
     args = ap.parse_args()
 

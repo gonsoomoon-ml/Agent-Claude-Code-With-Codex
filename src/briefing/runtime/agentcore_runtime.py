@@ -14,7 +14,7 @@ from ..shared import _debug
 from ..shared.config import list_users, load_settings, load_user
 from ..shared.pipeline import run_briefing
 from ..shared.source_store import SourceStore
-from ._smoke import smoke_fns, smoke_users
+from ._smoke import harness_fns, smoke_fns, smoke_users
 
 app = BedrockAgentCoreApp()
 
@@ -24,8 +24,10 @@ async def briefing_entrypoint(payload, context):
     """매일 1회: `run_briefing`(host-agnostic) 실행 → 사용자별 결과를 dict 로 yield(SSE).
 
     payload:
-      - `mode`: "real"(기본) | "smoke". ★ smoke = ②a 배포 plumbing 검증(claude/codex/네트워크 0,
-        결정론 fake DI fns + 합성 사용자). real = 진짜 검증 후 발행(②b 에서 컨테이너에 CLI 번들 후).
+      - `mode`: "real"(기본) | "smoke" | "harness".
+        · smoke   = ②a plumbing 검증 — 전부 fake(claude/codex/네트워크 0) + 합성 사용자.
+        · harness = ②b — **fetch 만 fake, draft/verify 는 진짜 claude·codex**(합성 source 로 CLI 실행만 격리 검증).
+        · real    = 진짜 RSS fetch + 진짜 claude·codex(실 사용자 — fragile 출처는 ① 필요).
       - `users`: [id,...]?(real 기본=전체) · `window_hours`: 24?
     ★ gate/certifier 는 user-blind(trust 경계). DEBUG=1 시 trace=stderr→CloudWatch(SSE 와 분리).
     """
@@ -35,8 +37,10 @@ async def briefing_entrypoint(payload, context):
     mode = payload.get("mode", "real")
 
     if mode == "smoke":
-        users, fns = smoke_users(settings), smoke_fns()   # 결정론 fake — 배포 plumbing 만 증명
-    else:
+        users, fns = smoke_users(settings), smoke_fns()      # 전부 fake — plumbing 만 증명
+    elif mode == "harness":
+        users, fns = smoke_users(settings), harness_fns()    # fetch 만 fake → 진짜 claude+codex 실행 검증
+    else:  # real
         users = [load_user(uid, settings) for uid in (payload.get("users") or list_users(settings))]
         fns = {}   # None 기본 = 실제 claude -p author + codex certifier
 

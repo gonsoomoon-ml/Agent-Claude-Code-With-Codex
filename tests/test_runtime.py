@@ -111,6 +111,16 @@ def test_parse_sse_event_ignores_blank_and_nonjson():
 
 # ───────────────────────── smoke = 결정론 PUBLISH ─────────────────────────
 
+def test_harness_fns_fakes_only_fetch(tmp_path):
+    """②b harness 모드: fetch 만 fake(네트워크/RSS/fragile 회피), draft/verify 는 *진짜* claude/codex.
+
+    → run_briefing 에 fetch_article_fn 만 주입되고 draft/revise/verify 는 미주입(None=실제 하니스).
+    """
+    from briefing.runtime._smoke import harness_fns
+
+    assert set(harness_fns()) == {"fetch_article_fn"}   # draft/revise/verify 키 *없음* → 실제 CLI
+
+
 def test_smoke_users_synthesizes_when_no_real_users(tmp_path):
     from briefing.runtime._smoke import smoke_users
 

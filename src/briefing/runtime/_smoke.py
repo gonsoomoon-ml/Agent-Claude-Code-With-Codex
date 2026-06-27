@@ -73,6 +73,16 @@ def smoke_fns() -> dict:
     }
 
 
+def harness_fns() -> dict:
+    """②b harness 모드 — **fetch 만 fake, draft/verify 는 진짜 `claude -p`·`codex exec`**.
+
+    smoke(전부 fake)와 real(아무것도 fake 안 함) 사이의 *격리 검증*: 네트워크/RSS/fragile/프로필을 빼고
+    "컨테이너에서 claude·codex 가 실제로 실행되는가" 만 본다. draft/revise/verify 키를 *안* 넣으므로
+    gate 가 기본값(실제 하니스)으로 배선된다(합성 source 1건 → 진짜 author→certify).
+    """
+    return {"fetch_article_fn": smoke_fetch_fn}
+
+
 def smoke_users(settings: Settings) -> list[UserConfig]:
     """실 사용자(users/<id>/)가 있으면 그대로, 없으면 *합성 사용자 1명* — 컨테이너에 users/ 가
     안 복사돼도 smoke invoke 가 per-user SSE 를 내도록 self-contained 보장.

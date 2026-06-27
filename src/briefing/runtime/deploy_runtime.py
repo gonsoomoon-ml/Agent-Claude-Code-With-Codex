@@ -64,6 +64,7 @@ def runtime_env(settings: Settings) -> dict[str, str]:
         "USERS_DIR": settings.users_dir,
         "CLAUDE_CODE_USE_BEDROCK": "1",   # author=claude -p → Bedrock
         "ENABLE_TOOL_SEARCH": "false",    # Bedrock 가 tool def 선로드(Gateway MCP 사용 시 필수)
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",  # 컨테이너: 텔레메트리/업데이트 등 비필수 네트워크 차단
         "OTEL_RESOURCE_ATTRIBUTES": f"service.name={AGENT_NAME}",
         "AGENT_OBSERVABILITY_ENABLED": "true",
         # ★ 호스트 DEBUG forward — 미설정/빈값이면 컨테이너 is_debug()==False(zero overhead)
@@ -107,8 +108,14 @@ def stage_build_context() -> Path:
         PACKAGE_DIR, BUILD_DIR / "briefing",
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".agentcore_build"),
     )
-    shutil.copy2(PACKAGE_DIR / "runtime" / "requirements.txt", BUILD_DIR / "requirements.txt")
-    print(f"{_G}✅ briefing/ + requirements.txt 복사{_NC}\n")
+    # 빌드 컨텍스트 *루트*에 둬야 toolkit/Dockerfile 이 COPY 로 집는다:
+    #   - Dockerfile        → toolkit 이 "기존 Dockerfile" 로 인식해 생성 대신 사용(②b 하니스 이미지)
+    #   - requirements.txt  → uv pip install
+    #   - {codex,claude} config → 컨테이너 ~/.codex/config.toml · ~/.claude.json 으로 굽기(비밀 0)
+    rt = PACKAGE_DIR / "runtime"
+    for fname in ("Dockerfile", "requirements.txt", "codex_config.toml", "claude_config.json"):
+        shutil.copy2(rt / fname, BUILD_DIR / fname)
+    print(f"{_G}✅ briefing/ + Dockerfile + requirements + 하니스 config 복사{_NC}\n")
     return BUILD_DIR
 
 
@@ -160,17 +167,26 @@ def attach_runtime_extras(result, region: str) -> None:
     control = boto3.client("bedrock-agentcore-control", region_name=region)
     role_arn = control.get_agent_runtime(agentRuntimeId=result.agent_id)["roleArn"]
     role_name = role_arn.split("/")[-1]
+    account = role_arn.split(":")[4]
     policy = {
         "Version": "2012-10-17",
         "Statement": [
             {
-                "Sid": "BedrockInvokeAuthor",   # author=claude -p 가 컨테이너 자격으로 Bedrock 호출
+                "Sid": "BedrockInvokeAuthor",   # author=claude(Sonnet 4.6) — 표준 Bedrock InvokeModel
                 "Effect": "Allow",
                 "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
                 "Resource": [
                     "arn:aws:bedrock:*::foundation-model/*",
-                    f"arn:aws:bedrock:*:{role_arn.split(':')[4]}:inference-profile/*",
+                    f"arn:aws:bedrock:*:{account}:inference-profile/*",
                 ],
+            },
+            {
+                # ★ certifier=codex(GPT-5.5)는 *별도 서비스* `bedrock-mantle`(OpenAI Responses API) 사용.
+                #   진단으로 확인된 액션: bedrock-mantle:CreateInference (bedrock:InvokeModel 로는 401).
+                "Sid": "BedrockMantleCertifier",
+                "Effect": "Allow",
+                "Action": ["bedrock-mantle:CreateInference"],
+                "Resource": f"arn:aws:bedrock-mantle:*:{account}:project/*",
             },
             {
                 "Sid": "SesSendBriefing",        # ⑤ 전달 — 발신은 verify 된 identity(별도 설정)
