@@ -1,7 +1,7 @@
-"""ledger — run 기록 (시간·사용자 인덱스). weekly summary·Diff-Since-Last 의 토대.
+"""ledger — run 기록 (시간·사용자 인덱스). Diff-Since-Last·감사 등 durable history 의 토대.
 
 ★ card cache = "재계산 방지", ledger = "history 조회". (user_id, run_date) 로 인덱스해
-  '이번 주 user X 의 검증 항목 전부'를 뽑을 수 있게 한다. **드라이버 레벨(gate·trust 무관).**
+  '최근 N일 user X 의 검증 항목 전부'를 뽑을 수 있게 한다. **드라이버 레벨(gate·trust 무관).**
 - 각 엔트리 = {run_date, user_id, source_id, card_key, decision, headline}.
   원문/URL/날짜는 source_store(source_id 로 join), 검증 카드는 card cache(card_key 로 join) — *중복 저장 안 함*.
 - run_date 는 **호출자 주입**(결정론 — source_store.fetched_at 과 동일 철학). v1 로컬 JSONL; v1.5 DDB GSI(user, date).
@@ -52,7 +52,7 @@ class LocalLedger:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
     def query(self, user_id: str, since_date: str = "") -> list[dict]:
-        """user 의 run 기록 (since_date 이상만; ISO 날짜는 사전식=시간순). weekly summary 가 호출."""
+        """user 의 run 기록 (since_date 이상만; ISO 날짜는 사전식=시간순). history 조회(Diff-Since-Last·감사)가 호출."""
         p = self._path(user_id)
         if not p.exists():
             return []

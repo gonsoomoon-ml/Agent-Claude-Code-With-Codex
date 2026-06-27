@@ -75,7 +75,7 @@ def _process(fs, u, settings, store, card_cache, ledger, run_date, draft_fn, rev
     """카드 캐시(재계산 방지) + ledger(history 기록). 둘 다 드라이버 레벨 — gate/trust 무관.
 
     cache hit 면 claude -p+codex skip; ledger 는 매 (user, source) 처리를 (run_date, source_id, card_key) 로 기록
-    → weekly summary 가 source_store(원문)·card cache(카드) 를 join 할 수 있게 한다(중복 저장 없음).
+    → history 조회가 source_store(원문)·card cache(카드) 를 join 할 수 있게 한다(중복 저장 없음).
     """
     if card_cache is None and ledger is None:
         return produce_card(fs, u, settings, store, draft_fn=draft_fn, revise_fn=revise_fn, verify_fn=verify_fn)
