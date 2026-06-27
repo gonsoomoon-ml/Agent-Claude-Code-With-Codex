@@ -1,9 +1,9 @@
 """DDB 스모크 — 로컬 머신에서 *실제* DynamoDB(또는 무료 DynamoDB Local)에 cache·ledger 왕복 검증.
 
-선행(실 AWS, 과금): 테이블을 CloudFormation 으로 생성 —
-  aws cloudformation deploy --template-file infra/ddb.yaml --stack-name briefing-ddb
+선행(실 AWS, 과금): 테이블을 CloudFormation 으로 생성 — ★ region 명시(us-east-1; CLI 기본값에 끌려가지 말 것):
+  aws cloudformation deploy --template-file infra/ddb.yaml --stack-name briefing-ddb --region us-east-1
 실행:
-  uv run python scripts/ddb_smoke.py                  # 실 AWS (env: AWS creds·AWS_REGION)
+  AWS_REGION=us-east-1 uv run python scripts/ddb_smoke.py             # 실 AWS (env: AWS creds; region=us-east-1)
   DDB_ENDPOINT_URL=http://localhost:8000 uv run python scripts/ddb_smoke.py   # 무료 에뮬레이터
 
 PAY_PER_REQUEST 라 idle ≈ $0, 이 스모크 몇 건은 수십원 미만.
