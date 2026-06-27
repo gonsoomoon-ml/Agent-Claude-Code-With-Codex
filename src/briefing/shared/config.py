@@ -32,6 +32,7 @@ class Settings:
     # certifier 모델은 codex 가 소유(~/.codex/config.toml) — 우리는 설정하지 않음(provenance 만 기록).
     ses_sender: str            # 공유 발신 신원(수신자는 per-user)
     source_store_path: str # content-addressed source-of-record(공유)
+    cache_path: str        # 공유 결과 캐시 루트(③ 재실행 방지; v1=로컬 파일, v1.5=DynamoDB)
     users_dir: str         # per-user 설정 디렉토리
 
 
@@ -44,6 +45,7 @@ def load_settings() -> Settings:
         supervisor_model_id=g("SUPERVISOR_MODEL_ID", author_model_id),  # 미설정 시 author 모델 재사용
         ses_sender=g("SES_SENDER", ""),
         source_store_path=g("SOURCE_STORE_PATH", "./.data/source_store"),
+        cache_path=g("CACHE_PATH", "./.data/card_cache"),
         users_dir=g("USERS_DIR", "./users"),
     )
 
