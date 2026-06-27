@@ -1,6 +1,7 @@
 # src/briefing/shared/catalog.yaml — 전역 vetted 출처 CATALOG.
 # 추가 = 이 파일 편집 + PR 리뷰(= vetting). 임의 URL 금지(큐레이션).
-# 필수: key · name · url · kind(rss|html) · lang(en|ko).  선택: fragile(기본 false; Cloudflare/HTML → Browser Tool).
+# 필수: key · name · url · kind(rss|html|auto) · lang(en|ko).  선택: fragile(기본 false; *진짜 차단* 출처 — 현재 없음).
+# kind: rss=피드 직접 / html=리스팅→trafilatura 추출 / auto=피드 자동발견 후 폴백.
 # ⚠️ sources._load_catalog() 가 로드 시 검증 — 형식 오류면 시작 시 크래시(silent failure 금지).
 # last-verified: 2026-06-24
 
@@ -21,7 +22,7 @@
   url: https://openai.com/news/rss.xml
   kind: rss
   lang: en
-  fragile: true
+  # RSS 평문 200(robots Allow:/) → fragile 아님
 
 - key: deepmind
   name: Google DeepMind
@@ -29,9 +30,16 @@
   kind: rss
   lang: en
 
+- key: google-research
+  name: Google Research
+  url: https://research.google/blog/rss/
+  kind: rss
+  lang: en
+  # ai.googleblog.com("Google AI Blog") 후신 — 기초 AI/ML 연구. 평문 200·robots Allow
+
 - key: anthropic
   name: Anthropic News
   url: https://www.anthropic.com/news
   kind: html
   lang: en
-  fragile: true
+  # /news + 기사 본문 평문 200(robots Allow:/) → fetch_generic_html(trafilatura), fragile 아님

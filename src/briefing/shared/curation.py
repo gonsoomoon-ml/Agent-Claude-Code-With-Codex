@@ -19,9 +19,11 @@ FetchArticleFn = Callable[[Source, int], Sequence[FetchedArticle]]
 
 
 def _default_fetch(source: Source, window_hours: int) -> Sequence[FetchedArticle]:
-    """fragile 여부로 clean RSS / Browser Tool 디스패치 (실 구현은 sources.py — v1 일부 stub)."""
+    """source.kind/fragile 로 디스패치: fragile→fetch_fragile(미구현·진짜 차단), html/auto→제너릭(trafilatura), rss→clean RSS."""
     if source.fragile:
         return src.fetch_fragile(source)
+    if source.kind in ("html", "auto"):
+        return src.fetch_generic_html(source, window_hours=window_hours)
     return src.fetch_clean_rss(source, window_hours=window_hours)
 
 

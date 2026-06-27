@@ -17,6 +17,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urljoin, urlparse
 
 import yaml
 
@@ -26,12 +27,12 @@ class Source:
     key: str
     name: str
     url: str
-    kind: str              # "rss" | "html"
+    kind: str              # "rss" | "html" | "auto" (auto = 피드 자동발견 후 폴백)
     lang: str              # "en" | "ko"
-    fragile: bool = False  # True = Browser Tool 필요(Cloudflare/HTML), v1.5
+    fragile: bool = False  # True = *진짜 차단*(Cloudflare challenge/JS-only) — v1 미구현, 현 catalog 엔 없음
 
 
-_KINDS = frozenset({"rss", "html"})
+_KINDS = frozenset({"rss", "html", "auto"})
 _LANGS = frozenset({"en", "ko"})
 _REQUIRED = ("key", "name", "url", "kind", "lang")
 _CATALOG_PATH = Path(__file__).parent / "catalog.yaml"
@@ -114,16 +115,17 @@ def _clean_text(raw_html: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def fetch_clean_rss(
-    source: Source, *, window_hours: int = 24, max_items: int = 5
+def _fetch_feed(
+    feed_url: str, source_key: str, *, window_hours: int = 24, max_items: int = 5, full_text: bool = True
 ) -> list[FetchedArticle]:
-    """클린 RSS 페치 (feedparser). window_hours 이내 항목만(0=무필터), 최신 max_items 개 cap.
+    """RSS/Atom 피드 → FetchedArticle 목록 (feedparser). fetch_clean_rss·제너릭 피드발견 공용.
 
-    published_parsed(UTC struct_time)는 `calendar.timegm` 으로 epoch 화(local 해석 방지). title·본문 모두 있어야 채택.
+    full_text 면 entry.link 를 따라가 trafilatura 로 *전문*(상한) 추출 — 실패 시 피드 요약 폴백.
+    published_parsed(UTC)는 calendar.timegm 으로 epoch 화. title·본문 모두 있어야 채택.
     """
     import feedparser  # lazy — feedparser 미설치 환경에서도 sources 모듈 import 가능
 
-    feed = feedparser.parse(source.url)
+    feed = feedparser.parse(feed_url)
     now = time.time()
     out: list[FetchedArticle] = []
     for entry in feed.entries:
@@ -138,16 +140,131 @@ def fetch_clean_rss(
             published = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
         title = (entry.get("title") or "").strip()
         link = (entry.get("link") or "").strip()
-        raw = entry.get("summary") or ""
-        if not raw and entry.get("content"):
-            raw = entry["content"][0].get("value", "")
-        text = _clean_text(raw)
+        text = ""
+        if full_text and link:  # 전문 추적(상한). 실패 시 아래 피드 요약 폴백.
+            page = _http_get(link)
+            if page:
+                _t, body, _d = _extract_body(page)
+                text = body
+        if not text:
+            raw = entry.get("summary") or ""
+            if not raw and entry.get("content"):
+                raw = entry["content"][0].get("value", "")
+            text = _excerpt(_clean_text(raw))
         if not (title and text):
             continue
-        out.append(FetchedArticle(source.key, link, title, text, published))
+        out.append(FetchedArticle(source_key, link, title, text, published))
+    return out
+
+
+def fetch_clean_rss(source: Source, *, window_hours: int = 24, max_items: int = 5) -> list[FetchedArticle]:
+    """클린 RSS 페치 — _fetch_feed(source.url) 위임. window_hours 이내·최신 max_items cap."""
+    return _fetch_feed(source.url, source.key, window_hours=window_hours, max_items=max_items)
+
+
+# ── 제너릭 HTML/auto 출처 페치 (사이트별 코드 0; trafilatura 범용 추출 + 피드 자동발견) ──
+MAX_SOURCE_CHARS = 8000  # 넉넉한 상한 — 대부분 기사엔 사실상 전문, 초장문만 컷. 저작권: 원문은 7일 TTL(DynamoSourceStore)로 ephemeral.
+
+
+def discover_feed(url: str) -> str:
+    """사이트 URL → RSS/Atom 피드 URL 자동발견(없으면 ""). UI 가 URL 만 받아도 RSS 인식(kind:auto 토대)."""
+    from trafilatura import feeds  # lazy(무거운 import 회피)
+    found = feeds.find_feed_urls(url)
+    return found[0] if found else ""
+
+
+def _http_get(url: str) -> str:
+    """trafilatura.fetch_url — UA·재시도 처리된 평문 GET(접근통제 우회 없음). 실패 시 ""."""
+    import trafilatura
+    return trafilatura.fetch_url(url) or ""
+
+
+def _excerpt(text: str, limit: int = MAX_SOURCE_CHARS) -> str:
+    """단어 경계에서 limit 자로 자른 본문(초장문만 컷; 상한 = source-of-record 안전판)."""
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    sp = cut.rfind(" ")
+    return (cut[:sp] if sp > limit * 0.6 else cut).strip()
+
+
+def _article_links(listing_html: str, listing_url: str) -> list[str]:
+    """리스팅에서 기사 링크만(listing path 한 단계 아래 `{path}/{slug}`) — 제너릭 휴리스틱, 사이트별 코드 아님."""
+    base = urlparse(listing_url)
+    path = base.path.rstrip("/")
+    out: list[str] = []
+    seen: set[str] = set()
+    for href in re.findall(r'href="([^"]+)"', listing_html):
+        clean = href.split("#")[0].split("?")[0]
+        p = urlparse(urljoin(f"{base.scheme}://{base.netloc}", clean)).path.rstrip("/")
+        tail = p[len(path) + 1:]
+        if p.startswith(path + "/") and tail and "/" not in tail:
+            absu = f"{base.scheme}://{base.netloc}{p}"
+            if absu not in seen:
+                seen.add(absu)
+                out.append(absu)
+    return out
+
+
+def _extract_body(html_text: str) -> tuple[str, str, str]:
+    """trafilatura 로 임의 HTML → (title, 본문(상한 적용), date). 실패 시 ("","",""). RSS 전문·HTML 공용."""
+    import trafilatura
+    doc = trafilatura.bare_extraction(html_text, with_metadata=True)
+    if doc is None:
+        return ("", "", "")
+    title = (getattr(doc, "title", "") or "").strip()
+    body = _excerpt((getattr(doc, "text", "") or "").strip())
+    date = (getattr(doc, "date", "") or "").strip()
+    return (title, body, date)
+
+
+def _extract_article(html_text: str, url: str, source_key: str) -> FetchedArticle | None:
+    """HTML 기사 → FetchedArticle. title·본문 둘 다 있어야 채택."""
+    title, text, published = _extract_body(html_text)
+    if not (title and text):
+        return None
+    return FetchedArticle(source_key, url, title, text, published)
+
+
+def _is_stale(published: str, window_hours: int) -> bool:
+    """published(ISO/날짜) 가 window 밖이면 True. 날짜 모르면(빈값) False(통과)."""
+    if not (published and window_hours):
+        return False
+    try:
+        ts = datetime.fromisoformat(published.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return False
+    return (time.time() - ts) / 3600.0 > window_hours
+
+
+def fetch_generic_html(source: Source, *, window_hours: int = 24, max_items: int = 5) -> list[FetchedArticle]:
+    """제너릭 HTML/auto 출처 페치 — 피드 발견 시 RSS 경로 재사용, 없으면 리스팅 링크 + trafilatura 본문 추출.
+
+    ★ 매체별 코드 0(UI 가 URL 만 받아도 동작). 권위 페치=fabric 소유. bounded excerpt 만(법적 자세).
+    listing fetch 실패는 예외(curate 가 skip+warn); 개별 기사 실패는 그 기사만 skip.
+    """
+    feed = discover_feed(source.url)
+    if feed:
+        return _fetch_feed(feed, source.key, window_hours=window_hours, max_items=max_items)
+    listing = _http_get(source.url)
+    if not listing:
+        raise RuntimeError(f"html listing fetch 실패: {source.url}")
+    out: list[FetchedArticle] = []
+    for url in _article_links(listing, source.url):
+        if len(out) >= max_items:
+            break
+        page = _http_get(url)
+        if not page:
+            continue
+        art = _extract_article(page, url, source.key)
+        if art and not _is_stale(art.published_at, window_hours):
+            out.append(art)
     return out
 
 
 def fetch_fragile(source: Source) -> list[FetchedArticle]:
-    """깨지는 출처(Cloudflare/HTML) — v1.5 Browser Tool 경유(관리형 격리 브라우저). v1 폴백 미정."""
-    raise NotImplementedError("fragile fetch — v1.5 AgentCore Browser Tool")
+    """*진짜 차단*(Cloudflare challenge/JS-only) 출처 — v1 미구현(접근통제 우회는 법적 red line이라 보류).
+
+    평문으로 잡히는 HTML 은 fetch_generic_html(trafilatura)로 처리. 현 catalog 엔 fragile 출처 없음.
+    """
+    raise NotImplementedError("fragile fetch — 진짜 차단 출처 전용(현 catalog 엔 없음)")
