@@ -42,7 +42,8 @@ def curate(
     for source in fetch_targets:
         for art in fetch(source, window_hours):
             fs = store.freeze(
-                url=art.url, title=art.title, raw_text=art.raw_text, fetched_at=art.published_at
+                url=art.url, title=art.title, raw_text=art.raw_text,
+                fetched_at=art.published_at, media=source.name,  # 발행 매체 = catalog 정본명(예 "AI Times")
             )
             if fs.source_id in seen:
                 continue

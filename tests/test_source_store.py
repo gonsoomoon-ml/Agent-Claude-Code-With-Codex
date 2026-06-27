@@ -1,7 +1,7 @@
 """source_store — content-addressed source-of-record (결정론 신뢰 핵심)."""
 import unicodedata
 
-from briefing.shared.source_store import SourceStore, content_id, normalize
+from briefing.shared.source_store import SourceStore, content_id, media_from_url, normalize
 
 
 def test_normalize_crlf_and_trailing_ws():
@@ -28,3 +28,12 @@ def test_freeze_idempotent_collision_returns_first(tmp_path):
     assert a.source_id == b.source_id   # content-addressed
     assert a == b == g                  # 반환 == 저장 == get_source
     assert b.url == "https://A"          # 충돌 시 *최초* 메타데이터가 정본
+
+
+def test_media_explicit_and_derived(tmp_path):
+    s = SourceStore(str(tmp_path))
+    explicit = s.freeze(url="https://www.aitimes.com/x", title="t", raw_text="명시", fetched_at="t", media="AI Times")
+    assert explicit.media == "AI Times"                       # catalog 정본명 우선
+    derived = s.freeze(url="https://www.aitimes.com/y", title="t", raw_text="유도", fetched_at="t")
+    assert derived.media == "aitimes.com"                      # 미제공 → url 도메인(www 제거)
+    assert media_from_url("https://www.aitimes.com/z?a=1") == "aitimes.com"

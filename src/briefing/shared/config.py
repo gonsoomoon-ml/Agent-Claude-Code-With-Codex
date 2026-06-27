@@ -33,6 +33,10 @@ class Settings:
     ses_sender: str            # 공유 발신 신원(수신자는 per-user)
     source_store_path: str # content-addressed source-of-record(공유)
     cache_path: str        # 공유 결과 캐시 루트(③ 재실행 방지; v1=로컬 파일, v1.5=DynamoDB)
+    cache_table: str       # v1.5 DynamoDB card-cache 테이블명(CFN infra/ddb.yaml)
+    ledger_table: str      # v1.5 DynamoDB ledger 테이블명(시간·사용자 history)
+    source_table: str      # v1.5 DynamoDB source-store 테이블명(content-addressed source-of-record)
+    ddb_endpoint_url: str  # 빈값=실 AWS(기본); 값 주면 DynamoDB Local(무료 에뮬레이터)
     users_dir: str         # per-user 설정 디렉토리
 
 
@@ -46,6 +50,10 @@ def load_settings() -> Settings:
         ses_sender=g("SES_SENDER", ""),
         source_store_path=g("SOURCE_STORE_PATH", "./.data/source_store"),
         cache_path=g("CACHE_PATH", "./.data/card_cache"),
+        cache_table=g("CACHE_TABLE", "briefing-card-cache"),
+        ledger_table=g("LEDGER_TABLE", "briefing-ledger"),
+        source_table=g("SOURCE_TABLE", "briefing-source-store"),
+        ddb_endpoint_url=g("DDB_ENDPOINT_URL", ""),
         users_dir=g("USERS_DIR", "./users"),
     )
 

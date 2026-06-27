@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  브리핑 에이전트 영속 계층 — card cache(재계산 방지) + ledger(시간·사용자 history).
+  둘 다 PAY_PER_REQUEST(프로비저닝 0 → idle ≈ $0, 요청당 과금). 로컬 backend 와 *같은 Protocol* 을 DDB 가 만족.
+
+Parameters:
+  TablePrefix:
+    Type: String
+    Default: briefing
+    Description: 테이블 이름 접두사 (briefing → briefing-card-cache / briefing-ledger)
+
+Resources:
+  # ── card cache: 같은 (source, lens, skill, model) 재계산 방지. content-addressed 키. ──
+  CardCacheTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${TablePrefix}-card-cache'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: cache_key          # = sha256(source_id|lens|skill|author_model_id)
+          AttributeType: S
+      KeySchema:
+        - AttributeName: cache_key
+          KeyType: HASH
+      TimeToLiveSpecification:               # 캐시는 disposable → 30일 자동 만료(스토리지·정합 부담↓)
+        AttributeName: ttl
+        Enabled: true
+
+  # ── ledger: "언제·누구에게·무엇을 발행했나" 장부. weekly summary·Diff-Since-Last 의 토대. ──
+  LedgerTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${TablePrefix}-ledger'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id             # 사용자 파티션
+          AttributeType: S
+        - AttributeName: sk                  # = run_date#source_id → SK range 로 "최근 N일" 질의(ISO=사전식=시간순)
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      # TTL 없음 — ledger 는 durable proprietary state(inclusion-test #2). 지우지 않는다.
+      # GSI 없음 — "user X 의 최근 N일"은 base SK range 로 충분. "날짜별 전체 사용자"(cross-user)가 필요해질 때만 추가.
+
+  # ── source-store: 권위 페치 정본(raw text·url·title·media·date). source-of-record = 토대. ──
+  SourceStoreTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${TablePrefix}-source-store'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: source_id          # = sha256(normalize(text)) → content-addressed, 자동 dedup
+          AttributeType: S
+      KeySchema:
+        - AttributeName: source_id
+          KeyType: HASH
+      # TTL 없음(기본 durable) — ledger/cache 의 source_id 포인터가 여기로 resolve(앵커).
+      # 원문 장기보존이 비용/저작권 부담이면 ttl 속성 + TimeToLiveSpecification 추가가 그 knob(전문 페치 시 재검토).
+      # text 가 커지면(전문 페치) DDB(400KB) 대신 S3(blob)+여기(포인터)로 분리 — 인터페이스 동일.
+
+Outputs:
+  CardCacheTableName:
+    Description: card cache 테이블명 (env CACHE_TABLE 로 전달)
+    Value: !Ref CardCacheTable
+  LedgerTableName:
+    Description: ledger 테이블명 (env LEDGER_TABLE 로 전달)
+    Value: !Ref LedgerTable
+  SourceStoreTableName:
+    Description: source-store 테이블명 (env SOURCE_TABLE 로 전달)
+    Value: !Ref SourceStoreTable
