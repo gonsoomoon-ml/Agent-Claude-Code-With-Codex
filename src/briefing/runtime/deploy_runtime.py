@@ -118,7 +118,11 @@ def stage_build_context() -> Path:
     rt = PACKAGE_DIR / "runtime"
     for fname in ("Dockerfile", "requirements.txt", "codex_config.toml", "claude_config.json"):
         shutil.copy2(rt / fname, BUILD_DIR / fname)
-    print(f"{_G}✅ briefing/ + Dockerfile + requirements + 하니스 config 복사{_NC}\n")
+    # ⑤: users/ 도 컨테이너로 — mode=scheduled/real 이 실 사용자(send_hour/timezone/recipient) 로드(USERS_DIR=./users → /app/users).
+    users_src = PROJECT_ROOT / "users"
+    if users_src.exists():
+        shutil.copytree(users_src, BUILD_DIR / "users", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    print(f"{_G}✅ briefing/ + Dockerfile + requirements + 하니스 config + users/ 복사{_NC}\n")
     return BUILD_DIR
 
 

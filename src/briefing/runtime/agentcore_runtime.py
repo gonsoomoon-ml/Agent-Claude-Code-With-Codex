@@ -40,6 +40,36 @@ async def briefing_entrypoint(payload, context):
     run_date = payload.get("run_date") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     mode = payload.get("mode", "real")
 
+    if mode == "scheduled":   # ⑤ — fire-and-forget async: 즉시 accepted, 브리핑은 백그라운드(≤8h)
+        import threading
+
+        from ..scheduler.deliver import make_ses_deliver
+        from ..scheduler.dispatch import dispatch
+        from ..scheduler.sent_log import DynamoSentLog
+        s_users = [load_user(uid, settings) for uid in (payload.get("users") or list_users(settings))]
+        now = (datetime.fromisoformat(payload["now_utc"]) if payload.get("now_utc")
+               else datetime.now(timezone.utc))
+        rd = payload.get("run_date") or now.strftime("%Y-%m-%d")
+        dry = bool(payload.get("dry_run"))
+        deliver_fn = (lambda b: None) if dry else make_ses_deliver(settings)
+        sent = None if dry else DynamoSentLog.from_settings(settings)
+        task_id = app.add_async_task("scheduled_briefing")    # 세션 HealthyBusy 유지(≤8h)
+
+        def _bg():
+            try:
+                dispatch(settings, store, s_users, now, deliver_fn=deliver_fn, run_date=rd,
+                         card_cache=card_cache, ledger=ledger, sent_log=sent)
+            except Exception as e:  # noqa: BLE001 — 백그라운드 실패는 보수적으로 로깅(이미 accepted 반환)
+                _debug.warn("scheduled bg", f"{type(e).__name__}: {e}")
+            finally:
+                app.complete_async_task(task_id)
+
+        threading.Thread(target=_bg, daemon=True).start()
+        _debug.dprint("entrypoint", f"scheduled accepted · users={len(s_users)} · now={now.isoformat()} · dry={dry}")
+        yield {"type": "accepted", "mode": "scheduled", "task_id": task_id,
+               "users": len(s_users), "now_utc": now.isoformat(), "dry_run": dry}
+        return
+
     if mode == "smoke":
         users, fns = smoke_users(settings), smoke_fns()      # 전부 fake — plumbing 만 증명
     elif mode == "harness":

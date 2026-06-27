@@ -8,3 +8,4 @@ boto3
 python-dotenv
 pyyaml
 feedparser
+tzdata

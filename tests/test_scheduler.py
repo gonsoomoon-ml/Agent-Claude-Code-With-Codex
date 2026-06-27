@@ -178,3 +178,83 @@ def test_dispatch_dedups_already_sent(tmp_path):
                    deliver_fn=lambda b: delivered.append(b.user_id), run_date="2026-06-27",
                    sent_log=log, fetch_article_fn=_fetch, draft_fn=_draft, verify_fn=_verify)
     assert out == [] and delivered == []           # 중복 발송 방지
+
+
+# ───────────────────────── sent_log (DDB dedup — fake table DI) ─────────────────────────
+
+class _FakeTable:
+    """boto3 dynamodb Table 의 최소 모킹 (get_item/put_item) — sent_log 단위 테스트용."""
+    def __init__(self):
+        self.items: dict[tuple, dict] = {}
+
+    def get_item(self, Key):  # noqa: N803 (boto3 시그니처)
+        k = (Key["user_id"], Key["run_date"])
+        return {"Item": self.items[k]} if k in self.items else {}
+
+    def put_item(self, Item):  # noqa: N803
+        self.items[(Item["user_id"], Item["run_date"])] = Item
+
+
+def test_dynamo_sent_log_marks_and_detects():
+    from briefing.scheduler.sent_log import DynamoSentLog
+
+    log = DynamoSentLog(_FakeTable())
+    assert not log.already_sent("gonsoo", "2026-06-27")
+    log.mark_sent("gonsoo", "2026-06-27")
+    assert log.already_sent("gonsoo", "2026-06-27")
+    assert not log.already_sent("gonsoo", "2026-06-28")   # 다른 날 = 미발송
+    log.mark_sent("gonsoo", "2026-06-27")                 # 재마크 멱등
+    assert log.already_sent("gonsoo", "2026-06-27")
+
+
+def test_dynamo_sent_log_dedups_through_dispatch(tmp_path):
+    from briefing.scheduler.dispatch import dispatch
+    from briefing.scheduler.sent_log import DynamoSentLog
+    from briefing.shared.source_store import SourceStore
+
+    store = SourceStore(str(tmp_path / "store"))
+    log = DynamoSentLog(_FakeTable())
+    user = [_full_user("seoul7", 7, "Asia/Seoul")]
+    common = dict(deliver_fn=lambda b: None, run_date="2026-06-27", sent_log=log,
+                  fetch_article_fn=_fetch, draft_fn=_draft, verify_fn=_verify)
+    assert dispatch(SimpleNamespace(), store, user, _NOW_KST7, **common) == ["seoul7"]   # 첫 발송
+    assert dispatch(SimpleNamespace(), store, user, _NOW_KST7, **common) == []           # 재실행 dedup
+
+
+# ───────────────────────── lambda_handler (얇은 fire-and-return poker) ─────────────────────────
+
+class _FakeAgentCore:
+    """boto3 bedrock-agentcore 클라이언트 모킹 — invoke_agent_runtime + SSE 스트림."""
+    def __init__(self, lines: list[bytes]):
+        self._lines = lines
+        self.calls: list[dict] = []
+
+    def invoke_agent_runtime(self, **kw):
+        self.calls.append(kw)
+        return {"contentType": "text/event-stream",
+                "response": SimpleNamespace(iter_lines=lambda chunk_size=1: iter(self._lines))}
+
+
+def test_lambda_handler_invokes_scheduled_and_reports_accepted(monkeypatch):
+    monkeypatch.setenv("BRIEFING_RUNTIME_ARN", "arn:aws:bedrock-agentcore:us-east-1:1:runtime/briefing_agent-x")
+    monkeypatch.setenv("BRIEFING_DRY_RUN", "1")
+    from briefing.scheduler import lambda_handler as lh
+
+    import json as _json
+    fake = _FakeAgentCore([b'data: {"type": "accepted", "mode": "scheduled", "users": 1}'])
+    out = lh.handler({}, None, client=fake)
+
+    assert out["ok"] is True and out["accepted"] is True and out["dry_run"] is True
+    kw = fake.calls[0]
+    assert kw["agentRuntimeArn"].endswith("briefing_agent-x") and kw["qualifier"] == "DEFAULT"
+    assert len(kw["runtimeSessionId"]) >= 33                       # AgentCore 제약
+    assert _json.loads(kw["payload"]) == {"mode": "scheduled", "dry_run": True}
+
+
+def test_lambda_handler_accepted_false_when_no_accept_event(monkeypatch):
+    monkeypatch.setenv("BRIEFING_RUNTIME_ARN", "arn:aws:bedrock-agentcore:us-east-1:1:runtime/x")
+    monkeypatch.delenv("BRIEFING_DRY_RUN", raising=False)          # 기본 dry-run
+    from briefing.scheduler import lambda_handler as lh
+
+    out = lh.handler({}, None, client=_FakeAgentCore([b'data: {"type": "stage"}', b""]))
+    assert out["accepted"] is False and out["dry_run"] is True     # 미설정 시 dry-run 기본
