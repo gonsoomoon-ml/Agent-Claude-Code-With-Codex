@@ -1,7 +1,11 @@
 # AgentCore Runtime 컨테이너 의존성 — 컨테이너는 uv.lock 대신 최소 목록 사용.
+# ★ entrypoint import 그래프(pipeline→sources/config/lenses)가 *모듈 최상단* 에서 yaml 을 import →
+#   pyyaml 누락 시 컨테이너가 entrypoint import 단계에서 즉시 크래시(plumbing 아닌 의존성 실패).
 strands-agents
 strands-agents-tools
 bedrock-agentcore
 boto3
 python-dotenv
+pyyaml
 feedparser
+tzdata

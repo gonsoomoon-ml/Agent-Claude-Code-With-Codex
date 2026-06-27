@@ -1,0 +1,11 @@
+# 컨테이너용 codex(certifier) 설정 — 호스트 ~/.codex/config.toml 의 *컨테이너 변형*.
+# ★ 호스트의 `profile = "default"` 는 제거: 컨테이너 자격증명은 named profile 이 아니라
+#   AgentCore execution role(컨테이너 credential 엔드포인트)에서 온다 → region 만 남긴다.
+# ★ 비밀값 0: GPT-5.5 는 amazon-bedrock provider 로 SigV4 인증(execution role 의 bedrock:InvokeModel).
+model_provider = "amazon-bedrock"
+model = "openai.gpt-5.5"
+# 샌드박스 기본(read-only) 유지 — 컨테이너 microVM 에 userns 가 있어 bundled bubblewrap 으로 정상 동작.
+# ★ codex 가 GPT-5.5 를 호출하려면 execution role 에 `bedrock-mantle:CreateInference` 필요(deploy_runtime 부착).
+
+[model_providers.amazon-bedrock.aws]
+region = "us-east-1"   # GPT-5.5 는 us-east-1/us-east-2 전용
