@@ -1,8 +1,9 @@
 """webapi.trial — 검증기·가드·handle_trial(순수/DI, fake boto3)."""
 from __future__ import annotations
 
+import time
 
-from briefing.webapi.trial import handle_trial, validate_trial
+from briefing.webapi.trial import TrialStore, handle_trial, validate_trial
 
 CATALOG = ("aitimes", "openai", "anthropic")
 
@@ -89,3 +90,41 @@ def test_handle_already_verified_skips_verify_sending():
     assert code == 202 and body["status"] == "sending"
     assert ses.verified_calls == []                # 이미 검증 → verify skip
     assert inv.calls
+
+
+# ── TrialStore.within_cooldown — I2 ttl 기반 쿨다운 ──────────────────────
+
+class _FakeTable:
+    """get_item 만 지원하는 최소 DDB 테이블 fake."""
+    def __init__(self, item: dict | None):
+        self._item = item
+
+    def get_item(self, Key):
+        return {"Item": self._item} if self._item else {}
+
+
+def test_within_cooldown_true_when_ttl_in_future():
+    """I2: ttl 이 미래이면 쿨다운 중(True)."""
+    future_ttl = int(time.time()) + 3600
+    store = TrialStore(_FakeTable({"email": "u@x.com", "status": "generating", "ttl": future_ttl}))
+    assert store.within_cooldown("u@x.com") is True
+
+
+def test_within_cooldown_false_when_ttl_in_past():
+    """I2: ttl 이 과거이면 쿨다운 해제(False)."""
+    past_ttl = int(time.time()) - 1
+    store = TrialStore(_FakeTable({"email": "u@x.com", "status": "generating", "ttl": past_ttl}))
+    assert store.within_cooldown("u@x.com") is False
+
+
+def test_within_cooldown_false_when_no_item():
+    """I2: 레코드 없으면 쿨다운 아님(False)."""
+    store = TrialStore(_FakeTable(None))
+    assert store.within_cooldown("new@x.com") is False
+
+
+def test_within_cooldown_true_regardless_of_status():
+    """I2: status 가 'generating' 이어도 ttl 이 미래이면 쿨다운 중 — status 기반 구현의 버그를 방지."""
+    future_ttl = int(time.time()) + 100
+    store = TrialStore(_FakeTable({"email": "u@x.com", "status": "generating", "ttl": future_ttl}))
+    assert store.within_cooldown("u@x.com") is True

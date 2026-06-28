@@ -30,8 +30,10 @@ class TrialStore:
         self._t = table
 
     def within_cooldown(self, email: str) -> bool:
+        """I2: ttl 기반 쿨다운 — status 전이와 무관하게 ttl 만료 전까지 재진입 차단."""
         item = self._t.get_item(Key={"email": email}).get("Item")
-        return bool(item and item.get("status") in ("verification_pending", "sending"))
+        import time as _t
+        return bool(item and int(item.get("ttl", 0)) > int(_t.time()))
 
     def over_global_cap(self, date: str, cap: int) -> bool:
         r = self._t.update_item(

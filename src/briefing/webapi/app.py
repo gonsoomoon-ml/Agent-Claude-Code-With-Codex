@@ -170,8 +170,9 @@ async def post_trial(req: Request):
 
 @app.get("/trial/status")
 def trial_status(email: str):
-    """trial 상태 조회(폴링). JWT 불필요(public)."""
+    """trial 상태 조회(폴링). JWT 불필요(public). I1: 이메일 소문자화(DDB 키 대소문자 매칭)."""
     import re
     if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email or ""):
         return JSONResponse(status_code=400, content={"error": "유효한 이메일이 아닙니다."})
+    email = (email or "").strip().lower()
     return _status_store().get_status(email)

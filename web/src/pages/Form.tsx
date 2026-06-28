@@ -47,6 +47,7 @@ export default function Form() {
 
   // ── 체험하기 핸들러 ──────────────────────────────────────────
   const handleTrial = async () => {
+    stopPolling() // M3: 재호출 시 이전 폴링 인터벌 고아 방지
     setSubmitting('trial')
     setElapsed(0)
     setCard({ text: '보내는 중…', busy: true })
