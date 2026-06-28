@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 
 from .catalog import DEPTHS, SEND_HOURS, build_catalog
 from .profile import validate_profile
-from .trial import TrialStore, handle_trial
+from .trial import TrialStore, handle_trial, _parse_emails
 
 _SAMPLE_HTML = (Path(__file__).parent / "sample_briefing.html").read_text(encoding="utf-8")
 
@@ -150,7 +150,8 @@ def _trial_deps() -> dict:
 
     return {"store": TrialStore(table), "ses": ses, "runtime_invoke": runtime_invoke,
             "sender": os.getenv("SES_SENDER", ""), "cap": int(os.getenv("TRIAL_GLOBAL_CAP", "50")),
-            "cooldown_s": int(os.getenv("TRIAL_COOLDOWN_SECONDS", "3600"))}
+            "cooldown_s": int(os.getenv("TRIAL_COOLDOWN_SECONDS", "3600")),
+            "test_emails": _parse_emails(os.getenv("TRIAL_TEST_EMAILS", ""))}
 
 
 @app.post("/trial")
@@ -164,7 +165,8 @@ async def post_trial(req: Request):
     code, body = handle_trial(
         payload, store=d["store"], ses=d["ses"], runtime_invoke=d["runtime_invoke"],
         cap=d["cap"], cooldown_s=d["cooldown_s"],
-        today=now.strftime("%Y-%m-%d"), catalog_keys=keys)
+        today=now.strftime("%Y-%m-%d"), catalog_keys=keys,
+        test_emails=d["test_emails"])
     return JSONResponse(status_code=code, content=body)
 
 

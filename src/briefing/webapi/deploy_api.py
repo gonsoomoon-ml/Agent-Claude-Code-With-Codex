@@ -112,6 +112,7 @@ def _deploy_lambda(lam, role_arn, zip_bytes, settings) -> str:
         "SES_SENDER": settings.ses_sender,
         "TRIAL_GLOBAL_CAP": "50",   # hard cap — ⑤ 보호. 올리려면 코드 변경(고의적). env 패스스루 금지.
         "TRIAL_COOLDOWN_SECONDS": "3600",
+        "TRIAL_TEST_EMAILS": os.getenv("TRIAL_TEST_EMAILS", ""),   # v1.1e: owner 테스트 주소 쿨다운 우회(빈=무변경)
     }}
     try:
         lam.create_function(
