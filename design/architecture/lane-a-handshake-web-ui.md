@@ -95,6 +95,15 @@
     (`DynamoUserStore` in `shared/stores/`). **쓰기측**(LANE B): ④ API `PUT /profile` 가 같은 테이블·스키마로 write.
   - ⚠️ **seam 적용 후 runtime 재배포 필요**(load_user 코드 변경분 반영).
 - **폴백/스코프**: H4 미준비면 ④ 의 v1.2 **구독은 보류**(또는 "행 저장만, 발송 미배선"으로 명시 ship). v1.0/v1.1 은 무관.
+- **✅ H4 전달됨 (LANE A · 2026-06-28, 읽기측 라이브)** — 테이블 라이브 + seam e2e 증명 + **runtime 재배포 완료**(load_user 의 DDB 분기 활성):
+  ```
+  USERS_TABLE = briefing-users   (us-east-1, ACTIVE · PK=user_id · TTL 없음)
+  쓰기 7필드  = recipient · type · sources(List) · depth · lens · send_hour(N) · timezone
+  ```
+  - **쓰기측(④) 규약:** `UpdateItem` 으로 **위 7필드만** set(전체 `PutItem` 금지 — skill_md 보존). ★ `skill_md` 는 **절대 쓰지 말 것**(trust 경계 — 파일 오버레이, certifier 미열람). 공개 유저 skill_md="".
+  - **읽기측(LANE A):** `load_user`/`list_users` 가 `BACKEND=dynamo` 시 DDB read(`list_users`=Scan). 재배포로 라이브 — gonsoo 시드됨, invoke 검증 `accepted users=1`(Scan+GetItem 성공).
+  - **IAM:** runtime role 에 `dynamodb:Scan` 추가(`briefing-*` prefix). ④ API role 도 `briefing-users` 에 `UpdateItem` 필요(prefix 일치 → 신규 정책 0, action 만).
+  - **재현:** `SEED=1 bash infra/deploy_ddb.sh`(테이블+시드) → `uv run python -m briefing.runtime.deploy_runtime`(재배포).
 
 ---
 

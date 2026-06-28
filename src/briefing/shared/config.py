@@ -38,6 +38,7 @@ class Settings:
     cache_table: str       # dynamo backend: card-cache 테이블명(CFN infra/ddb.yaml)
     ledger_table: str      # dynamo backend: ledger 테이블명(시간·사용자 history)
     source_table: str      # dynamo backend: source-store 테이블명(content-addressed source-of-record)
+    users_table: str       # dynamo backend: users 테이블명(per-user 프로필; ④ 쓰기 ↔ load_user 읽기 seam)
     ddb_endpoint_url: str  # 빈값=실 AWS(기본); 값 주면 DynamoDB Local(무료 에뮬레이터)
     users_dir: str         # per-user 설정 디렉토리
     # ── Gateway (① 승격; 기본 off → additive). 인증 = Cognito CUSTOM_JWT (aiops 패턴) ──
@@ -66,6 +67,7 @@ def load_settings() -> Settings:
         cache_table=g("CACHE_TABLE", "briefing-card-cache"),
         ledger_table=g("LEDGER_TABLE", "briefing-ledger"),
         source_table=g("SOURCE_TABLE", "briefing-source-store"),
+        users_table=g("USERS_TABLE", "briefing-users"),
         ddb_endpoint_url=g("DDB_ENDPOINT_URL", ""),
         users_dir=g("USERS_DIR", "./users"),
         gateway_enabled=g("GATEWAY_ENABLED", "").strip().lower() in ("1", "true", "yes", "on"),
@@ -93,30 +95,55 @@ class UserConfig:
 
 
 def list_users(settings: Settings) -> list[str]:
-    """users_dir 아래 profile.yaml 을 가진 디렉토리 = 사용자 목록."""
+    """사용자 목록. BACKEND=dynamo → briefing-users Scan, 아니면 users_dir 의 profile.yaml 디렉토리."""
+    if settings.backend == "dynamo":
+        from .stores.dynamo import user_store_from_settings  # lazy — config↔stores 순환 회피
+        return user_store_from_settings(settings).list_users()
     root = Path(settings.users_dir)
     if not root.exists():
         return []
     return sorted(p.name for p in root.iterdir() if (p / "profile.yaml").exists())
 
 
+def _read_skill_md(settings: Settings, user_id: str) -> str:
+    """skill_md = users/<id>/skill.md 파일 오버레이(양 backend 공통). ★ web/DDB 에 *없음* — trust 경계(certifier 미열람).
+
+    공개 유저(파일 없음)는 "" → lens 가 편집 개인화 담당. user-write 경로가 *구성상* 존재하지 않음.
+    """
+    p = Path(settings.users_dir) / user_id / "skill.md"
+    return p.read_text(encoding="utf-8") if p.exists() else ""
+
+
+def _user_from_fields(user_id: str, f: dict, skill_md: str) -> UserConfig:
+    """7 운영 필드 dict(profile.yaml 또는 DDB 항목) + skill_md(파일) → UserConfig. 양 backend 공통 빌더."""
+    return UserConfig(
+        id=f.get("id", user_id),
+        recipient=f.get("recipient", ""),
+        type=f.get("type", "ai-news"),
+        sources=tuple(f.get("sources") or ()),  # 빈 값 = 전체 (resolve_sources 가 처리)
+        depth=f.get("depth", "full"),
+        lens=f.get("lens", "general"),
+        send_hour=int(f.get("send_hour", 7)),
+        timezone=f.get("timezone", "Asia/Seoul"),
+        skill_md=skill_md,
+    )
+
+
 def load_user(user_id: str, settings: Settings) -> UserConfig:
-    """users/<id>/profile.yaml(운영) + skill.md(편집 개인화) → UserConfig."""
+    """per-user 프로필 → UserConfig. 7 운영 필드는 backend(파일 profile.yaml | DDB), **skill_md 는 항상 파일**.
+
+    ★ skill_md 는 web-writable 저장소(DDB)에 *없다* — 파일 오버레이만(trust 경계; ④ 구독은 7필드만 씀).
+    """
+    skill_md = _read_skill_md(settings, user_id)
+    if settings.backend == "dynamo":
+        from .stores.dynamo import user_store_from_settings  # lazy — 순환 회피
+        rec = user_store_from_settings(settings).get_user(user_id)
+        if rec is None:
+            raise KeyError(f"DDB 에 사용자 없음: {user_id}")
+        return _user_from_fields(user_id, rec, skill_md)
     if yaml is None:  # pragma: no cover
         raise RuntimeError("pyyaml 필요 — `uv sync`")
-    d = Path(settings.users_dir) / user_id
-    prof = yaml.safe_load((d / "profile.yaml").read_text(encoding="utf-8")) or {}
-    skill_path = d / "skill.md"
     # TODO(검증 — write 계층=웹 UI/API): recipient(이메일)·depth(enum)·sources(∈CATALOG)·send_hour 검증.
     #   외부 입력 user_id 는 path-traversal 검증 필수(지금은 list_users 내부값이라 안전).
-    return UserConfig(
-        id=prof.get("id", user_id),
-        recipient=prof.get("recipient", ""),
-        type=prof.get("type", "ai-news"),
-        sources=tuple(prof.get("sources") or ()),  # 빈 값 = 전체 (resolve_sources 가 처리)
-        depth=prof.get("depth", "full"),
-        lens=prof.get("lens", "general"),
-        send_hour=int(prof.get("send_hour", 7)),
-        timezone=prof.get("timezone", "Asia/Seoul"),
-        skill_md=skill_path.read_text(encoding="utf-8") if skill_path.exists() else "",
-    )
+    prof = yaml.safe_load((Path(settings.users_dir) / user_id / "profile.yaml").read_text(encoding="utf-8")) or {}
+    return _user_from_fields(user_id, prof, skill_md)

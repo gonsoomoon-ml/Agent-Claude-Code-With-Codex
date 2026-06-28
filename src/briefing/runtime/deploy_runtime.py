@@ -202,11 +202,11 @@ def attach_runtime_extras(result, region: str) -> None:
                 "Resource": "*",
             },
             {
-                # ③ DB: dynamo backend(source/cache/ledger) — dynamo.py 가 쓰는 3작업만(최소권한).
-                # ledger 시간-쿼리는 GSI 사용 → index/* 포함. 테이블 prefix=briefing-(CFN infra/ddb.yaml).
+                # ③ DB: dynamo backend(source/cache/ledger/users) — dynamo.py 가 쓰는 작업.
+                # ledger Query(GSI→index/*) · users list_users 는 Scan(H4, 전 사용자 열거) · prefix=briefing-(CFN ddb.yaml).
                 "Sid": "DynamoStores",
                 "Effect": "Allow",
-                "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"],
+                "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:Scan"],
                 "Resource": [
                     f"arn:aws:dynamodb:*:{account}:table/briefing-*",
                     f"arn:aws:dynamodb:*:{account}:table/briefing-*/index/*",
