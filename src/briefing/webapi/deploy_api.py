@@ -57,7 +57,10 @@ def _ensure_role(iam) -> str:
              "Resource": [runtime_arn, runtime_arn + "/*"] if runtime_arn else "*"},
             {"Sid": "TrialsTable", "Effect": "Allow", "Action": [
                 "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
-             "Resource": "arn:aws:dynamodb:*:*:table/briefing-trials"}]}))
+             "Resource": "arn:aws:dynamodb:*:*:table/briefing-trials"},
+            {"Sid": "UsersTable", "Effect": "Allow",
+             "Action": ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+             "Resource": "arn:aws:dynamodb:*:*:table/briefing-users"}]}))
     print("   inline policy 추가: BriefingTrial")
     return iam.get_role(RoleName=LAMBDA_ROLE)["Role"]["Arn"]
 
@@ -152,6 +155,25 @@ def _ensure_http_api(api, lam, region, acct, lambda_arn) -> str:
     stages = {s["StageName"] for s in api.get_stages(ApiId=api_id)["Items"]}
     if "$default" not in stages:
         api.create_stage(ApiId=api_id, StageName="$default", AutoDeploy=True)
+    # v1.2 — Cognito JWT authorizer + /profile 라우트(인증 필요). OPTIONS /profile 는 선언 안 함(preflight→$default→CORSMiddleware).
+    ISSUER = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ANfcEK61A"
+    AUD = ["29ghm34nr4m2enqa6sbeua6fgn"]
+    authz = next((a for a in api.get_authorizers(ApiId=api_id)["Items"] if a["Name"] == "cognito-jwt"), None)
+    authz_id = authz["AuthorizerId"] if authz else api.create_authorizer(
+        ApiId=api_id, Name="cognito-jwt", AuthorizerType="JWT",
+        IdentitySource=["$request.header.Authorization"],
+        JwtConfiguration={"Issuer": ISSUER, "Audience": AUD})["AuthorizerId"]
+    print(f"   JWT authorizer: {'재사용' if authz else '생성'} (id={authz_id})")
+    routes2 = {r["RouteKey"]: r["RouteId"] for r in api.get_routes(ApiId=api_id)["Items"]}
+    for rk in ("GET /profile", "PUT /profile"):       # ★ OPTIONS /profile 는 선언 안 함(preflight→$default)
+        if rk in routes2:
+            api.update_route(ApiId=api_id, RouteId=routes2[rk], Target=f"integrations/{integ_id}",
+                             AuthorizationType="JWT", AuthorizerId=authz_id)
+            print(f"   route 업데이트: {rk}")
+        else:
+            api.create_route(ApiId=api_id, RouteKey=rk, Target=f"integrations/{integ_id}",
+                             AuthorizationType="JWT", AuthorizerId=authz_id)
+            print(f"   route 생성: {rk}")
     try:
         lam.add_permission(
             FunctionName=LAMBDA_NAME, StatementId="apigw-invoke", Action="lambda:InvokeFunction",
