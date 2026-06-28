@@ -11,6 +11,11 @@ from typing import Any, Callable
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
+def _parse_emails(raw: str) -> frozenset[str]:
+    """쉼표 구분 이메일 → 정규화(소문자·trim·빈값 제거) frozenset. '' → frozenset()."""
+    return frozenset(e.strip().lower() for e in (raw or "").split(",") if e.strip())
+
+
 def validate_trial(email: str, sources: list[str], catalog_keys) -> str | None:
     """검증 실패 메시지(한 줄) or None. config.py 검증 TODO 의 web 계층 일부."""
     if not (email and _EMAIL_RE.match(email)):
@@ -59,6 +64,7 @@ class TrialStore:
 def handle_trial(
     payload: dict, *, store, ses, runtime_invoke: Callable[[str, dict], None],
     cap: int, cooldown_s: int, today: str, catalog_keys,
+    test_emails: frozenset[str] = frozenset(),
 ) -> tuple[int, dict]:
     """POST /trial 코어. (status_code, body). 부수효과(ses·invoke)는 주입된 객체로."""
     email = (payload.get("email") or "").strip().lower()
@@ -66,7 +72,7 @@ def handle_trial(
     err = validate_trial(email, sources, catalog_keys)
     if err:
         return 400, {"error": err}
-    if store.within_cooldown(email):
+    if email not in test_emails and store.within_cooldown(email):
         return 429, {"error": "최근에 이미 요청했어요. 잠시 후 다시 시도하세요."}
     if store.over_global_cap(today, cap):
         return 429, {"error": "오늘 체험 한도가 찼어요. 내일 다시 시도해주세요."}

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time
 
-from briefing.webapi.trial import TrialStore, handle_trial, validate_trial
+from briefing.webapi.trial import TrialStore, handle_trial, validate_trial, _parse_emails
 
 CATALOG = ("aitimes", "openai", "anthropic")
 
@@ -128,3 +128,43 @@ def test_within_cooldown_true_regardless_of_status():
     future_ttl = int(time.time()) + 100
     store = TrialStore(_FakeTable({"email": "u@x.com", "status": "generating", "ttl": future_ttl}))
     assert store.within_cooldown("u@x.com") is True
+
+
+# ── v1.1e: TRIAL_TEST_EMAILS allowlist 쿨다운 우회 ──────────────────────
+
+def test_allowlist_email_skips_cooldown():
+    """allowlist 주소는 within_cooldown=True 여도 202(쿨다운 게이트 skip)."""
+    inv = _invoke_spy()
+    code, body = handle_trial(_ok_payload(), store=_FakeStore(cooldown=True),
+                              ses=_FakeSes(verified=True), runtime_invoke=inv,
+                              cap=50, cooldown_s=3600, today="d", catalog_keys=CATALOG,
+                              test_emails=frozenset({"u@x.com"}))
+    assert code == 202 and body["status"] == "sending"
+    assert inv.calls and inv.calls[0][0] == "trial"   # 우회 후 정상 invoke
+
+
+def test_non_allowlist_email_still_cooldown_429():
+    """allowlist 가 비어있지 않아도 그 안에 없는 주소는 429(공개 가드 유지)."""
+    inv = _invoke_spy()
+    code, _ = handle_trial(_ok_payload(), store=_FakeStore(cooldown=True),
+                           ses=_FakeSes(), runtime_invoke=inv,
+                           cap=50, cooldown_s=3600, today="d", catalog_keys=CATALOG,
+                           test_emails=frozenset({"other@x.com"}))
+    assert code == 429 and not inv.calls
+
+
+def test_allowlist_email_still_blocked_by_cap():
+    """allowlist 우회는 쿨다운 한정 — 전역 cap 은 테스트 주소도 차단(절대 천장 유지)."""
+    inv = _invoke_spy()
+    code, _ = handle_trial(_ok_payload(), store=_FakeStore(over=True),
+                           ses=_FakeSes(verified=True), runtime_invoke=inv,
+                           cap=50, cooldown_s=3600, today="d", catalog_keys=CATALOG,
+                           test_emails=frozenset({"u@x.com"}))
+    assert code == 429 and not inv.calls
+
+
+def test_parse_emails_normalizes():
+    """쉼표 구분 → 소문자·trim·빈값 제거 frozenset; '' → frozenset()."""
+    assert _parse_emails("A@x.com, b@y.com ,") == frozenset({"a@x.com", "b@y.com"})
+    assert _parse_emails("") == frozenset()
+    assert _parse_emails("  ") == frozenset()

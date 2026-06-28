@@ -1,5 +1,5 @@
-// Form.trial.test.tsx — 체험하기 UI: StatusCard 로 확인 메일 안내 표시
-// NOTE: <p>{msg}</p> → <StatusCard> 로 교체됨에 따라 role="status" 를 단언
+// Form.trial.test.tsx — 체험하기 UI: ProgressModal 로 확인 메일 안내 표시
+// NOTE: StatusCard(role="status") → ProgressModal(role="dialog") 로 교체됨
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import Form from './Form'
@@ -28,7 +28,7 @@ afterEach(() => {
 })
 
 describe('체험하기', () => {
-  it('enables 체험하기 after email + source, posts trial, shows verification_pending in StatusCard', async () => {
+  it('enables 체험하기 after email + source, posts trial, shows verification_pending in ProgressModal', async () => {
     render(<Form />)
     await waitFor(() => screen.getByLabelText('AI Times'))
     fireEvent.click(screen.getByLabelText('AI Times'))
@@ -39,8 +39,8 @@ describe('체험하기', () => {
     // 클릭 → postTrial awaited
     await act(async () => { fireEvent.click(btn) })
 
-    // StatusCard 가 표시되고 확인 메일 안내 텍스트 포함
-    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument())
+    // ProgressModal 다이얼로그가 표시되고 확인 메일 안내 텍스트 포함
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
     expect(screen.getByText(/확인 메일/)).toBeInTheDocument()
 
     // 3s 진행 → 첫 번째 폴링(sent) → 인터벌 정리
