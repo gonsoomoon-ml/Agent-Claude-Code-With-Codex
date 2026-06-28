@@ -1,6 +1,17 @@
-// web/src/App.tsx — 라우트 골격(페이지는 Task 8 에서 채움).
+// web/src/App.tsx — 라우터(/, /setup).
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import Landing from './pages/Landing'
+import Form from './pages/Form'
+
 export default function App() {
-  return <div style={{ fontFamily: 'system-ui', maxWidth: 760, margin: '0 auto', padding: 16 }}>
-    <p>로딩…</p>
-  </div>
+  return (
+    <BrowserRouter>
+      <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', maxWidth: 760, margin: '0 auto', padding: '24px 16px' }}>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/setup" element={<Form />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
+  )
 }
