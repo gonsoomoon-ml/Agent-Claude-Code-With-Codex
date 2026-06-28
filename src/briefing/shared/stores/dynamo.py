@@ -20,6 +20,7 @@ from .source_store import FrozenSource, content_id, media_from_url, normalize
 _CACHE_TTL_DAYS = 30
 _SOURCE_TTL_DAYS = 7  # 원문(저작권 민감)은 7일 ephemeral — corpus 아님(파생물 ledger/card 는 durable)
 _SRC_FIELDS = ("source_id", "url", "title", "text", "fetched_at", "media")
+_USER_FIELDS = ("recipient", "type", "sources", "depth", "lens", "send_hour", "timezone")  # skill_md 제외 — 파일 오버레이
 
 
 def _to_frozen(item: dict) -> FrozenSource:
@@ -113,6 +114,50 @@ class DynamoSourceStore:
         return _to_frozen(self._t.get_item(Key={"source_id": source_id}).get("Item") or {})
 
 
+class DynamoUserStore:
+    """user 프로필 DDB 백엔드 — PK=user_id, **7 web 필드만**(skill_md 제외 — 파일 오버레이, trust 경계).
+
+    get_user → 7필드 dict(config.load_user 가 skill_md 파일 머지 후 UserConfig 빌드). 쓰기=④ `PUT /profile`.
+    list_users → Scan(user_id projection, 페이지네이션). put_user = 시드/관리용(skill_md 안 씀).
+    """
+
+    def __init__(self, table_name: str, region: str = "", endpoint_url: str = "") -> None:
+        self._t = _table(table_name, region, endpoint_url)
+
+    def get_user(self, user_id: str) -> dict | None:
+        item = self._t.get_item(Key={"user_id": user_id}).get("Item")
+        if not item:
+            return None
+        d = {k: item[k] for k in _USER_FIELDS if k in item}
+        if "sources" in d:
+            d["sources"] = list(d["sources"])      # DDB List → list
+        if "send_hour" in d:
+            d["send_hour"] = int(d["send_hour"])    # DDB Number(Decimal) → int
+        return d
+
+    def list_users(self) -> list[str]:
+        ids: list[str] = []
+        kw: dict = {"ProjectionExpression": "user_id"}
+        while True:                                  # 페이지네이션 — 일일 배치는 전수 순회(불가피)
+            resp = self._t.scan(**kw)
+            ids += [it["user_id"] for it in resp.get("Items", [])]
+            lek = resp.get("LastEvaluatedKey")
+            if not lek:
+                break
+            kw["ExclusiveStartKey"] = lek
+        return sorted(ids)
+
+    def put_user(self, user_id: str, fields: dict) -> None:
+        """시드/관리용 — 7 운영 필드 write(★ skill_md 안 씀 — trust 경계). ④ 는 UpdateItem(7필드)로 갱신 권장."""
+        item: dict = {"user_id": user_id}
+        for k in _USER_FIELDS:
+            v = fields.get(k)
+            if v is None:
+                continue
+            item[k] = list(v) if k == "sources" else (int(v) if k == "send_hour" else v)
+        self._t.put_item(Item=item)
+
+
 # ── settings → backend 팩토리 (driver/smoke 가 호출; boto3 는 이 모듈 import 시점에만 필요) ──
 def card_cache_from_settings(settings) -> DynamoCardCache:
     return DynamoCardCache(settings.cache_table, settings.region, getattr(settings, "ddb_endpoint_url", ""))
@@ -124,3 +169,7 @@ def ledger_from_settings(settings) -> DynamoLedger:
 
 def source_store_from_settings(settings) -> DynamoSourceStore:
     return DynamoSourceStore(settings.source_table, settings.region, getattr(settings, "ddb_endpoint_url", ""))
+
+
+def user_store_from_settings(settings) -> DynamoUserStore:
+    return DynamoUserStore(settings.users_table, settings.region, getattr(settings, "ddb_endpoint_url", ""))
