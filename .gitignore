@@ -25,3 +25,7 @@ __pycache__/
 !/users/README.md
 .gw_build/
 .gw_build.zip
+
+# Playwright MCP 임시 스냅샷/스크린샷(테스트 아티팩트 — 커밋 금지)
+.playwright-mcp/
+*.jpeg
