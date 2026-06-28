@@ -1,6 +1,7 @@
 // web/src/pages/Landing.tsx — 서비스 소개 + 정적 샘플 미리보기(GET /sample) + 설정 링크.
 import { Link } from 'react-router-dom'
 import { sampleUrl } from '../api'
+import { coralPill } from '../theme'
 
 export default function Landing() {
   return (
@@ -13,8 +14,8 @@ export default function Landing() {
       <h2 style={{ fontSize: 18 }}>받아보시는 메일 예시</h2>
       <iframe title="샘플 브리핑" src={sampleUrl()} style={{ width: '100%', height: 380, border: '1px solid #eee', borderRadius: 8 }} />
       <div style={{ marginTop: 20 }}>
-        <Link to="/setup" style={{ display: 'inline-block', padding: '12px 22px', background: '#1565c0', color: '#fff', borderRadius: 8, textDecoration: 'none' }}>
-          구독 설정하기 →
+        <Link to="/setup" className="cta-coral" style={coralPill}>
+          구독 설정하기 <span aria-hidden="true">→</span>
         </Link>
       </div>
     </div>

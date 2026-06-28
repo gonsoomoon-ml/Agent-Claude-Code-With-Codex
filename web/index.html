@@ -4,6 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>매일 AI 브리핑 — 검증 후 발행</title>
+    <style>
+      .cta-coral { transition: all .15s; }
+      .cta-coral:hover:not([disabled]) {
+        filter: brightness(1.08);
+        box-shadow: 0 0 24px rgba(255, 107, 71, 0.35);
+        transform: translateY(-1px);
+      }
+      .cta-coral[disabled] > [aria-hidden] { display: none; }
+      .cta-ghost:hover {
+        border-color: rgba(0, 0, 0, 0.45);
+        color: #111;
+        background: rgba(0, 0, 0, 0.03);
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
   <body>
     <div id="root"></div>
