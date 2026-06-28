@@ -30,11 +30,12 @@ class Source:
     kind: str              # "rss" | "html" | "auto" (auto = 피드 자동발견 후 폴백)
     lang: str              # "en" | "ko"
     fragile: bool = False  # True = *진짜 차단*(Cloudflare challenge/JS-only) — v1 미구현, 현 catalog 엔 없음
+    category: str = ""     # 관심 버킷(type 직교). catalog 필수(로더가 빈값 거부); UI 분야 그룹핑 키. 기본 ""=임시 Source()용
 
 
 _KINDS = frozenset({"rss", "html", "auto"})
 _LANGS = frozenset({"en", "ko"})
-_REQUIRED = ("key", "name", "url", "kind", "lang")
+_REQUIRED = ("key", "name", "url", "kind", "lang", "category")  # category 도 필수 → 루프가 빈값 거부(non-empty 강제)
 _CATALOG_PATH = Path(__file__).parent / "catalog.yaml"
 
 
@@ -66,6 +67,7 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
                 kind=e["kind"],
                 lang=e["lang"],
                 fragile=bool(e.get("fragile", False)),
+                category=e["category"],
             )
         )
     return tuple(out)
@@ -73,6 +75,11 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
 
 # 전역 vetted CATALOG — catalog.yaml 에서 로드(import 시 1회, 검증). UI 는 이 목록에서 선택.
 CATALOG: tuple[Source, ...] = _load_catalog()
+
+
+def catalog_categories() -> list[str]:
+    """CATALOG 의 정렬된 유니크 category — UI 분야 그룹 헤더를 데이터에서 유도(하드코딩 enum 아님 → 스케일)."""
+    return sorted({s.category for s in CATALOG})
 _BY_KEY: dict[str, Source] = {s.key: s for s in CATALOG}
 
 

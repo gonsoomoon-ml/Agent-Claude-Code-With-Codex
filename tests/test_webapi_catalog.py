@@ -1,13 +1,15 @@
-"""webapi.build_catalog — 폼용 카탈로그 JSON(순수). CATALOG/LENS_LIBRARY 재사용 + category 폴백."""
+"""webapi.build_catalog — 폼용 카탈로그 JSON(순수). CATALOG/LENS_LIBRARY 재사용 + category 그룹핑(폴백 포함)."""
 from __future__ import annotations
 
 from briefing.webapi.catalog import MAX_SOURCES, SEND_HOURS, build_catalog
 
 
-def test_catalog_groups_under_jeonche_fallback_when_no_category():
-    # Source 에 category 필드가 아직 없음(H2 전) → 단일 "전체" 그룹.
+def test_catalog_groups_by_category():
+    # H2(LANE-A) 적용 → category 별 그룹(폴백 "전체" 아님). catalog_categories() 와 일치(데이터 주도).
+    from briefing.shared.retrieval.sources import catalog_categories
+
     cat = build_catalog()
-    assert [g["name"] for g in cat["categories"]] == ["전체"]
+    assert {g["name"] for g in cat["categories"]} == set(catalog_categories())
     keys = [s["key"] for g in cat["categories"] for s in g["sources"]]
     assert "aitimes" in keys and "anthropic" in keys      # CATALOG 전부 노출
     assert len(keys) == len(set(keys))                     # 중복 0

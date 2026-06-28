@@ -14,7 +14,8 @@ def test_get_catalog_returns_form_shape():
     body = r.json()
     assert body["max_sources"] == 5
     assert body["send_hours"] == [6, 7, 8]
-    assert body["categories"][0]["name"] == "전체"
+    names = [g["name"] for g in body["categories"]]
+    assert "전체" not in names and len(names) >= 2   # H2(LANE-A): category 별 그룹(폴백 아님)
 
 
 def test_get_sample_returns_html():
