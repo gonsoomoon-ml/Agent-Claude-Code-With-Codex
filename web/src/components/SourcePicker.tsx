@@ -74,7 +74,7 @@ function cardStyle(checked: boolean, dimmed: boolean): CSSProperties {
     padding: '12px 14px', borderRadius: 12, cursor: dimmed ? 'not-allowed' : 'pointer',
     background: checked ? colors.coralWash : '#fff',
     border: checked ? `1.5px solid ${colors.coralTo}` : '1px solid #eee',
-    boxShadow: checked ? '0 1px 3px rgba(255,107,71,0.18)' : 'none',
+    boxShadow: checked ? '0 1px 3px rgba(255,107,71,0.18)' : undefined,  // undefined(=인라인 미설정) → 미선택 카드에 index.html .src-card:hover box-shadow 적용
     opacity: dimmed ? 0.45 : 1,
   }
 }
