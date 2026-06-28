@@ -8,10 +8,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-from .catalog import build_catalog
+from .catalog import DEPTHS, SEND_HOURS, build_catalog
+from .profile import validate_profile
 from .trial import TrialStore, handle_trial
 
 _SAMPLE_HTML = (Path(__file__).parent / "sample_briefing.html").read_text(encoding="utf-8")
@@ -22,8 +24,8 @@ _origins = [o.strip() for o in os.getenv("WEB_ORIGIN", "*").split(",") if o.stri
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins or ["*"],
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "OPTIONS"],
+    allow_headers=["*", "Authorization"],
 )
 
 
@@ -42,6 +44,81 @@ def get_sample() -> Response:
 @app.get("/health")
 def health() -> dict:
     return {"ok": True}
+
+
+def _event_from_request(req: Request) -> dict:
+    """Mangum 0.21 에서 HTTP API 원본 이벤트를 scope 에 주입."""
+    return req.scope.get("aws.event") or {}
+
+
+def _claims(req: Request) -> dict:
+    """JWT claims 추출 (HTTP API v2 authorizer). id token 만 수락(access token 거부).
+
+    Returns: {"sub": str, "email": str}
+    Raises: HTTPException(401) if JWT 미존재 or token_use != "id" or sub/email 미존재
+    """
+    ev = _event_from_request(req)
+    try:
+        c = ev["requestContext"]["authorizer"]["jwt"]["claims"]
+    except (KeyError, TypeError):
+        raise HTTPException(status_code=401, detail="JWT claims unavailable")
+    if c.get("token_use") != "id":                 # 방어심도(authorizer drift)
+        raise HTTPException(status_code=401, detail="id token required")
+    if str(c.get("email_verified")).lower() != "true":
+        raise HTTPException(status_code=401, detail="email not verified")
+    sub, email = c.get("sub"), c.get("email")
+    if not sub or not email:
+        raise HTTPException(status_code=401, detail="sub/email claim missing")
+    return {"sub": sub, "email": email}
+
+
+def _profile_deps() -> dict:
+    """실 boto3 의존성(운영). 테스트는 monkeypatch 로 fake 주입."""
+    import boto3
+    region = os.getenv("AWS_REGION", "us-east-1")
+    from ..shared.config import load_settings
+    from ..shared.stores.dynamo import user_store_from_settings
+    store = user_store_from_settings(load_settings())
+    ses = boto3.client("ses", region_name=region)
+    cat = build_catalog()
+    return {"store": store, "ses": ses, "sender": os.getenv("SES_SENDER", ""),
+            "keys": [s["key"] for g in cat["categories"] for s in g["sources"]],
+            "lenses": [ln["key"] for ln in cat["lenses"]]}
+
+
+def _ensure_ses(ses, email: str) -> str:
+    """trial 패턴 재사용 — SES 미검증이면 verify 트리거. active|verification_pending."""
+    if ses is None:  # 테스트 모드
+        return "active"
+    attrs = ses.get_identity_verification_attributes(Identities=[email])
+    st = attrs.get("VerificationAttributes", {}).get(email, {}).get("VerificationStatus")
+    if st == "Success":
+        return "active"
+    ses.verify_email_identity(EmailAddress=email)
+    return "verification_pending"
+
+
+@app.get("/profile")
+def get_profile(req: Request) -> dict:
+    """구독 프로필 조회(prefill). JWT claims 로 sub 확인 후 store 에서 사용자 레코드 조회."""
+    cl = _claims(req)
+    rec = _profile_deps()["store"].get_user(cl["sub"])
+    return {"subscribed": rec is not None, "recipient": cl["email"], "profile": rec or {}}
+
+
+@app.put("/profile")
+async def put_profile(req: Request):
+    """구독 프로필 저장. JWT claims 로 sub·email 취득(body 무시), 6 선호 필드 검증 후 저장."""
+    cl = _claims(req)
+    body = await req.json()
+    d = _profile_deps()
+    err = validate_profile(body, catalog_keys=d["keys"], lens_keys=d["lenses"],
+                           depths=DEPTHS, send_hours=SEND_HOURS)
+    if err:
+        return JSONResponse(status_code=400, content={"error": err})
+    d["store"].update_profile_from_jwt(sub=cl["sub"], email=cl["email"], fields=body)
+    return JSONResponse(status_code=200,
+                        content={"status": "subscribed", "delivery": _ensure_ses(d["ses"], cl["email"])})
 
 
 def _trial_deps() -> dict:

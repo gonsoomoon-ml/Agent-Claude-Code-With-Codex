@@ -54,6 +54,20 @@ def test_users_due_now_treats_naive_now_as_utc():
     assert [u.id for u in users_due_now([_u("seoul7", 7, "Asia/Seoul")], naive)] == ["seoul7"]
 
 
+def test_users_due_now_bad_tz_skipped_valid_still_returned():
+    """잘못된 timezone 사용자 1명이 있어도 나머지 due 사용자는 정상 반환(배치 보호)."""
+    from briefing.scheduler.due import users_due_now
+
+    now = datetime(2026, 6, 27, 22, 0, tzinfo=timezone.utc)        # = 07:00 KST
+    users = [
+        _u("bad-tz-user", 7, "garbage/Invalid"),                   # 잘못된 tz → 건너뜀
+        _u("seoul7", 7, "Asia/Seoul"),                             # 정상 due 사용자
+    ]
+    due_ids = [u.id for u in users_due_now(users, now)]
+    assert "bad-tz-user" not in due_ids                             # 배치를 오염시키지 않음
+    assert "seoul7" in due_ids                                      # 정상 사용자는 여전히 due
+
+
 # ───────────────────────── C5 deliver (SES — 발송 게이트) ─────────────────────────
 
 def _briefing(recipient, email, published, quarantined=0):

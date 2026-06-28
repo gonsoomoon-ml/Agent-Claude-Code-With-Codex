@@ -1,6 +1,8 @@
 // web/src/pages/Form.tsx — 미디어(MAX5)·발송시각(6/7/8 KST)·이메일 수집. 체험/구독 버튼은 v1.0 비활성.
 import { useEffect, useState } from 'react'
-import { fetchCatalog, postTrial } from '../api'
+import { fetchCatalog, postTrial, getProfile, putProfile } from '../api'
+import { isAuthed } from '../auth/session'
+import { startLogin } from '../auth/login'
 import type { Catalog } from '../types'
 import { SourcePicker } from '../components/SourcePicker'
 
@@ -11,9 +13,15 @@ export default function Form() {
   const [sendHour, setSendHour] = useState(7)
   const [email, setEmail] = useState('')
   const [msg, setMsg] = useState('')
+  const [recipient, setRecipient] = useState<string | null>(null)
+  const [authed, setAuthed] = useState(false)
 
   useEffect(() => {
     fetchCatalog().then(setCatalog).catch((e) => setError(String(e)))
+    setAuthed(isAuthed())
+    if (isAuthed()) {
+      getProfile().then((p) => setRecipient(p.recipient || null)).catch((e) => console.error('Failed to get profile:', e))
+    }
   }, [])
 
   if (error) return <p style={{ color: '#c00' }}>카탈로그를 불러오지 못했습니다: {error}</p>
@@ -45,13 +53,39 @@ export default function Form() {
       </div>
 
       <h2 style={{ fontSize: 16 }}>3. 이메일</h2>
-      <input
-        type="email" value={email} placeholder="you@example.com"
-        onChange={(e) => setEmail(e.target.value)}
-        style={{ padding: 8, width: 280, fontSize: 14 }}
-      />
+      {authed ? (
+        <div style={{ padding: 8, fontSize: 14 }}>
+          구독 주소: <strong>{recipient || '로딩 중…'}</strong>
+        </div>
+      ) : (
+        <input
+          type="email" value={email} placeholder="you@example.com"
+          onChange={(e) => setEmail(e.target.value)}
+          style={{ padding: 8, width: 280, fontSize: 14 }}
+        />
+      )}
 
       <div style={{ marginTop: 24, display: 'flex', gap: 12 }}>
+        {authed ? (
+          <button type="button" disabled={!selected.length}
+            onClick={async () => {
+              setMsg('구독 중…')
+              try {
+                const r = await putProfile({ sources: selected, send_hour: sendHour, lens: 'general', depth: 'summary' })
+                const status = r.delivery === 'active'
+                  ? '구독 완료 — 매일 발송'
+                  : '구독 저장 — 메일의 SES 인증 클릭 후 발송'
+                setMsg(status)
+              } catch (e) {
+                setMsg(`오류: ${String(e)}`)
+              }
+            }}
+            style={{ padding: '10px 18px', fontSize: 14 }}>구독하기</button>
+        ) : (
+          <button type="button"
+            onClick={() => startLogin()}
+            style={{ padding: '10px 18px', fontSize: 14 }}>로그인 / 구독하기</button>
+        )}
         <button type="button" disabled={!(selected.length && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))}
           onClick={async () => {
             setMsg('보내는 중…')
@@ -61,12 +95,10 @@ export default function Form() {
               : r.status === 'sending' ? '곧 브리핑이 도착합니다!' : (r.error || '잠시 후 다시 시도해주세요.'))
           }}
           style={{ padding: '10px 18px', fontSize: 14 }}>체험하기</button>
-        <button type="button" disabled title="곧 제공(v1.2)"
-          style={{ padding: '10px 18px', fontSize: 14 }}>구독하기 (곧 제공)</button>
       </div>
       {msg && <p>{msg}</p>}
       <p style={{ fontSize: 12, color: '#999', marginTop: 8 }}>
-        선택: {selected.length}개 출처 · {String(sendHour).padStart(2, '0')}:00 KST · {email || '이메일 미입력'}
+        선택: {selected.length}개 출처 · {String(sendHour).padStart(2, '0')}:00 KST · {authed ? `${recipient || '로딩 중…'}` : email || '이메일 미입력'}
       </p>
     </div>
   )

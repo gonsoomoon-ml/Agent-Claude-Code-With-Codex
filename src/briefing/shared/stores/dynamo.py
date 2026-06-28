@@ -168,6 +168,27 @@ class DynamoUserStore:
             item[k] = list(v) if k == "sources" else (int(v) if k == "send_hour" else v)
         self._t.put_item(Item=item)
 
+    def update_profile_from_jwt(self, *, sub: str, email: str, fields: dict) -> None:
+        """★ IDOR-safe: PK=sub·recipient=email 은 *검증된 JWT* 에서만(인자). body 는 6 선호 필드만.
+
+        모든 속성을 #name 으로 우회 — 'type' 은 DDB 예약어. sources→list·send_hour→int.
+        body 의 user_id/recipient/email 은 절대 안 씀(시그니처상 fields 에 있어도 무시).
+        """
+        names = {"#r": "recipient"}
+        vals = {":r": email}
+        sets = ["#r = :r"]
+        for i, k in enumerate(("type", "sources", "depth", "lens", "send_hour", "timezone")):
+            v = fields.get(k)
+            if v is None:
+                continue
+            nk, vk = f"#f{i}", f":v{i}"
+            names[nk] = k
+            vals[vk] = list(v) if k == "sources" else (int(v) if k == "send_hour" else v)
+            sets.append(f"{nk} = {vk}")
+        self._t.update_item(
+            Key={"user_id": sub}, UpdateExpression="SET " + ", ".join(sets),
+            ExpressionAttributeNames=names, ExpressionAttributeValues=vals)
+
 
 # ── settings → backend 팩토리 (driver/smoke 가 호출한다; boto3 는 이 모듈을 import 할 때만 필요) ──
 def card_cache_from_settings(settings) -> DynamoCardCache:
