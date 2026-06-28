@@ -1,13 +1,16 @@
-"""deploy_gateway — ① Gateway 승격 실 배포(재현 가능). aiops cognito.yaml+setup_gateway.py+deploy_runtime.py 미러.
+"""deploy_gateway — ① Gateway 승격을 실제로 배포하는 스크립트(재현 가능). aiops 의 cognito.yaml + setup_gateway.py + deploy_runtime.py 를 합쳐 미러.
 
-재현 절차(누구든): AWS creds + `uv sync` (docker 불필요) →
-    AWS_REGION=us-east-1 DEMO_USER=<id> uv run python -m briefing.runtime.deploy_gateway
-생성물(순서·전부 멱등): Cognito(CFN) → zip Lambda(S3) → OAuth2 provider(비밀=볼트) → Gateway + target(3도구).
-출력: .env 에 붙일 GATEWAY_URL/COGNITO_*/OAUTH_PROVIDER_NAME. (실행=과금 — off-by-default capability.)
+누구든 재현하려면(docker 불필요):
+    AWS 자격증명 + `uv sync` → AWS_REGION=us-east-1 DEMO_USER=<id> uv run python -m briefing.runtime.deploy_gateway
 
-★ Lambda = **zip**(aiops 동일). lxml/trafilatura 는 네이티브 wheel(이 박스 = Lambda 플랫폼: linux x86_64 py3.12,
-  lxml glibc≤2.25 ⊂ AL2023 2.34) → docker 없이 빌드. boto3 는 Lambda 런타임 기본 제공 → 미번들.
-guardrail: toolSchema = retrieval 3도구뿐(fetch_article·get_source·discover_feed) — gate/certify/author 미노출.
+아래 순서로 만든다(전부 멱등 — 재실행해도 안전):
+    Cognito + IAM(CloudFormation) → zip Lambda(S3 경유) → OAuth2 provider(비밀=볼트) → Gateway + target(3도구).
+끝나면 `.env` 에 붙일 값(GATEWAY_URL·COGNITO_*·OAUTH_PROVIDER_NAME)을 출력한다. (실행은 과금된다 — 이 기능은 기본 off.)
+
+★ Lambda 는 컨테이너가 아니라 **zip** 이다(aiops 와 동일). lxml/trafilatura 는 네이티브 wheel 로 묶는다 —
+  이 빌드 호스트가 Lambda 와 같은 플랫폼(linux x86_64, py3.12)이고 lxml 의 glibc 요구(≤2.25)가 Lambda(AL2023, 2.34)에 포함되므로 docker 없이 빌드된다.
+  boto3 는 Lambda 런타임이 기본 제공하므로 zip 에 넣지 않는다.
+가드레일: toolSchema = retrieval 3도구(fetch_article·get_source·discover_feed)뿐 — gate/certify/author 는 노출하지 않는다.
 """
 from __future__ import annotations
 
@@ -20,18 +23,18 @@ from pathlib import Path
 
 import boto3
 
-ROOT = Path(__file__).resolve().parents[3]          # repo 루트(src/briefing/runtime/ → parents[3])
+ROOT = Path(__file__).resolve().parents[3]          # 저장소 루트 — 이 파일이 src/briefing/runtime/ 안이라 3단계 위
 REGION = os.getenv("AWS_REGION", "us-east-1")
 DEMO_USER = os.getenv("DEMO_USER", "gonsoo")
 STACK = f"briefing-gw-{DEMO_USER}-cognito"
-LAMBDA_NAME = f"briefing-gw-{DEMO_USER}-handler"     # cognito.yaml LambdaName 파라미터로 전달(역할 invoke 대상)
+LAMBDA_NAME = f"briefing-gw-{DEMO_USER}-handler"     # cognito.yaml 의 LambdaName 으로 넘긴다(Gateway 역할이 invoke 권한을 받을 대상)
 GATEWAY_NAME = f"briefing-gw-{DEMO_USER}-gateway"
-PROVIDER_NAME = f"briefing_gw_{DEMO_USER}_provider"  # AgentCore Identity provider(언더스코어)
-TARGET_NAME = "briefing"                             # MCP 도구 prefix → config GATEWAY_TARGET 기본과 일치
-BUILD_DIR = ROOT / ".gw_build"                       # gitignore — zip 빌드 산출물
+PROVIDER_NAME = f"briefing_gw_{DEMO_USER}_provider"  # AgentCore Identity provider 이름(하이픈 대신 언더스코어)
+TARGET_NAME = "briefing"                             # MCP 도구 이름 앞 prefix — config 의 GATEWAY_TARGET 기본값과 맞춘다
+BUILD_DIR = ROOT / ".gw_build"                       # zip 빌드 산출물(gitignore 됨)
 ZIP_PATH = ROOT / ".gw_build.zip"
 
-# ── toolSchema(inlinePayload): 승격 retrieval 3도구뿐 ── guardrail: 여기에 gate/certify/author 없음 ──
+# Gateway 에 등록할 도구 스키마 — 승격하는 retrieval 3도구뿐. ★ 가드레일: 여기에 gate/certify/author 가 없다(노출 금지).
 TOOL_SCHEMA = [
     {"name": "fetch_article",
      "description": "Vetted catalog 출처에서 최근 기사 raw 페치(fabric 권위 페치). 내부 source_key 로 호출.",
@@ -54,7 +57,7 @@ def _account() -> str:
 
 
 def _cfn() -> dict[str, str]:
-    """cognito.yaml 배포(Cognito + IAM). 멱등: 존재 시 update(‘No updates’ 무시)."""
+    """cognito.yaml 을 배포한다(Cognito + IAM 역할). 멱등 — 스택이 있으면 update 하고, 바꿀 게 없으면("No updates") 조용히 넘어간다."""
     cf = boto3.client("cloudformation", region_name=REGION)
     tmpl = (ROOT / "infra/gateway/cognito.yaml").read_text(encoding="utf-8")
     params = [{"ParameterKey": "DemoUser", "ParameterValue": DEMO_USER},
@@ -69,7 +72,7 @@ def _cfn() -> dict[str, str]:
             cf.update_stack(**kw)
             cf.get_waiter("stack_update_complete").wait(StackName=STACK)
             print(f"♻ CFN update: {STACK}")
-        except Exception as e:  # noqa: BLE001 — "No updates are to be performed" = 정상
+        except Exception as e:  # noqa: BLE001 — "No updates are to be performed" 는 에러가 아니라 정상(바뀐 게 없음)
             if "No updates" not in str(e):
                 raise
             print(f"♻ CFN 변경 없음: {STACK}")
@@ -80,15 +83,16 @@ def _cfn() -> dict[str, str]:
 
 
 def _client_secret(pool_id: str, client_id: str) -> str:
-    """ClientSecret 는 CFN output 이 아님 → describe 로 별도 조회(aiops 동일)."""
+    """Cognito ClientSecret 을 가져온다. CFN output 에는 안 담기므로 describe API 로 따로 조회한다(aiops 와 동일)."""
     return boto3.client("cognito-idp", region_name=REGION).describe_user_pool_client(
         UserPoolId=pool_id, ClientId=client_id)["UserPoolClient"]["ClientSecret"]
 
 
 def _build_zip(account: str) -> tuple[str, str]:
-    """Lambda zip 빌드(docker 없이): 네이티브 wheel(이 박스=Lambda 플랫폼) + briefing 소스 → S3.
+    """Lambda 에 올릴 zip 을 docker 없이 빌드한다 — 네이티브 wheel(이 호스트=Lambda 플랫폼) + briefing 소스 → S3 업로드.
 
-    boto3 는 Lambda 기본 제공이라 제외. lxml/trafilatura 는 manylinux wheel(glibc≤2.25, AL2023 OK).
+    boto3 는 Lambda 가 기본 제공하므로 넣지 않는다. lxml/trafilatura 는 manylinux wheel(glibc≤2.25 → AL2023 에서 동작).
+    ⚠️ 리뷰 메모: 의존성을 버전 고정 없이 설치하고, 빌드 호스트가 linux x86_64·py3.12 라고 *가정*한다(다른 플랫폼이면 wheel 비호환).
     """
     if BUILD_DIR.exists():
         shutil.rmtree(BUILD_DIR)
@@ -103,11 +107,11 @@ def _build_zip(account: str) -> tuple[str, str]:
     bucket = f"briefing-gw-{DEMO_USER}-deploy-{account}-{REGION}"
     s3 = boto3.client("s3", region_name=REGION)
     try:
-        if REGION == "us-east-1":          # us-east-1 은 LocationConstraint 금지
+        if REGION == "us-east-1":          # us-east-1 은 LocationConstraint 를 주면 안 된다(다른 리전과 규칙이 다름)
             s3.create_bucket(Bucket=bucket)
         else:
             s3.create_bucket(Bucket=bucket, CreateBucketConfiguration={"LocationConstraint": REGION})
-    except Exception as e:  # noqa: BLE001 — 이미 소유 버킷이면 멱등 진행
+    except Exception as e:  # noqa: BLE001 — 내가 이미 가진 버킷이면 무시하고 진행(멱등)
         if not any(x in type(e).__name__ for x in ("BucketAlreadyOwnedByYou", "BucketAlreadyExists")):
             raise
     key = "gateway/handler.zip"
@@ -117,7 +121,7 @@ def _build_zip(account: str) -> tuple[str, str]:
 
 
 def _lambda(bucket: str, key: str, role_arn: str) -> str:
-    """zip Lambda 생성/갱신(S3 코드). env=DDB backend(get_source). AWS_REGION 은 Lambda 자동 주입."""
+    """zip Lambda 를 만들거나(있으면) 코드만 갱신한다. env 로 DDB backend 를 켠다(get_source 용). AWS_REGION 은 Lambda 가 자동 주입."""
     lam = boto3.client("lambda", region_name=REGION)
     env = {"Variables": {"BACKEND": "dynamo", "SOURCE_TABLE": "briefing-source-store"}}
     common = dict(FunctionName=LAMBDA_NAME, Runtime="python3.12", Role=role_arn,
@@ -136,7 +140,10 @@ def _lambda(bucket: str, key: str, role_arn: str) -> str:
 
 
 def _provider(pool_id: str, domain: str, client_id: str, client_secret: str) -> str:
-    """OAuth2CredentialProvider(CustomOauth2) — 비밀=AgentCore 볼트. Runtime 은 비밀 없이 토큰."""
+    """OAuth2 자격증명 provider(CustomOauth2)를 만든다 — Cognito 비밀을 AgentCore 볼트에 보관. Runtime 은 비밀 없이 토큰을 받는다.
+
+    ⚠️ 리뷰 메모: 이미 있으면 *건너뛰기만* 한다(업데이트 안 함) — Cognito 가 재생성돼 비밀이 바뀌면 stale 될 수 있음.
+    """
     c = boto3.client("bedrock-agentcore-control", region_name=REGION)
     cfg = {"customOauth2ProviderConfig": {
         "clientId": client_id, "clientSecret": client_secret,
@@ -149,7 +156,7 @@ def _provider(pool_id: str, domain: str, client_id: str, client_secret: str) -> 
         c.create_oauth2_credential_provider(name=PROVIDER_NAME, credentialProviderVendor="CustomOauth2",
                                             oauth2ProviderConfigInput=cfg)
         print(f"✅ OAuth2 provider: {PROVIDER_NAME}")
-    except Exception as e:  # noqa: BLE001 — 멱등(ConflictException / "already exists")
+    except Exception as e:  # noqa: BLE001 — 이미 존재(ConflictException 또는 "already exists")면 멱등 처리
         if "Conflict" in type(e).__name__ or "already exists" in str(e):
             print(f"♻ OAuth2 provider 존재: {PROVIDER_NAME}")
         else:
@@ -158,7 +165,7 @@ def _provider(pool_id: str, domain: str, client_id: str, client_secret: str) -> 
 
 
 def _gateway(role_arn: str, pool_id: str, client_id: str, scope: str, lambda_arn: str) -> str:
-    """Gateway(MCP·CUSTOM_JWT) + target(mcp.lambda·3도구·GATEWAY_IAM_ROLE). READY 대기 후 target."""
+    """Gateway(MCP 프로토콜·CUSTOM_JWT 인증)와 target(Lambda·3도구·GATEWAY_IAM_ROLE)을 만든다. ★ Gateway 가 READY 된 뒤에 target 을 붙여야 한다."""
     c = boto3.client("bedrock-agentcore-control", region_name=REGION)
     existing = next((g for g in c.list_gateways().get("items", []) if g.get("name") == GATEWAY_NAME), None)
     if existing:
@@ -172,7 +179,7 @@ def _gateway(role_arn: str, pool_id: str, client_id: str, scope: str, lambda_arn
                                   "discoveryUrl": disc, "allowedClients": [client_id], "allowedScopes": [scope]}})
         print(f"⏳ Gateway create: {gw['gatewayId']}")
     gid = gw["gatewayId"]
-    for _ in range(30):                                  # READY 대기(타깃 추가 전 — 필수)
+    for _ in range(30):                                  # Gateway 가 READY 될 때까지 대기 — 아직 CREATING 이면 target 생성이 실패하므로 필수
         st = c.get_gateway(gatewayIdentifier=gid).get("status")
         if st == "READY":
             break
