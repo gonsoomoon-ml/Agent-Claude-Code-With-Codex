@@ -7,6 +7,15 @@ export async function fetchCatalog(): Promise<import('./types').Catalog> {
   return r.json()
 }
 
+export async function postTrial(payload: {
+  email: string; sources: string[]; depth?: string; lens?: string; timezone?: string
+}): Promise<{ status?: string; error?: string }> {
+  const r = await fetch(`${API_BASE}/trial`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+  })
+  return r.json()
+}
+
 export function sampleUrl(): string {
   return `${API_BASE}/sample`
 }

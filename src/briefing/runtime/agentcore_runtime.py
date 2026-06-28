@@ -70,6 +70,41 @@ async def briefing_entrypoint(payload, context):
                "users": len(s_users), "now_utc": now.isoformat(), "dry_run": dry}
         return
 
+    if mode == "trial":   # v1.1a — 검증 polling → 검증 후 발행 1통(fire-and-forget)
+        import threading
+        import time as _time
+
+        import boto3
+
+        from ..scheduler.deliver import make_ses_deliver
+        from ._trial import run_trial
+
+        email = payload["email"]
+        rd = payload.get("run_date") or run_date
+        dry = bool(payload.get("dry_run"))
+        deliver_fn = (lambda b: None) if dry else make_ses_deliver(settings, subject="브리핑 체험 (검증 후 발행)")
+        fallback_fn = (lambda e: None) if dry else (lambda e: _send_trial_fallback(settings, e))
+        ses = boto3.client("ses", region_name=settings.region)
+        task_id = app.add_async_task("trial_briefing")
+
+        def _bg():
+            try:
+                msg = run_trial(settings, store, card_cache, payload, ses=ses,
+                                run_briefing_fn=run_briefing, deliver_fn=deliver_fn,
+                                fallback_fn=fallback_fn, sleep_fn=_time.sleep, run_date=rd,
+                                attempts=int(payload.get("poll_max", 45)),
+                                sleep_seconds=int(payload.get("poll_seconds", 20)))
+                _debug.dprint("entrypoint ← trial", msg, "green")
+            except Exception as e:  # noqa: BLE001
+                _debug.warn("trial bg", f"{type(e).__name__}: {e}")
+            finally:
+                app.complete_async_task(task_id)
+
+        threading.Thread(target=_bg, daemon=True).start()
+        _debug.dprint("entrypoint", f"trial accepted · {email} · dry={dry}")
+        yield {"type": "accepted", "mode": "trial", "task_id": task_id, "email": email, "dry_run": dry}
+        return
+
     if mode == "smoke":
         users, fns = smoke_users(settings), smoke_fns()      # 전부 fake — plumbing 만 증명
     elif mode == "harness":
@@ -102,6 +137,18 @@ async def briefing_entrypoint(payload, context):
             "published": b.published, "quarantined": b.quarantined, "bytes": len(b.email),
         }
     yield {"type": "workflow_complete"}
+
+
+def _send_trial_fallback(settings, recipient: str) -> None:
+    """published==0(QUARANTINE-only/빈/에러) — 침묵 대신 안내 메일 1통."""
+    import boto3
+    html = ('<div style="font-family:system-ui;max-width:560px;margin:0 auto;padding:16px">'
+            '<h2>체험 브리핑 준비 중 문제가 있었어요</h2>'
+            '<p>오늘은 검증을 통과한 새 소식이 충분하지 않았습니다. 구독하시면 매일 자동으로 다시 시도합니다.</p></div>')
+    boto3.client("ses", region_name=settings.region).send_email(
+        Source=settings.ses_sender, Destination={"ToAddresses": [recipient]},
+        Message={"Subject": {"Data": "브리핑 체험 — 잠시 후 다시"},
+                 "Body": {"Html": {"Data": html}}})
 
 
 if __name__ == "__main__":

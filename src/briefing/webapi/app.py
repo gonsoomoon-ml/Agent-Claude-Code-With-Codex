@@ -8,10 +8,11 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from .catalog import build_catalog
+from .trial import TrialStore, handle_trial
 
 _SAMPLE_HTML = (Path(__file__).parent / "sample_briefing.html").read_text(encoding="utf-8")
 
@@ -21,7 +22,7 @@ _origins = [o.strip() for o in os.getenv("WEB_ORIGIN", "*").split(",") if o.stri
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins or ["*"],
-    allow_methods=["GET", "OPTIONS"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -41,3 +42,41 @@ def get_sample() -> Response:
 @app.get("/health")
 def health() -> dict:
     return {"ok": True}
+
+
+def _trial_deps() -> dict:
+    """실 boto3 의존성(운영). 테스트는 monkeypatch 로 fake 주입."""
+    import boto3
+    region = os.getenv("AWS_REGION", "us-east-1")
+    table = boto3.resource("dynamodb", region_name=region).Table(
+        os.getenv("BRIEFING_TRIALS_TABLE", "briefing-trials"))
+    ses = boto3.client("ses", region_name=region)
+    arn = os.environ["BRIEFING_RUNTIME_ARN"]
+    agentcore = boto3.client("bedrock-agentcore", region_name=region)
+
+    def runtime_invoke(mode: str, p: dict) -> None:
+        import json
+        import uuid
+        agentcore.invoke_agent_runtime(
+            agentRuntimeArn=arn, qualifier="DEFAULT",
+            runtimeSessionId=uuid.uuid4().hex + uuid.uuid4().hex[:1],
+            payload=json.dumps(p))
+
+    return {"store": TrialStore(table), "ses": ses, "runtime_invoke": runtime_invoke,
+            "sender": os.getenv("SES_SENDER", ""), "cap": int(os.getenv("TRIAL_GLOBAL_CAP", "50")),
+            "cooldown_s": int(os.getenv("TRIAL_COOLDOWN_SECONDS", "3600"))}
+
+
+@app.post("/trial")
+async def post_trial(req: Request):
+    from datetime import datetime, timezone
+    from fastapi.responses import JSONResponse
+    payload = await req.json()
+    d = _trial_deps()
+    now = datetime.now(timezone.utc)
+    keys = [s["key"] for g in build_catalog()["categories"] for s in g["sources"]]
+    code, body = handle_trial(
+        payload, store=d["store"], ses=d["ses"], runtime_invoke=d["runtime_invoke"],
+        cap=d["cap"], cooldown_s=d["cooldown_s"],
+        today=now.strftime("%Y-%m-%d"), catalog_keys=keys)
+    return JSONResponse(status_code=code, content=body)

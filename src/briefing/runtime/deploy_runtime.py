@@ -196,9 +196,9 @@ def attach_runtime_extras(result, region: str) -> None:
                 "Resource": f"arn:aws:bedrock-mantle:*:{account}:project/*",
             },
             {
-                "Sid": "SesSendBriefing",        # ⑤ 전달 — 발신은 verify 된 identity(별도 설정)
+                "Sid": "SesTrialAndSend",        # ⑤ 전달 + v1.1a trial polling(identity 검증 상태 확인)
                 "Effect": "Allow",
-                "Action": ["ses:SendEmail", "ses:SendRawEmail"],
+                "Action": ["ses:SendEmail", "ses:SendRawEmail", "ses:GetIdentityVerificationAttributes"],
                 "Resource": "*",
             },
             {
