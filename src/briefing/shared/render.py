@@ -37,7 +37,7 @@ def _source_line(store: SourceStore | None, source_id: str) -> str:
         return ""
     try:
         s = store.get_source(source_id)
-    except (FileNotFoundError, ValueError):
+    except (FileNotFoundError, ValueError, KeyError):   # 미스(KeyError, 두 backend 파리티)·손상(ValueError)·삭제경합(FileNotFound) → 빈 줄
         return ""
     domain = _domain(s.url)
     title = html.escape(s.title or s.url or "원문")

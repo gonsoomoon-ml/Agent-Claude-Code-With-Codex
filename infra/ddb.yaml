@@ -1,7 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
-  브리핑 에이전트 영속 계층 — card cache(재계산 방지) + ledger(시간·사용자 history).
-  둘 다 PAY_PER_REQUEST(프로비저닝 0 → idle ≈ $0, 요청당 과금). 로컬 backend 와 *같은 Protocol* 을 DDB 가 만족.
+  브리핑 에이전트 영속 계층 — card-cache(재계산 방지) · source-store(정본) · ledger(시간·사용자 history) · users(프로필).
+  전부 PAY_PER_REQUEST(프로비저닝 0 → idle ≈ $0, 요청당 과금). 로컬 backend 와 *같은 Protocol* 을 DDB 가 만족.
+  내구성: cache 30일·source 7일 TTL(ephemeral) / ledger·users 는 durable(TTL 없음 + DeletionPolicy:Retain + PITR).
 
 Parameters:
   TablePrefix:
@@ -29,9 +30,13 @@ Resources:
   # ── ledger: "언제·누구에게·무엇을 발행했나" 장부. weekly summary·Diff-Since-Last 의 토대. ──
   LedgerTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain          # durable — 스택을 지워도 원장/데이터는 보존(내구성 의도 = 보호)
+    UpdateReplacePolicy: Retain
     Properties:
       TableName: !Sub '${TablePrefix}-ledger'
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:   # 우발적 쓰기/삭제/손상 복구(연속 백업, 최근 35일)
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - AttributeName: user_id             # 사용자 파티션
           AttributeType: S
@@ -65,9 +70,13 @@ Resources:
   # ── users: per-user 프로필(구독). PK=user_id. ④ Web UI(PUT /profile) 쓰기 ↔ load_user 읽기 seam(H4). ──
   UsersTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain          # durable — 스택을 지워도 유저 프로필은 보존
+    UpdateReplacePolicy: Retain
     Properties:
       TableName: !Sub '${TablePrefix}-users'
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:   # 우발적 쓰기/삭제/손상 복구(연속 백업, 최근 35일)
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - AttributeName: user_id             # 데모=gonsoo · 공개=Cognito sub
           AttributeType: S

@@ -1,6 +1,8 @@
 """source_store — content-addressed source-of-record (결정론 신뢰 핵심)."""
 import unicodedata
 
+import pytest
+
 from briefing.shared.stores.source_store import SourceStore, content_id, media_from_url, normalize
 
 
@@ -37,3 +39,17 @@ def test_media_explicit_and_derived(tmp_path):
     derived = s.freeze(url="https://www.aitimes.com/y", title="t", raw_text="유도", fetched_at="t")
     assert derived.media == "aitimes.com"                      # 미제공 → url 도메인(www 제거)
     assert media_from_url("https://www.aitimes.com/z?a=1") == "aitimes.com"
+
+
+def test_get_source_missing_raises(tmp_path):
+    # 미스 = dangling 포인터 → KeyError(빈 값을 조용히 주지 않음). DynamoSourceStore 도 동일(파리티).
+    with pytest.raises(KeyError):
+        SourceStore(str(tmp_path)).get_source("nonexistent")
+
+
+def test_freeze_atomic_first_wins(tmp_path):
+    # os.link 원자 동결 — 같은 내용 두 번 freeze 해도 최초 메타데이터 보존(idempotent·first-wins).
+    s = SourceStore(str(tmp_path))
+    a = s.freeze(url="https://A", title="A", raw_text="원자성 테스트 본문", fetched_at="t1")
+    b = s.freeze(url="https://B", title="B", raw_text="원자성 테스트 본문", fetched_at="t2")
+    assert a == b and b.url == "https://A" and s.get_source(a.source_id) == a

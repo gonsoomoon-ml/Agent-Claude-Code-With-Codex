@@ -87,7 +87,10 @@ class LocalCardCache:
         p = self._path(key)
         if not p.exists():
             return None
-        return _deserialize(json.loads(p.read_text(encoding="utf-8")))
+        try:
+            return _deserialize(json.loads(p.read_text(encoding="utf-8")))
+        except Exception:  # noqa: BLE001 — 손상/구스키마 캐시는 miss 로(캐시는 disposable → fail-open)
+            return None
 
     def put(self, key: str, card: GatedCard) -> None:
         self._path(key).write_text(

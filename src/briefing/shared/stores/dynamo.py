@@ -13,6 +13,7 @@ from dataclasses import asdict
 
 import boto3
 from boto3.dynamodb.conditions import Key
+from botocore.exceptions import ClientError
 
 from .cache import _deserialize, _serialize
 from .source_store import FrozenSource, content_id, media_from_url, normalize
@@ -46,7 +47,10 @@ class DynamoCardCache:
         item = self._t.get_item(Key={"cache_key": key}).get("Item")
         if not item:
             return None
-        return _deserialize(json.loads(item["card_json"]))
+        try:
+            return _deserialize(json.loads(item["card_json"]))
+        except Exception:  # noqa: BLE001 — 손상/구스키마 캐시는 miss 로(캐시는 disposable → fail-open)
+            return None
 
     def put(self, key: str, card) -> None:
         self._t.put_item(Item={
@@ -100,21 +104,25 @@ class DynamoSourceStore:
                media: str = "") -> FrozenSource:
         text = normalize(raw_text)
         source_id = content_id(text)
-        existing = self._t.get_item(Key={"source_id": source_id}).get("Item")
-        if existing:
-            # 이미 있으면 그 동결본을 반환(첫 동결이 이긴다). ※ get→put 이 원자적이지 않아 동시 freeze 시
-            #   메타데이터(url/title/fetched_at)는 last-write-wins — 다만 텍스트는 content-hash 라 항상 동일.
-            return _to_frozen(existing)
         fs = FrozenSource(source_id=source_id, url=url, title=title, text=text,
                           fetched_at=fetched_at, media=media or media_from_url(url))
         item = asdict(fs)
         item["ttl"] = int(time.time()) + _SOURCE_TTL_DAYS * 86400  # 7일 뒤 DDB 가 자동 삭제(ephemeral)
-        self._t.put_item(Item=item)
-        return fs
+        try:
+            # 조건부 put — source_id 가 없을 때만 성공(원자적 first-wins). 동시 freeze 에도 첫 동결이 이긴다.
+            self._t.put_item(Item=item, ConditionExpression="attribute_not_exists(source_id)")
+            return fs
+        except ClientError as e:                 # 이미 존재 → 최초 동결본을 읽어 반환
+            if e.response["Error"]["Code"] != "ConditionalCheckFailedException":
+                raise
+            return self.get_source(source_id)
 
     def get_source(self, source_id: str) -> FrozenSource:
-        """source_id 로 동결본을 읽는다. 없으면 전 필드가 빈 FrozenSource(미스 = 빈 레코드)."""
-        return _to_frozen(self._t.get_item(Key={"source_id": source_id}).get("Item") or {})
+        """source_id 로 동결본을 읽는다. 없으면 KeyError(미스 = dangling 포인터 = 에러; LocalSourceStore 와 파리티)."""
+        item = self._t.get_item(Key={"source_id": source_id}).get("Item")
+        if item is None:
+            raise KeyError(f"source_id 없음: {source_id}")
+        return _to_frozen(item)
 
 
 class DynamoUserStore:

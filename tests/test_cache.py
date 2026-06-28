@@ -29,6 +29,16 @@ def test_card_cache_idempotent(tmp_path):
     assert cache.get(k) == g                   # hit → 동일 카드
 
 
+def test_card_cache_corrupt_entry_returns_none(tmp_path):
+    # 손상/구스키마 캐시 항목 → get 은 raise 가 아니라 miss(None). 캐시는 disposable 라 fail-open.
+    cache = LocalCardCache(str(tmp_path))
+    k = card_key("S", "engineer", "", "model")
+    cache._path(k).write_text("{ not valid json", encoding="utf-8")              # 손상 JSON
+    assert cache.get(k) is None
+    cache._path(k).write_text('{"card": {"source_id": "x"}}', encoding="utf-8")  # 구스키마(필드 누락)
+    assert cache.get(k) is None
+
+
 def _user(uid, lens="engineer"):
     return SimpleNamespace(id=uid, recipient=f"{uid}@x", sources=("aws-ml",), depth="full", lens=lens, skill_md="")
 

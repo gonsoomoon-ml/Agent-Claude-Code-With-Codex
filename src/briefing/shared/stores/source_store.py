@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import unicodedata
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -69,21 +70,31 @@ class SourceStore:
         같은 정규화 텍스트가 다른 url 로 들어와도 source_id 는 같다 → 최초로 들어온 메타데이터가 정본이 된다.
         반환값 == 저장본 == get_source 결과를 보장한다(충돌 시 저장본을 읽어 돌려준다).
         media = 발행 매체(catalog 의 Source.name, 예 "AI Times"); 빈값이면 url 도메인에서 유도한다.
+        ★ 원자적 동결: 임시파일에 다 쓴 뒤 os.link 로 거는 게 원자적이라(이미 있으면 FileExistsError), 동시 freeze 에도 첫 동결이
+          이기고 부분쓰기 손상도 막는다(크래시 시 임시파일만 남음). DynamoSourceStore 의 조건부 put 과 같은 first-wins 보장.
         """
         text = normalize(raw_text)
         source_id = content_id(text)
         p = self._path(source_id)
-        if p.exists():
-            return self.get_source(source_id)
         fs = FrozenSource(source_id=source_id, url=url, title=title, text=text,
                           fetched_at=fetched_at, media=media or media_from_url(url))
-        p.write_text(json.dumps(asdict(fs), ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp = p.with_name(f".{source_id}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(asdict(fs), ensure_ascii=False, indent=2), encoding="utf-8")
+        try:
+            os.link(tmp, p)                      # 원자적 — 이미 있으면 FileExistsError(첫 동결이 이긴다)
+        except FileExistsError:
+            return self.get_source(source_id)    # 충돌 → 최초 동결본을 읽어 반환
+        finally:
+            tmp.unlink(missing_ok=True)
         return fs
 
     def get_source(self, source_id: str) -> FrozenSource:
         """동결본을 읽기 전용으로 조회한다(author·gate 가 쓴다; certifier 는 접근 안 함 — envelope 만 받는다).
 
-        ※ 없는 source_id 면 파일이 없어 FileNotFoundError 가 난다(미스 = 예외). DynamoSourceStore 는 미스 시 빈 레코드를 주므로,
-          두 backend 의 *미스 동작이 다르다*(리뷰 메모 — 파리티 위반).
+        없는 source_id 면 KeyError — 미스는 dangling 포인터(있어선 안 될 일)라 조용히 빈 값을 주지 않고 시끄럽게 실패한다.
+        (DynamoSourceStore 도 미스 시 KeyError 를 던진다 — 두 backend 파리티.)
         """
-        return FrozenSource(**json.loads(self._path(source_id).read_text(encoding="utf-8")))
+        p = self._path(source_id)
+        if not p.exists():
+            raise KeyError(f"source_id 없음: {source_id}")
+        return FrozenSource(**json.loads(p.read_text(encoding="utf-8")))
