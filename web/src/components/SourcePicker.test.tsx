@@ -14,11 +14,8 @@ describe('SourcePicker', () => {
   it('shows remaining counter and toggles selection', () => {
     const onChange = vi.fn()
     render(<SourcePicker categories={cats} max={5} selected={['a']} onChange={onChange} />)
-    // 선택 1 / 5 (최대 5개) — counter text is split across elements
-    const counterElements = screen.getAllByText((content, element) => {
-      return element?.textContent?.includes('선택') && element?.textContent?.includes('1') && element?.textContent?.includes('5') || false
-    })
-    expect(counterElements.length > 0).toBe(true)
+    // 선택 1 / 5 (최대 5개) — strong assertion on counter format
+    expect(screen.getByText(/선택\s*1\s*\/\s*5/)).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('B'))
     expect(onChange).toHaveBeenCalledWith(['a', 'b'])
   })
