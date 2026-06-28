@@ -30,8 +30,10 @@ class TrialStore:
         self._t = table
 
     def within_cooldown(self, email: str) -> bool:
+        """I2: ttl 기반 쿨다운 — status 전이와 무관하게 ttl 만료 전까지 재진입 차단."""
         item = self._t.get_item(Key={"email": email}).get("Item")
-        return bool(item and item.get("status") in ("verification_pending", "sending"))
+        import time as _t
+        return bool(item and int(item.get("ttl", 0)) > int(_t.time()))
 
     def over_global_cap(self, date: str, cap: int) -> bool:
         r = self._t.update_item(
@@ -44,6 +46,14 @@ class TrialStore:
 
     def record(self, email: str, status: str, *, ttl: int = 0) -> None:
         self._t.put_item(Item={"email": email, "status": status, "ttl": ttl})
+
+    def get_status(self, email: str) -> dict:
+        """이메일 상태 조회. 행 없으면 status:unknown 반환."""
+        item = self._t.get_item(Key={"email": email}).get("Item") or {}
+        out = {"status": item.get("status", "unknown")}
+        if "published" in item:
+            out["published"] = int(item["published"])
+        return out
 
 
 def handle_trial(

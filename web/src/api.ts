@@ -11,10 +11,16 @@ export async function fetchCatalog(): Promise<import('./types').Catalog> {
 
 export async function postTrial(payload: {
   email: string; sources: string[]; depth?: string; lens?: string; timezone?: string
-}): Promise<{ status?: string; error?: string }> {
+}): Promise<{ status?: string; error?: string; httpStatus: number }> {
   const r = await fetch(`${API_BASE}/trial`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
   })
+  const body = await r.json()
+  return { ...body, httpStatus: r.status }
+}
+
+export async function getTrialStatus(email: string): Promise<{ status: string; published?: number }> {
+  const r = await fetch(`${API_BASE}/trial/status?email=${encodeURIComponent(email)}`)
   return r.json()
 }
 

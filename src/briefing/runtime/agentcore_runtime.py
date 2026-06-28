@@ -85,6 +85,25 @@ async def briefing_entrypoint(payload, context):
         deliver_fn = (lambda b: None) if dry else make_ses_deliver(settings, subject="브리핑 체험 (검증 후 발행)")
         fallback_fn = (lambda e: None) if dry else (lambda e: _send_trial_fallback(settings, e))
         ses = boto3.client("ses", region_name=settings.region)
+        # briefing-trials 상태 기록 — Key=email, SET #s=status(reserved word 우회)
+        trials = boto3.resource("dynamodb", region_name=settings.region).Table("briefing-trials")
+
+        def _status(s, p=None):
+            """trial 상태를 briefing-trials 에 기록. dry_run 시 no-op; 실패 시 발송 차단 안 함(swallow)."""
+            if dry:
+                return
+            names = {"#s": "status"}
+            vals = {":s": s}
+            expr = "SET #s = :s"
+            if p is not None:
+                expr += ", published = :p"
+                vals[":p"] = p
+            try:
+                trials.update_item(Key={"email": email}, UpdateExpression=expr,
+                                   ExpressionAttributeNames=names, ExpressionAttributeValues=vals)
+            except Exception as e:  # noqa: BLE001 — 상태 기록 실패가 발송을 막지 않게
+                _debug.warn("trial status", f"{type(e).__name__}: {e}")
+
         task_id = app.add_async_task("trial_briefing")
 
         def _bg():
@@ -93,9 +112,10 @@ async def briefing_entrypoint(payload, context):
                                 run_briefing_fn=run_briefing, deliver_fn=deliver_fn,
                                 fallback_fn=fallback_fn, sleep_fn=_time.sleep, run_date=rd,
                                 attempts=int(payload.get("poll_max", 45)),
-                                sleep_seconds=int(payload.get("poll_seconds", 20)))
+                                sleep_seconds=int(payload.get("poll_seconds", 20)), status_fn=_status)
                 _debug.dprint("entrypoint ← trial", msg, "green")
             except Exception as e:  # noqa: BLE001
+                _status("failed")
                 _debug.warn("trial bg", f"{type(e).__name__}: {e}")
             finally:
                 app.complete_async_task(task_id)

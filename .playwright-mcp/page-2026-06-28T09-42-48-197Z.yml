@@ -1,0 +1,12 @@
+- generic [ref=e12]:
+  - generic [ref=e13]: Sign in with your email and password
+  - generic [ref=e14]:
+    - generic [ref=e15]: Email
+    - textbox "Email Email" [ref=e17]:
+      - /placeholder: name@host.com
+    - generic [ref=e18]: Password
+    - textbox "Password Password" [ref=e20]:
+      - /placeholder: Password
+    - link "Forgot your password?" [ref=e22] [cursor=pointer]:
+      - /url: /forgotPassword?client_id=29ghm34nr4m2enqa6sbeua6fgn&response_type=code&scope=openid+email&redirect_uri=https%3A%2F%2Fdqizh0gi9cp2q.cloudfront.net%2F&state=ie7AcCPSVE5lC8C6jz6zmw&code_challenge=4DwyOY2tyGOG0KVP8xAXifKgfZE-G9KLkgAOBmN90SM&code_challenge_method=S256
+    - button "submit" [ref=e23] [cursor=pointer]: Sign in
