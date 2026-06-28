@@ -40,6 +40,15 @@ class Settings:
     source_table: str      # dynamo backend: source-store 테이블명(content-addressed source-of-record)
     ddb_endpoint_url: str  # 빈값=실 AWS(기본); 값 주면 DynamoDB Local(무료 에뮬레이터)
     users_dir: str         # per-user 설정 디렉토리
+    # ── Gateway (① 승격; 기본 off → additive). 인증 = Cognito CUSTOM_JWT (aiops 패턴) ──
+    gateway_enabled: bool       # truthy → fabric 이 retrieval 을 Gateway MCP 로 호출(기본=직접)
+    gateway_url: str            # Gateway MCP 엔드포인트(.../mcp) — deploy_gateway 출력
+    gateway_target: str         # MCP 도구 prefix(target 이름) → "TARGET___fetch_article"
+    cognito_scope: str          # resource server scope (예 "briefing-gw/invoke")
+    cognito_token_url: str      # Cognito OAuth2 token endpoint — *로컬* 직접 발급용
+    cognito_client_id: str      # M2M app client id
+    cognito_client_secret: str  # ★ 비밀 — .env/로컬 전용 (Runtime 은 Identity; gitignore 확인됨)
+    oauth_provider_name: str    # AgentCore Identity credential provider — *Runtime* 토큰(비밀 없이)
 
 
 def load_settings() -> Settings:
@@ -59,6 +68,14 @@ def load_settings() -> Settings:
         source_table=g("SOURCE_TABLE", "briefing-source-store"),
         ddb_endpoint_url=g("DDB_ENDPOINT_URL", ""),
         users_dir=g("USERS_DIR", "./users"),
+        gateway_enabled=g("GATEWAY_ENABLED", "").strip().lower() in ("1", "true", "yes", "on"),
+        gateway_url=g("GATEWAY_URL", ""),
+        gateway_target=g("GATEWAY_TARGET", "briefing"),
+        cognito_scope=g("COGNITO_SCOPE", ""),
+        cognito_token_url=g("COGNITO_TOKEN_URL", ""),
+        cognito_client_id=g("COGNITO_CLIENT_ID", ""),
+        cognito_client_secret=g("COGNITO_CLIENT_SECRET", ""),
+        oauth_provider_name=g("OAUTH_PROVIDER_NAME", ""),
     )
 
 

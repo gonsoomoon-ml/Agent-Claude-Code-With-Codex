@@ -77,6 +77,9 @@ async def briefing_entrypoint(payload, context):
     else:  # real
         users = [load_user(uid, settings) for uid in (payload.get("users") or list_users(settings))]
         fns = {}   # None 기본 = 실제 claude -p author + codex certifier
+        if settings.gateway_enabled:   # ① 승격: retrieval 을 Gateway MCP 로(opt-in; off 면 직접 — 현 기본)
+            from ..shared.retrieval.gateway_client import gateway_fetch_factory
+            fns["fetch_article_fn"] = gateway_fetch_factory(settings)
 
     # ★ 테스트 모드(smoke/harness)는 card_cache/ledger 우회 — 캐시-hit 으로 harness 의 진짜 CLI 실행이 가려지는 것
     #   + production 원장(③) 오염 방지. store 는 content-addressed 라 그대로 사용(무해).
