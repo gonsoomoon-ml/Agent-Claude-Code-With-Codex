@@ -16,7 +16,9 @@ dependencies = [
 
 [dependency-groups]
 # ruff/pytest = 개발; starter-toolkit = ② 배포(호스트 전용 — 컨테이너 requirements.txt 엔 미포함).
-dev = ["ruff", "pytest", "bedrock-agentcore-starter-toolkit>=0.3"]
+# fastapi/mangum/uvicorn/httpx = ④ webapi(로컬 dev + TestClient). 컨테이너/스케줄러 zip 과 무관.
+dev = ["ruff", "pytest", "bedrock-agentcore-starter-toolkit>=0.3",
+       "fastapi", "mangum", "uvicorn", "httpx"]
 
 [build-system]
 requires = ["hatchling"]
