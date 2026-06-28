@@ -48,7 +48,7 @@ class TrialStore:
 
 def handle_trial(
     payload: dict, *, store, ses, runtime_invoke: Callable[[str, dict], None],
-    sender: str, cap: int, cooldown_s: int, now_iso: str, today: str, catalog_keys,
+    cap: int, cooldown_s: int, today: str, catalog_keys,
 ) -> tuple[int, dict]:
     """POST /trial 코어. (status_code, body). 부수효과(ses·invoke)는 주입된 객체로."""
     email = (payload.get("email") or "").strip().lower()

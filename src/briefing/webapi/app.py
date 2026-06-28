@@ -77,6 +77,6 @@ async def post_trial(req: Request):
     keys = [s["key"] for g in build_catalog()["categories"] for s in g["sources"]]
     code, body = handle_trial(
         payload, store=d["store"], ses=d["ses"], runtime_invoke=d["runtime_invoke"],
-        sender=d["sender"], cap=d["cap"], cooldown_s=d["cooldown_s"],
-        now_iso=now.isoformat(), today=now.strftime("%Y-%m-%d"), catalog_keys=keys)
+        cap=d["cap"], cooldown_s=d["cooldown_s"],
+        today=now.strftime("%Y-%m-%d"), catalog_keys=keys)
     return JSONResponse(status_code=code, content=body)

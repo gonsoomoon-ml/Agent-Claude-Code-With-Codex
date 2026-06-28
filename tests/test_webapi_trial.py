@@ -52,8 +52,8 @@ def _ok_payload(**o):
 
 def test_handle_rejects_invalid():
     code, body = handle_trial(_ok_payload(email="bad"), store=_FakeStore(), ses=_FakeSes(),
-                              runtime_invoke=_invoke_spy(), sender="s@x.com", cap=50,
-                              cooldown_s=3600, now_iso="2026-06-28T00:00:00", today="2026-06-28",
+                              runtime_invoke=_invoke_spy(), cap=50,
+                              cooldown_s=3600, today="2026-06-28",
                               catalog_keys=CATALOG)
     assert code == 400
 
@@ -61,19 +61,19 @@ def test_handle_rejects_invalid():
 def test_handle_cooldown_and_cap_429():
     inv = _invoke_spy()
     code, _ = handle_trial(_ok_payload(), store=_FakeStore(cooldown=True), ses=_FakeSes(),
-                           runtime_invoke=inv, sender="s@x.com", cap=50, cooldown_s=3600,
-                           now_iso="t", today="d", catalog_keys=CATALOG)
+                           runtime_invoke=inv, cap=50, cooldown_s=3600,
+                           today="d", catalog_keys=CATALOG)
     assert code == 429 and not inv.calls           # 쿨다운 → invoke 안 함
     code, _ = handle_trial(_ok_payload(), store=_FakeStore(over=True), ses=_FakeSes(),
-                           runtime_invoke=inv, sender="s@x.com", cap=50, cooldown_s=3600,
-                           now_iso="t", today="d", catalog_keys=CATALOG)
+                           runtime_invoke=inv, cap=50, cooldown_s=3600,
+                           today="d", catalog_keys=CATALOG)
     assert code == 429 and not inv.calls           # cap 초과 → invoke 안 함
 
 
 def test_handle_unverified_triggers_verify_and_pending():
     ses, inv, store = _FakeSes(verified=False), _invoke_spy(), _FakeStore()
     code, body = handle_trial(_ok_payload(), store=store, ses=ses, runtime_invoke=inv,
-                              sender="s@x.com", cap=50, cooldown_s=3600, now_iso="t",
+                              cap=50, cooldown_s=3600,
                               today="d", catalog_keys=CATALOG)
     assert code == 202 and body["status"] == "verification_pending"
     assert ses.verified_calls == ["u@x.com"]       # 검증 메일 트리거
@@ -84,7 +84,7 @@ def test_handle_unverified_triggers_verify_and_pending():
 def test_handle_already_verified_skips_verify_sending():
     ses, inv = _FakeSes(verified=True), _invoke_spy()
     code, body = handle_trial(_ok_payload(), store=_FakeStore(), ses=ses, runtime_invoke=inv,
-                              sender="s@x.com", cap=50, cooldown_s=3600, now_iso="t",
+                              cap=50, cooldown_s=3600,
                               today="d", catalog_keys=CATALOG)
     assert code == 202 and body["status"] == "sending"
     assert ses.verified_calls == []                # 이미 검증 → verify skip
