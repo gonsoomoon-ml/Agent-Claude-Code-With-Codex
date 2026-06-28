@@ -15,6 +15,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import zipfile
@@ -106,7 +107,7 @@ def _deploy_lambda(lam, role_arn, zip_bytes, settings) -> str:
         "BRIEFING_RUNTIME_ARN": os.getenv("BRIEFING_RUNTIME_ARN", ""),
         "BRIEFING_TRIALS_TABLE": "briefing-trials",
         "SES_SENDER": settings.ses_sender,
-        "TRIAL_GLOBAL_CAP": os.getenv("TRIAL_GLOBAL_CAP", "50"),
+        "TRIAL_GLOBAL_CAP": "50",   # hard cap — ⑤ 보호. 올리려면 코드 변경(고의적). env 패스스루 금지.
         "TRIAL_COOLDOWN_SECONDS": "3600",
     }}
     try:
@@ -164,6 +165,8 @@ def _ensure_http_api(api, lam, region, acct, lambda_arn) -> str:
 
 def main() -> None:
     settings = load_settings()
+    if not os.getenv("BRIEFING_RUNTIME_ARN"):
+        sys.exit(f"{_R}❌ BRIEFING_RUNTIME_ARN 미설정 — deploy_runtime.py 먼저 실행{_NC}")
     region = settings.region
     acct = boto3.client("sts").get_caller_identity()["Account"]
     print(f"\n{_B}{'=' * 60}\n  ④ Web API 배포 (v1.1) — region={region}\n{'=' * 60}{_NC}\n")
