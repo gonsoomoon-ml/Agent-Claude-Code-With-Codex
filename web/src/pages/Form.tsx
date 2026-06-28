@@ -7,6 +7,7 @@ import { trialStatusMessage, isTerminal } from '../lib/trialStatus'
 import type { Catalog } from '../types'
 import { SourcePicker } from '../components/SourcePicker'
 import { ProgressModal } from '../components/ProgressModal'
+import { coralPill, ghostPill, coralDisabled } from '../theme'
 
 /** 10분 타임아웃: 3s 간격으로 최대 200회 폴링 */
 const MAX_POLL_COUNT = 200
@@ -134,6 +135,7 @@ export default function Form() {
 
   const isTrialSubmitting = submitting === 'trial'
   const isSubSubmitting = submitting === 'subscribe'
+  const trialDisabled = isTrialSubmitting || !(selected.length && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
 
   return (
     <div>
@@ -173,33 +175,36 @@ export default function Form() {
         />
       )}
 
-      <div style={{ marginTop: 24, display: 'flex', gap: 12 }}>
+      <div style={{ marginTop: 24, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          className="cta-coral"
+          disabled={trialDisabled}
+          onClick={handleTrial}
+          style={{ ...coralPill, ...(trialDisabled ? coralDisabled : null) }}
+        >
+          {isTrialSubmitting ? '보내는 중…' : <><span aria-hidden="true">▶</span> 체험하기</>}
+        </button>
         {authed ? (
           <button
             type="button"
+            className="cta-ghost"
             disabled={isSubSubmitting || !selected.length}
             onClick={handleSubscribe}
-            style={{ padding: '10px 18px', fontSize: 14 }}
+            style={ghostPill}
           >
-            {isSubSubmitting ? '보내는 중…' : '구독하기'}
+            {isSubSubmitting ? '보내는 중…' : <>구독하기 <span aria-hidden="true">→</span></>}
           </button>
         ) : (
           <button
             type="button"
+            className="cta-ghost"
             onClick={() => startLogin()}
-            style={{ padding: '10px 18px', fontSize: 14 }}
+            style={ghostPill}
           >
-            로그인 / 구독하기
+            로그인 / 구독하기 <span aria-hidden="true">→</span>
           </button>
         )}
-        <button
-          type="button"
-          disabled={isTrialSubmitting || !(selected.length && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))}
-          onClick={handleTrial}
-          style={{ padding: '10px 18px', fontSize: 14 }}
-        >
-          {isTrialSubmitting ? '보내는 중…' : '체험하기'}
-        </button>
       </div>
 
       {card && (
