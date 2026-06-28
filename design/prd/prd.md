@@ -32,6 +32,15 @@ Claude Code 와 Codex 를 같이 사용을 합니다.
 
 **6) 구현 스캐폴드 (Scaffold).** [aiops-multi-agent-workshop](https://github.com/gonsoomoon-ml/aiops-multi-agent-workshop) **Phase 2+3** 채택 — `shared/`(진실) vs `runtime/`(배포) 분리 · UV(`[tool.uv] package=false`, 컨테이너는 per-runtime `requirements.txt`) · 단일 루트 `.env` · Gateway(MCP+CUSTOM_JWT) + Runtime(`BedrockAgentCoreApp`+`@app.entrypoint`) · IaC 하이브리드(CFN plumbing + boto3 AgentCore) · `/schedule`(또는 Scheduler→Lambda→invoke)로 **KST 07:00** 발화. A2A·멀티테넌트·storage-dual은 생략. Claude Code MCP 연결·headless 패턴 = [web-search-mcp](https://github.com/gonsoomoon-ml/web-search-mcp). → [`../research/agentcore-summit-and-reference-repos.md`](../research/agentcore-summit-and-reference-repos.md) §4·6
 
+## UI 요굿사항
+- 웹페이지가에는 첫머리에 이 서비스가 무엇인지 소개를 함
+- 브리핑에 추가할 수 있는 미디어를 나열을 함.
+    - 먼저 분야 (예: AI) 가 나오고, 영역 아래에 미디어가 나옴. 유저가 체크할 수 있게 함.
+    - 총 체크할 수 있는 개수는 5개로 함 
+- 유저는 발송 시간을 정함, 기준은 한국 시간 KST 로 하고, 옵션을 6시, 7시, 8시 3개를 제공함
+- 추후에 인증을 붙여서, 모르는 개인이 할 수 있게함.
+- UI 가 확장될 수 있게 해야 함
+- 웹 기술 스택 (예: HTML, ReACT 등) 도 어떤것이 좋을 지 고민이 필요함
 
 ## 참조 리소스
 - Amazon Bedrock 위에서 Codex와 Claude Code 함께 쓰기: Harness Engineering으로 구현해보기
