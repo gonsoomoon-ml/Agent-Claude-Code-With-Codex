@@ -206,7 +206,8 @@ def attach_runtime_extras(result, region: str) -> None:
                 # ledger Query(GSI→index/*) · users list_users 는 Scan(H4, 전 사용자 열거) · prefix=briefing-(CFN ddb.yaml).
                 "Sid": "DynamoStores",
                 "Effect": "Allow",
-                "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:Scan"],
+                "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query",
+                           "dynamodb:Scan", "dynamodb:UpdateItem"],
                 "Resource": [
                     f"arn:aws:dynamodb:*:{account}:table/briefing-*",
                     f"arn:aws:dynamodb:*:{account}:table/briefing-*/index/*",
