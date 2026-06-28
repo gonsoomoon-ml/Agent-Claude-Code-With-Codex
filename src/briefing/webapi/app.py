@@ -121,6 +121,15 @@ async def put_profile(req: Request):
                         content={"status": "subscribed", "delivery": _ensure_ses(d["ses"], cl["email"])})
 
 
+def _status_store() -> TrialStore:
+    """trial 상태 조회용 lazy 의존성. 테스트는 monkeypatch 로 fake 주입."""
+    import boto3
+    region = os.getenv("AWS_REGION", "us-east-1")
+    table = boto3.resource("dynamodb", region_name=region).Table(
+        os.getenv("BRIEFING_TRIALS_TABLE", "briefing-trials"))
+    return TrialStore(table)
+
+
 def _trial_deps() -> dict:
     """실 boto3 의존성(운영). 테스트는 monkeypatch 로 fake 주입."""
     import boto3
@@ -157,3 +166,12 @@ async def post_trial(req: Request):
         cap=d["cap"], cooldown_s=d["cooldown_s"],
         today=now.strftime("%Y-%m-%d"), catalog_keys=keys)
     return JSONResponse(status_code=code, content=body)
+
+
+@app.get("/trial/status")
+def trial_status(email: str):
+    """trial 상태 조회(폴링). JWT 불필요(public)."""
+    import re
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email or ""):
+        return JSONResponse(status_code=400, content={"error": "유효한 이메일이 아닙니다."})
+    return _status_store().get_status(email)

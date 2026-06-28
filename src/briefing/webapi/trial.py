@@ -45,6 +45,14 @@ class TrialStore:
     def record(self, email: str, status: str, *, ttl: int = 0) -> None:
         self._t.put_item(Item={"email": email, "status": status, "ttl": ttl})
 
+    def get_status(self, email: str) -> dict:
+        """이메일 상태 조회. 행 없으면 status:unknown 반환."""
+        item = self._t.get_item(Key={"email": email}).get("Item") or {}
+        out = {"status": item.get("status", "unknown")}
+        if "published" in item:
+            out["published"] = int(item["published"])
+        return out
+
 
 def handle_trial(
     payload: dict, *, store, ses, runtime_invoke: Callable[[str, dict], None],
