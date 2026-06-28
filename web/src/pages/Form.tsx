@@ -1,10 +1,15 @@
-// web/src/pages/Form.tsx — 미디어(MAX5)·발송시각(6/7/8 KST)·이메일 수집. 체험/구독 버튼은 v1.0 비활성.
-import { useEffect, useState } from 'react'
-import { fetchCatalog, postTrial, getProfile, putProfile } from '../api'
+// web/src/pages/Form.tsx — 미디어(MAX5)·발송시각·이메일 수집 + 체험/구독 진행 UI (v1.1c)
+import { useEffect, useRef, useState } from 'react'
+import { fetchCatalog, postTrial, getTrialStatus, getProfile, putProfile } from '../api'
 import { isAuthed } from '../auth/session'
 import { startLogin } from '../auth/login'
+import { trialStatusMessage, isTerminal } from '../lib/trialStatus'
 import type { Catalog } from '../types'
 import { SourcePicker } from '../components/SourcePicker'
+import { StatusCard } from '../components/StatusCard'
+
+/** 10분 타임아웃: 3s 간격으로 최대 200회 폴링 */
+const MAX_POLL_COUNT = 200
 
 export default function Form() {
   const [catalog, setCatalog] = useState<Catalog | null>(null)
@@ -12,20 +17,122 @@ export default function Form() {
   const [selected, setSelected] = useState<string[]>([])
   const [sendHour, setSendHour] = useState(7)
   const [email, setEmail] = useState('')
-  const [msg, setMsg] = useState('')
   const [recipient, setRecipient] = useState<string | null>(null)
   const [authed, setAuthed] = useState(false)
+
+  // 진행 UI 상태
+  const [submitting, setSubmitting] = useState<'trial' | 'subscribe' | null>(null)
+  const [card, setCard] = useState<{ text: string; busy: boolean } | null>(null)
+  const [elapsed, setElapsed] = useState(0)
+
+  // 폴링·경과 인터벌 ref (언마운트 시 정리)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const stopPolling = () => {
+    if (pollRef.current !== null) { clearInterval(pollRef.current); pollRef.current = null }
+    if (timerRef.current !== null) { clearInterval(timerRef.current); timerRef.current = null }
+  }
 
   useEffect(() => {
     fetchCatalog().then(setCatalog).catch((e) => setError(String(e)))
     setAuthed(isAuthed())
     if (isAuthed()) {
-      getProfile().then((p) => setRecipient(p.recipient || null)).catch((e) => console.error('Failed to get profile:', e))
+      getProfile()
+        .then((p) => setRecipient(p.recipient || null))
+        .catch((e) => console.error('Failed to get profile:', e))
     }
+    return stopPolling // 언마운트 시 인터벌 정리
   }, [])
+
+  // ── 체험하기 핸들러 ──────────────────────────────────────────
+  const handleTrial = async () => {
+    setSubmitting('trial')
+    setElapsed(0)
+    setCard({ text: '보내는 중…', busy: true })
+
+    try {
+      const r = await postTrial({ email, sources: selected, lens: 'general', depth: 'summary' })
+
+      if (r.httpStatus !== 202) {
+        // 비동기 처리 미시작 (에러 또는 즉시 응답)
+        const { text } = trialStatusMessage(r.status || 'failed')
+        setCard({ text: r.error || text, busy: false })
+        setSubmitting(null)
+        return
+      }
+
+      // HTTP 202 — 비동기 생성 시작: 초기 상태 표시 후 폴링 시작
+      const init = trialStatusMessage(r.status || 'generating')
+      setCard({ text: init.text, busy: !init.done })
+
+      if (init.done) {
+        // 드물게 즉시 완료 응답인 경우
+        setSubmitting(null)
+        return
+      }
+
+      // 경과 타이머 (1s)
+      timerRef.current = setInterval(() => {
+        setElapsed((e) => e + 1)
+      }, 1000)
+
+      // 폴링 인터벌 (3s)
+      let pollCount = 0
+      pollRef.current = setInterval(async () => {
+        pollCount += 1
+
+        if (pollCount > MAX_POLL_COUNT) {
+          stopPolling()
+          setCard({ text: '시간이 초과되었어요 — 잠시 후 다시 시도해주세요.', busy: false })
+          setSubmitting(null)
+          return
+        }
+
+        try {
+          const s = await getTrialStatus(email)
+          const { text, done } = trialStatusMessage(s.status, s.published)
+          setCard({ text, busy: !done })
+
+          if (isTerminal(s.status)) {
+            stopPolling()
+            setSubmitting(null)
+          }
+        } catch {
+          // 일시적 네트워크 오류 — 다음 폴링에서 재시도
+        }
+      }, 3000)
+    } catch (e) {
+      setCard({ text: `오류: ${String(e)}`, busy: false })
+      setSubmitting(null)
+    }
+  }
+
+  // ── 구독하기 핸들러 ──────────────────────────────────────────
+  const handleSubscribe = async () => {
+    setSubmitting('subscribe')
+    setElapsed(0)
+    setCard({ text: '구독 중…', busy: true })
+
+    try {
+      const r = await putProfile({ sources: selected, send_hour: sendHour, lens: 'general', depth: 'summary' })
+      const text =
+        r.delivery === 'active'
+          ? '구독 완료 — 매일 발송'
+          : '구독 저장 — 메일의 SES 인증 클릭 후 발송'
+      setCard({ text, busy: false })
+    } catch (e) {
+      setCard({ text: `오류: ${String(e)}`, busy: false })
+    } finally {
+      setSubmitting(null)
+    }
+  }
 
   if (error) return <p style={{ color: '#c00' }}>카탈로그를 불러오지 못했습니다: {error}</p>
   if (!catalog) return <p>불러오는 중…</p>
+
+  const isTrialSubmitting = submitting === 'trial'
+  const isSubSubmitting = submitting === 'subscribe'
 
   return (
     <div>
@@ -67,36 +174,35 @@ export default function Form() {
 
       <div style={{ marginTop: 24, display: 'flex', gap: 12 }}>
         {authed ? (
-          <button type="button" disabled={!selected.length}
-            onClick={async () => {
-              setMsg('구독 중…')
-              try {
-                const r = await putProfile({ sources: selected, send_hour: sendHour, lens: 'general', depth: 'summary' })
-                const status = r.delivery === 'active'
-                  ? '구독 완료 — 매일 발송'
-                  : '구독 저장 — 메일의 SES 인증 클릭 후 발송'
-                setMsg(status)
-              } catch (e) {
-                setMsg(`오류: ${String(e)}`)
-              }
-            }}
-            style={{ padding: '10px 18px', fontSize: 14 }}>구독하기</button>
+          <button
+            type="button"
+            disabled={isSubSubmitting || !selected.length}
+            onClick={handleSubscribe}
+            style={{ padding: '10px 18px', fontSize: 14 }}
+          >
+            {isSubSubmitting ? '보내는 중…' : '구독하기'}
+          </button>
         ) : (
-          <button type="button"
+          <button
+            type="button"
             onClick={() => startLogin()}
-            style={{ padding: '10px 18px', fontSize: 14 }}>로그인 / 구독하기</button>
+            style={{ padding: '10px 18px', fontSize: 14 }}
+          >
+            로그인 / 구독하기
+          </button>
         )}
-        <button type="button" disabled={!(selected.length && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))}
-          onClick={async () => {
-            setMsg('보내는 중…')
-            const r = await postTrial({ email, sources: selected, lens: 'general', depth: 'summary' })
-            setMsg(r.status === 'verification_pending'
-              ? '확인 메일을 보냈어요 — 메일의 링크를 클릭하면 곧 브리핑이 도착합니다.'
-              : r.status === 'sending' ? '곧 브리핑이 도착합니다!' : (r.error || '잠시 후 다시 시도해주세요.'))
-          }}
-          style={{ padding: '10px 18px', fontSize: 14 }}>체험하기</button>
+        <button
+          type="button"
+          disabled={isTrialSubmitting || !(selected.length && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))}
+          onClick={handleTrial}
+          style={{ padding: '10px 18px', fontSize: 14 }}
+        >
+          {isTrialSubmitting ? '보내는 중…' : '체험하기'}
+        </button>
       </div>
-      {msg && <p>{msg}</p>}
+
+      {card && <StatusCard text={card.text} busy={card.busy} elapsedSec={elapsed} />}
+
       <p style={{ fontSize: 12, color: '#999', marginTop: 8 }}>
         선택: {selected.length}개 출처 · {String(sendHour).padStart(2, '0')}:00 KST · {authed ? `${recipient || '로딩 중…'}` : email || '이메일 미입력'}
       </p>
