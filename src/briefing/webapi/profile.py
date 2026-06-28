@@ -27,6 +27,12 @@ def validate_profile(fields: dict, *, catalog_keys, lens_keys, depths, send_hour
         return "send_hour 형식 오류."
     if sh not in set(send_hours):
         return "지원하지 않는 발송 시각."
-    if not isinstance(fields.get("timezone", "Asia/Seoul"), str):
+    tz = fields.get("timezone", "Asia/Seoul")
+    if not isinstance(tz, str):
         return "timezone 형식 오류."
+    try:
+        from zoneinfo import ZoneInfo
+        ZoneInfo(tz)
+    except Exception:  # noqa: BLE001 — 미지 tz 는 due 계산을 오염시킴
+        return "알 수 없는 시간대입니다."
     return None

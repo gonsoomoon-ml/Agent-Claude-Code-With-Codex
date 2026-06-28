@@ -26,3 +26,16 @@ def test_enums():
 
 def test_send_hour_nonint():
     assert validate_profile({"sources": ["aitimes"], "send_hour": "abc"}, **KW)
+
+
+def test_timezone_invalid_rejected():
+    err = validate_profile({"sources": ["aitimes"], "timezone": "garbage"}, **KW)
+    assert err, "잘못된 timezone 은 에러를 반환해야 한다"
+
+
+def test_timezone_valid_passes():
+    assert validate_profile({"sources": ["aitimes"], "timezone": "Asia/Seoul"}, **KW) is None
+
+
+def test_timezone_nonstring_rejected():
+    assert validate_profile({"sources": ["aitimes"], "timezone": 123}, **KW)

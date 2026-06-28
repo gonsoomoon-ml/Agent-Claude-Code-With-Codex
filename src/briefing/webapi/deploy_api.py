@@ -159,11 +159,18 @@ def _ensure_http_api(api, lam, region, acct, lambda_arn) -> str:
     ISSUER = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ANfcEK61A"
     AUD = ["29ghm34nr4m2enqa6sbeua6fgn"]
     authz = next((a for a in api.get_authorizers(ApiId=api_id)["Items"] if a["Name"] == "cognito-jwt"), None)
-    authz_id = authz["AuthorizerId"] if authz else api.create_authorizer(
-        ApiId=api_id, Name="cognito-jwt", AuthorizerType="JWT",
-        IdentitySource=["$request.header.Authorization"],
-        JwtConfiguration={"Issuer": ISSUER, "Audience": AUD})["AuthorizerId"]
-    print(f"   JWT authorizer: {'재사용' if authz else '생성'} (id={authz_id})")
+    if authz:
+        authz_id = authz["AuthorizerId"]
+        api.update_authorizer(ApiId=api_id, AuthorizerId=authz_id, AuthorizerType="JWT",
+                              IdentitySource=["$request.header.Authorization"],
+                              JwtConfiguration={"Issuer": ISSUER, "Audience": AUD})
+        print(f"   JWT authorizer: 수렴(self-heal) (id={authz_id})")
+    else:
+        authz_id = api.create_authorizer(
+            ApiId=api_id, Name="cognito-jwt", AuthorizerType="JWT",
+            IdentitySource=["$request.header.Authorization"],
+            JwtConfiguration={"Issuer": ISSUER, "Audience": AUD})["AuthorizerId"]
+        print(f"   JWT authorizer: 생성 (id={authz_id})")
     routes2 = {r["RouteKey"]: r["RouteId"] for r in api.get_routes(ApiId=api_id)["Items"]}
     for rk in ("GET /profile", "PUT /profile"):       # ★ OPTIONS /profile 는 선언 안 함(preflight→$default)
         if rk in routes2:

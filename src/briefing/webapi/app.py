@@ -64,6 +64,8 @@ def _claims(req: Request) -> dict:
         raise HTTPException(status_code=401, detail="JWT claims unavailable")
     if c.get("token_use") != "id":                 # 방어심도(authorizer drift)
         raise HTTPException(status_code=401, detail="id token required")
+    if str(c.get("email_verified")).lower() != "true":
+        raise HTTPException(status_code=401, detail="email not verified")
     sub, email = c.get("sub"), c.get("email")
     if not sub or not email:
         raise HTTPException(status_code=401, detail="sub/email claim missing")

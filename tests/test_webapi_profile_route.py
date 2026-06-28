@@ -37,7 +37,7 @@ def _put(monkeypatch, claims, body):
 
 
 def test_put_keys_on_sub_email_ignores_body(monkeypatch):
-    r, deps = _put(monkeypatch, {"sub": "SUB1", "email": "me@x.com", "token_use": "id"},
+    r, deps = _put(monkeypatch, {"sub": "SUB1", "email": "me@x.com", "token_use": "id", "email_verified": "true"},
                    {"user_id": "EVIL", "recipient": "victim@x.com", "sources": ["aitimes"], "send_hour": 7})
     assert r.status_code == 200
     sub, email, fields = deps["store"].updates[0]
@@ -45,12 +45,18 @@ def test_put_keys_on_sub_email_ignores_body(monkeypatch):
 
 
 def test_put_rejects_access_token(monkeypatch):
-    r, _ = _put(monkeypatch, {"sub": "S", "email": "e@x.com", "token_use": "access"},
+    r, _ = _put(monkeypatch, {"sub": "S", "email": "e@x.com", "token_use": "access", "email_verified": "true"},
+                {"sources": ["aitimes"]})
+    assert r.status_code == 401
+
+
+def test_put_rejects_unverified_email(monkeypatch):
+    r, _ = _put(monkeypatch, {"sub": "S", "email": "e@x.com", "token_use": "id", "email_verified": "false"},
                 {"sources": ["aitimes"]})
     assert r.status_code == 401
 
 
 def test_put_validation_400(monkeypatch):
-    r, _ = _put(monkeypatch, {"sub": "S", "email": "e@x.com", "token_use": "id"},
+    r, _ = _put(monkeypatch, {"sub": "S", "email": "e@x.com", "token_use": "id", "email_verified": "true"},
                 {"sources": ["ghost"]})
     assert r.status_code == 400
