@@ -6,7 +6,7 @@ import { startLogin } from '../auth/login'
 import { trialStatusMessage, isTerminal } from '../lib/trialStatus'
 import type { Catalog } from '../types'
 import { SourcePicker } from '../components/SourcePicker'
-import { StatusCard } from '../components/StatusCard'
+import { ProgressModal } from '../components/ProgressModal'
 
 /** 10분 타임아웃: 3s 간격으로 최대 200회 폴링 */
 const MAX_POLL_COUNT = 200
@@ -202,7 +202,13 @@ export default function Form() {
         </button>
       </div>
 
-      {card && <StatusCard text={card.text} busy={card.busy} elapsedSec={elapsed} />}
+      {card && (
+        <ProgressModal
+          title={authed ? '구독' : '브리핑 체험'}
+          text={card.text} busy={card.busy} elapsedSec={elapsed}
+          onClose={() => { stopPolling(); setCard(null) }}
+        />
+      )}
 
       <p style={{ fontSize: 12, color: '#999', marginTop: 8 }}>
         선택: {selected.length}개 출처 · {String(sendHour).padStart(2, '0')}:00 KST · {authed ? `${recipient || '로딩 중…'}` : email || '이메일 미입력'}

@@ -23,7 +23,7 @@ describe('Form 진행 UI (폴링)', () => {
     vi.restoreAllMocks()
   })
 
-  it('체험하기 클릭 → 버튼 loading → 카드 "생성 중" → 카드 "발송 완료"', async () => {
+  it('체험하기 클릭 → 버튼 loading → 모달 "생성 중" → 모달 "발송 완료"', async () => {
     let statusCallCount = 0
     vi.stubGlobal(
       'fetch',
@@ -65,8 +65,8 @@ describe('Form 진행 UI (폴링)', () => {
 
     // 버튼이 "보내는 중…" disabled 로 전환
     expect(screen.getByRole('button', { name: /보내는 중/ })).toBeDisabled()
-    // StatusCard 카드 표시
-    expect(screen.getByRole('status')).toBeInTheDocument()
+    // ProgressModal 다이얼로그 표시
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
 
     // 3s 진행 → 첫 번째 폴링 → 'generating'
     await act(async () => {
@@ -86,5 +86,65 @@ describe('Form 진행 UI (폴링)', () => {
       await Promise.resolve()
     })
     expect(screen.getByText(/발송 완료/)).toBeInTheDocument()
+  })
+
+  it('생성 중 닫기 클릭 → 모달 제거 + 이후 폴링 fetch 추가 호출 없음', async () => {
+    let statusCallCount = 0
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+      const u = String(url)
+      if (u.endsWith('/catalog')) {
+        return { ok: true, json: async () => CATALOG }
+      }
+      if (u.includes('/trial/status')) {
+        statusCallCount++
+        return { ok: true, json: async () => ({ status: 'generating' }) }
+      }
+      // POST /trial → 202
+      return { ok: true, status: 202, json: async () => ({ status: 'generating' }) }
+    }) as unknown as typeof fetch
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<Form />)
+    await waitFor(() => screen.getByLabelText('AI Times'))
+
+    fireEvent.click(screen.getByLabelText('AI Times'))
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'u@x.com' },
+    })
+
+    // 체험하기 클릭 → 폴링 시작
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /체험하기/ }))
+    })
+
+    // 모달 표시 확인
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    // 3s 진행 → 첫 번째 폴링
+    await act(async () => {
+      vi.advanceTimersByTime(3000)
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(screen.getByText(/생성 중/)).toBeInTheDocument()
+
+    // 닫기 클릭 → 모달 사라짐 + 폴링 정지
+    const callCountBeforeClose = (fetchMock as ReturnType<typeof vi.fn>).mock.calls.length
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /닫기/ }))
+    })
+
+    // 모달 제거 확인
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    // 추가 3s 진행 → 폴링이 정지됐으면 fetch 추가 호출 없음
+    await act(async () => {
+      vi.advanceTimersByTime(3000)
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect((fetchMock as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callCountBeforeClose)
   })
 })
