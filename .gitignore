@@ -23,3 +23,5 @@ __pycache__/
 /users/*
 !/users/gonsoo/
 !/users/README.md
+.gw_build/
+.gw_build.zip

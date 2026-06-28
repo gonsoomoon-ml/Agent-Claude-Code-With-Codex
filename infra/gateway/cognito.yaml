@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  브리핑 ① Gateway 승격 — Cognito(CUSTOM_JWT M2M) + IAM(Gateway·Lambda 역할). 선언적·재현 가능.
+  aiops infra/cognito-gateway/cognito.yaml 미러. Gateway·target·OAuth2 provider 는 deploy_gateway.py(boto3).
+
+Parameters:
+  DemoUser:
+    Type: String
+    Default: gonsoo
+    Description: 리소스 이름 접두사(사용자별 격리)
+  LambdaName:
+    Type: String
+    Default: briefing-gw-handler
+    Description: Gateway MCP 타깃 Lambda(zip) 이름 — deploy_gateway.py 가 이 이름으로 생성. Gateway 역할이 invoke 권한 부여 대상.
+  SourceTable:
+    Type: String
+    Default: briefing-source-store
+    Description: get_source 가 읽는 DDB source-store 테이블
+
+Resources:
+  # ── Cognito (M2M client_credentials → Gateway CUSTOM_JWT) ──
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub 'briefing-gw-${DemoUser}-userpool'
+      MfaConfiguration: 'OFF'
+      AdminCreateUserConfig: {AllowAdminCreateUserOnly: true}
+      Policies:
+        PasswordPolicy: {MinimumLength: 8, RequireLowercase: false, RequireNumbers: false, RequireSymbols: false, RequireUppercase: false}
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub 'briefing-gw-${DemoUser}-${AWS::AccountId}'   # 계정별 전역 유일
+
+  ResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties:
+      UserPoolId: !Ref UserPool
+      Identifier: !Sub 'briefing-gw-${DemoUser}'
+      Name: 'Gateway Invoke'
+      Scopes:
+        - {ScopeName: invoke, ScopeDescription: Invoke briefing gateway tools}
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: ResourceServer
+    Properties:
+      ClientName: !Sub 'briefing-gw-${DemoUser}-client'
+      UserPoolId: !Ref UserPool
+      GenerateSecret: true                     # M2M = secret 필요(ClientSecret 는 CFN output 아님 → describe 로 조회)
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [client_credentials]
+      AllowedOAuthScopes: [!Sub 'briefing-gw-${DemoUser}/invoke']
+      SupportedIdentityProviders: [COGNITO]
+
+  # ── IAM: Lambda 실행 역할(get_source 의 DDB 읽기 + logs) ──
+  LambdaExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'briefing-gw-${DemoUser}-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{Effect: Allow, Principal: {Service: lambda.amazonaws.com}, Action: sts:AssumeRole}]
+      ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole']
+      Policies:
+        - PolicyName: source-store-read
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:Query]
+                Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SourceTable}'
+
+  # ── IAM: Gateway 실행 역할(★ principal=bedrock-agentcore + 타깃 Lambda invoke) ──
+  GatewayIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'briefing-gw-${DemoUser}-gateway-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{Effect: Allow, Principal: {Service: bedrock-agentcore.amazonaws.com}, Action: sts:AssumeRole}]
+      Policies:
+        - PolicyName: invoke-handler-lambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${LambdaName}'
+
+Outputs:
+  UserPoolId: {Value: !Ref UserPool}
+  Domain: {Value: !Ref UserPoolDomain}
+  ClientId: {Value: !Ref UserPoolClient}
+  Scope: {Value: !Sub 'briefing-gw-${DemoUser}/invoke'}
+  GatewayIamRoleArn: {Value: !GetAtt GatewayIamRole.Arn}
+  LambdaExecRoleArn: {Value: !GetAtt LambdaExecRole.Arn}
