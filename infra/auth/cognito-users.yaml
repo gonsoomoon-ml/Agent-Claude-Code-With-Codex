@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  브리핑 ④ Web UI — 인간 end-user Cognito pool(self sign-up + hosted UI). H3.
+  Gateway M2M pool(infra/gateway/cognito.yaml)과 **물리적으로 분리** — 신뢰 앵커/라이프사이클 격리.
+  순수 CFN(boto3 불필요). 배포:
+    aws cloudformation deploy --region us-east-1 --stack-name briefing-users-gonsoo-auth \
+      --template-file infra/auth/cognito-users.yaml --parameter-overrides DemoUser=gonsoo
+
+Parameters:
+  DemoUser:
+    Type: String
+    Default: gonsoo
+    Description: 리소스 이름 접두사
+  CallbackUrls:
+    Type: CommaDelimitedList
+    Default: "https://dqizh0gi9cp2q.cloudfront.net/,http://localhost:5173/"
+    Description: public client OAuth callback URL(④ 프론트 — CloudFront + dev). ★ ④ 가 정확한 경로 확정(시드값).
+  LogoutUrls:
+    Type: CommaDelimitedList
+    Default: "https://dqizh0gi9cp2q.cloudfront.net/,http://localhost:5173/"
+    Description: 로그아웃 redirect URL(④ 확정)
+
+Resources:
+  # ── 인간 end-user pool (self sign-up · 이메일 검증 = Cognito 기본 발신) ──
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub 'briefing-users-${DemoUser}'
+      MfaConfiguration: 'OFF'
+      UsernameAttributes: [email]              # 이메일 = 로그인 ID
+      AutoVerifiedAttributes: [email]          # 가입 시 이메일 검증코드 발송
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false        # ★ self sign-up 허용(M2M pool 과 반대)
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT    # Cognito 기본 발신(SES 아님 — H1 승인 후 전환). 한도 ~50/day.
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: false
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - {Name: verified_email, Priority: 1}
+      Schema:
+        - {Name: email, AttributeDataType: String, Required: true, Mutable: true}
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub 'briefing-users-${DemoUser}-${AWS::AccountId}'   # hosted UI 도메인(계정별 전역 유일)
+
+  # ── SPA public client (authorization_code + PKCE, secret 없음) ──
+  PublicClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub 'briefing-users-${DemoUser}-web'
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false                    # public SPA = secret 없음(PKCE)
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]                # authorization_code(+ PKCE 자동)
+      AllowedOAuthScopes: [openid, email, profile]
+      CallbackURLs: !Ref CallbackUrls
+      LogoutURLs: !Ref LogoutUrls
+      SupportedIdentityProviders: [COGNITO]
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH                  # SRP 로그인(amplify/auth 표준)
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED      # 보안 모범사례(가입여부 노출 방지)
+
+Outputs:
+  UserPoolId:
+    Value: !Ref UserPool
+  Region:
+    Value: !Ref 'AWS::Region'
+  HostedUI:
+    Value: !Sub 'https://briefing-users-${DemoUser}-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com'
+  PublicClientId:
+    Value: !Ref PublicClient
+  JwtAudience:
+    Value: !Ref PublicClient                  # = public client id (Cognito ID 토큰 aud). ④ authorizer 가 ID 토큰 검증.

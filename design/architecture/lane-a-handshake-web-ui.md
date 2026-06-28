@@ -63,6 +63,18 @@
   JWT_AUDIENCE          = <public client id>   # HTTP API authorizer
   ```
   → ④ 가 HTTP API JWT authorizer + 프론트 amplify/auth 설정에 그대로 사용.
+- **✅ H3 전달됨 (LANE A · 2026-06-28, 검증 완료)** — 분리 pool 배포·동작 확인(discovery + hosted UI `302→login` + 두 pool 공존):
+  ```
+  COGNITO_USER_POOL_ID     = us-east-1_ANfcEK61A
+  COGNITO_REGION           = us-east-1
+  COGNITO_HOSTED_UI        = https://briefing-users-gonsoo-057716757052.auth.us-east-1.amazoncognito.com
+  COGNITO_PUBLIC_CLIENT_ID = 29ghm34nr4m2enqa6sbeua6fgn
+  JWT_AUDIENCE             = 29ghm34nr4m2enqa6sbeua6fgn
+  ```
+  - 재현: `bash infra/auth/deploy_users.sh`(멱등) · CFN `infra/auth/cognito-users.yaml` · 스택 `briefing-users-gonsoo-auth`.
+  - ⚠️ **callback/logout URL 은 시드값**(`https://dqizh0gi9cp2q.cloudfront.net/` + `http://localhost:5173/`) — ④ 가 실제 경로 확정 시 `CALLBACK_URLS="..." bash infra/auth/deploy_users.sh` 재실행(pool 재생성 없이 갱신).
+  - 이메일 = **Cognito 기본 발신**(SES 아님 — H1 승인 후 전환). JWT 는 **ID 토큰** `aud` 검증(Cognito access 토큰엔 `aud` 없음).
+  - pool 분리: 인간=`us-east-1_ANfcEK61A` · Gateway M2M=`us-east-1_iG46xejwY`(무관).
 
 ## H4 — `load_user`/`list_users` → DDB seam (LANE A/③ · config·stores)
 
