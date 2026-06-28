@@ -1,7 +1,6 @@
 """webapi.trial — 검증기·가드·handle_trial(순수/DI, fake boto3)."""
 from __future__ import annotations
 
-import pytest
 
 from briefing.webapi.trial import handle_trial, validate_trial
 
