@@ -3,7 +3,7 @@
 
 deploy_scheduler.py 스타일(색 단계·idempotent·.env writeback). 순서:
   [1] Lambda 실행 role(BasicExecution 만 — v1.0 무지출) · [2] zip(fastapi+mangum+pyyaml + briefing 패키지) ·
-  [3] Lambda(python3.12 arm64) · [4] HTTP API + $default(AWS_PROXY) 라우트 + Lambda 권한 · [5] .env writeback.
+  [3] Lambda(python3.12 x86_64) · [4] HTTP API + $default(AWS_PROXY) 라우트 + Lambda 권한 · [5] .env writeback.
 
 CORS 는 앱(CORSMiddleware)이 처리 → 게이트웨이 CorsConfiguration 미설정(이중 헤더 회피).
 사용법: `uv run python -m briefing.webapi.deploy_api`
@@ -97,7 +97,9 @@ def _ensure_http_api(api, lam, region, acct, lambda_arn) -> str:
         api_id = api.create_api(Name=API_NAME, ProtocolType="HTTP")["ApiId"]   # CORS=앱레벨 → 게이트웨이 미설정
         print(f"   HTTP API 생성: {api_id}")
     integ_uri = f"arn:aws:apigateway:{region}:lambda:path/2015-03-31/functions/{lambda_arn}/invocations"
-    integ_id = api.create_integration(
+    integs = api.get_integrations(ApiId=api_id).get("Items", [])
+    match = next((i for i in integs if i.get("IntegrationUri") == integ_uri), None)
+    integ_id = match["IntegrationId"] if match else api.create_integration(
         ApiId=api_id, IntegrationType="AWS_PROXY", IntegrationUri=integ_uri,
         PayloadFormatVersion="2.0", IntegrationMethod="POST",
     )["IntegrationId"]

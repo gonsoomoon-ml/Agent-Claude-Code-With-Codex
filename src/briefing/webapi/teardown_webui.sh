@@ -1,5 +1,5 @@
-# src/briefing/webapi/teardown_webui.sh — ④ Web UI 자원 역순 삭제(API + web 공통; web 자원은 deploy_web 후 채워짐).
 #!/usr/bin/env bash
+# src/briefing/webapi/teardown_webui.sh — ④ Web UI 자원 역순 삭제(API + web 공통; web 자원은 deploy_web 후 채워짐).
 set -uo pipefail
 REGION="${AWS_REGION:-us-east-1}"
 echo "== ④ Web UI teardown (region=$REGION) =="
@@ -23,7 +23,7 @@ aws iam delete-role --role-name briefing-webapi-lambda-role 2>/dev/null \
 
 # --- CloudFront + S3 (deploy_web.py 후 존재; 없으면 skip) ---
 # CloudFront 는 disable→배포완료대기(~15분)→delete 가 필요해 수동/별도. 아래는 S3 만 정리.
-BUCKET=$(aws cloudformation describe-stacks 2>/dev/null >/dev/null; echo "${BRIEFING_WEB_BUCKET:-}")
+BUCKET="${BRIEFING_WEB_BUCKET:-}"
 if [ -n "$BUCKET" ]; then
   aws s3 rm "s3://$BUCKET" --recursive 2>/dev/null && aws s3api delete-bucket --bucket "$BUCKET" --region "$REGION" 2>/dev/null \
     && echo "deleted S3 $BUCKET" || echo "S3 $BUCKET: 비우기/삭제 보류(CloudFront OAC 정책·배포중 가능)"
