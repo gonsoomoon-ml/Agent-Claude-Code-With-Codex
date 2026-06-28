@@ -16,7 +16,9 @@ def _client(claims):
 
 
 class _Store:
-    def __init__(self): self.updates = []; self._rec = None
+    def __init__(self):
+        self.updates = []
+        self._rec = None
     def get_user(self, uid): return self._rec
     def update_profile_from_jwt(self, *, sub, email, fields): self.updates.append((sub, email, fields))
 
