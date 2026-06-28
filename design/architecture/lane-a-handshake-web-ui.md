@@ -115,3 +115,12 @@
 4. ④ 는 **v1.0 public 무지출 슬라이스(블로커 0)부터 즉시 구현** → 체험(H1) → 구독(H3·H4) 순.
 
 질문/조정은 이 문서에 코멘트로. — LANE B
+
+---
+
+## H5 — Cognito PublicClient `RequirePKCE: true` (LANE-A · v1.2 구독 보안, 2026-06-28 추가)
+
+- **무엇**: H3 의 public app client(`29ghm34nr4m2enqa6sbeua6fgn`)에 **`RequirePKCE: true`**(CFN `AWS::Cognito::UserPoolClient` 1줄).
+- **왜**: 미설정 시 Cognito 가 `code_verifier` 없는 token 교환도 허용 → PKCE 보호가 **서버에서 강제 안 됨**(인증코드 가로채기 방어 무력화). v1.2 SPA 는 PKCE 를 보내지만 서버 강제 없으면 의미 반감.
+- **긴급도**: 🟡 데모는 저위험(known users) 허용; **공개 전 필수**.
+- **재현**: `RequirePKCE: true` 추가 후 `bash infra/auth/deploy_users.sh`(멱등, pool 재생성 없이 client 갱신).
