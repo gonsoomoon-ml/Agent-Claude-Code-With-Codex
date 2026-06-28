@@ -2,7 +2,7 @@
 """deploy_web.py — web/ SPA 를 S3(비공개) + CloudFront(OAC) 로 배포 (boto3).
 
 순서: [1] S3 버킷(비공개) · [2] OAC + CloudFront 배포 · [3] 버킷 정책(CloudFront 만 read) ·
-      [4] web 빌드(VITE_API_BASE=BRIEFING_API_URL) · [5] dist→S3 업로드 · [6] invalidation · [7] .env writeback.
+      [4] web 빌드(VITE_API_BASE=BRIEFING_API_URL) · [5] dist→S3 업로드 · [6] invalidation + .env writeback.
 사전: deploy_api.py 완료(.env 의 BRIEFING_API_URL). 사용법: `uv run python -m briefing.webapi.deploy_web`
 """
 from __future__ import annotations
@@ -40,7 +40,7 @@ def _ensure_bucket(s3, bucket, region) -> None:
         Bucket=bucket,
         PublicAccessBlockConfiguration={
             "BlockPublicAcls": True, "IgnorePublicAcls": True,
-            "BlockPublicPolicy": False, "RestrictPublicBuckets": False,   # CloudFront SourceArn 정책 허용
+            "BlockPublicPolicy": True,  "RestrictPublicBuckets": False,   # CloudFront 서비스 주체(SourceArn 조건) 정책은 AWS 가 "공개"로 분류 안 함 → True 로 설정해도 OAC 버킷 정책은 그대로 수락되며, 이후 진짜 공개 정책 추가를 방어(defense-in-depth)
         },
     )
 
