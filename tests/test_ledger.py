@@ -27,6 +27,15 @@ def test_local_ledger_append_and_since_filter(tmp_path):
     assert led.query("nobody") == []                                # 미존재 user → 빈 목록
 
 
+def test_local_ledger_query_dedups_on_reappend(tmp_path):
+    # ★ 멱등 파리티: 같은 (user, run_date, source_id) 재기록(재실행) → query 1건(마지막 win) = DynamoLedger put 덮어쓰기.
+    led = LocalLedger(str(tmp_path))
+    led.append("2026-06-28", "u1", "src1", "k1", "PUBLISH", "old")
+    led.append("2026-06-28", "u1", "src1", "k1", "PUBLISH", "new")
+    rows = led.query("u1")
+    assert len(rows) == 1 and rows[0]["headline"] == "new"
+
+
 def _user(uid, lens="engineer"):
     return SimpleNamespace(id=uid, recipient=f"{uid}@x", sources=("aws-ml",), depth="full", lens=lens, skill_md="")
 
