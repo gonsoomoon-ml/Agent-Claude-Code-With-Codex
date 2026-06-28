@@ -17,6 +17,9 @@
         color: #111;
         background: rgba(0, 0, 0, 0.03);
       }
+      .src-card { transition: box-shadow .12s; }
+      .src-card:hover { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
+      .src-card:focus-within { outline: 2px solid #FF6B47; outline-offset: 2px; }
       @keyframes spin { to { transform: rotate(360deg); } }
     </style>
   </head>

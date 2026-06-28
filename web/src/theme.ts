@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react'
 export const colors = {
   coralFrom: '#FF9E80', coralTo: '#FF6B47', coralInk: '#1A0F0A',
   ghostBorder: 'rgba(0,0,0,0.15)', ghostText: '#444',
+  coralWash: 'rgba(255,107,71,0.06)',
 }
 
 export const coralPill: CSSProperties = {
