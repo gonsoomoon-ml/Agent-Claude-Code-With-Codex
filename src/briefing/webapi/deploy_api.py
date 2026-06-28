@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -44,16 +45,46 @@ def _ensure_role(iam) -> str:
         print(f"   role 생성: {LAMBDA_ROLE}")
     except iam.exceptions.EntityAlreadyExistsException:
         print(f"   role 존재(재사용): {LAMBDA_ROLE}")
-    iam.attach_role_policy(RoleName=LAMBDA_ROLE, PolicyArn=_MANAGED_BASIC)   # v1.0 = 로그만(무지출)
+    iam.attach_role_policy(RoleName=LAMBDA_ROLE, PolicyArn=_MANAGED_BASIC)
+    # v1.1 BriefingTrial inline policy — SES verify/get, InvokeAgentRuntime, DDB briefing-trials
+    runtime_arn = os.getenv("BRIEFING_RUNTIME_ARN", "")
+    iam.put_role_policy(RoleName=LAMBDA_ROLE, PolicyName="BriefingTrial",
+        PolicyDocument=json.dumps({"Version": "2012-10-17", "Statement": [
+            {"Sid": "SesVerify", "Effect": "Allow", "Action": [
+                "ses:VerifyEmailIdentity", "ses:GetIdentityVerificationAttributes"], "Resource": "*"},
+            {"Sid": "InvokeRuntime", "Effect": "Allow", "Action": "bedrock-agentcore:InvokeAgentRuntime",
+             "Resource": [runtime_arn, runtime_arn + "/*"] if runtime_arn else "*"},
+            {"Sid": "TrialsTable", "Effect": "Allow", "Action": [
+                "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
+             "Resource": "arn:aws:dynamodb:*:*:table/briefing-trials"}]}))
+    print("   inline policy 추가: BriefingTrial")
     return iam.get_role(RoleName=LAMBDA_ROLE)["Role"]["Arn"]
 
 
+def _ensure_trials_table(ddb) -> None:
+    """briefing-trials DDB 테이블(PK: email, TTL: ttl) — 없으면 생성."""
+    try:
+        ddb.create_table(TableName="briefing-trials", BillingMode="PAY_PER_REQUEST",
+            AttributeDefinitions=[{"AttributeName": "email", "AttributeType": "S"}],
+            KeySchema=[{"AttributeName": "email", "KeyType": "HASH"}])
+        ddb.get_waiter("table_exists").wait(TableName="briefing-trials")
+        ddb.update_time_to_live(TableName="briefing-trials",
+            TimeToLiveSpecification={"Enabled": True, "AttributeName": "ttl"})
+        print("   DDB 테이블 생성: briefing-trials (TTL on)")
+    except ddb.exceptions.ResourceInUseException:
+        print("   DDB 테이블 존재(재사용): briefing-trials")
+
+
 def _build_zip() -> bytes:
-    """fastapi+mangum+pyyaml 설치 + briefing 패키지 복사 → zip. trafilatura/feedparser 는 lazy 라 미포함."""
+    """fastapi+mangum+pyyaml+boto3 설치 + briefing 패키지 복사 → zip.
+
+    boto3 는 bedrock-agentcore 데이터플레인 클라이언트(Lambda 내장 boto3 에 없음) 때문에 포함.
+    trafilatura/feedparser 는 lazy 라 미포함.
+    """
     build = Path(tempfile.mkdtemp(prefix="webapi-lambda-"))
     try:
         subprocess.run(
-            ["uv", "pip", "install", "--target", str(build), "fastapi", "mangum", "pyyaml"],
+            ["uv", "pip", "install", "--target", str(build), "fastapi", "mangum", "pyyaml", "boto3"],
             check=True, capture_output=True, text=True,
         )
         shutil.copytree(PKG_DIR, build / "briefing",
@@ -68,8 +99,16 @@ def _build_zip() -> bytes:
         shutil.rmtree(build, ignore_errors=True)
 
 
-def _deploy_lambda(lam, role_arn, zip_bytes) -> str:
-    env = {"Variables": {"WEB_ORIGIN": "*"}}                 # v1.0 public GET; v1.1+ CloudFront 도메인으로 좁힘
+def _deploy_lambda(lam, role_arn, zip_bytes, settings) -> str:
+    """Lambda 생성/업데이트. v1.1 — trial 관련 env 추가(BRIEFING_RUNTIME_ARN, BRIEFING_TRIALS_TABLE, SES_SENDER, 캡/쿨다운)."""
+    env = {"Variables": {
+        "WEB_ORIGIN": "*",
+        "BRIEFING_RUNTIME_ARN": os.getenv("BRIEFING_RUNTIME_ARN", ""),
+        "BRIEFING_TRIALS_TABLE": "briefing-trials",
+        "SES_SENDER": settings.ses_sender,
+        "TRIAL_GLOBAL_CAP": os.getenv("TRIAL_GLOBAL_CAP", "50"),
+        "TRIAL_COOLDOWN_SECONDS": "3600",
+    }}
     try:
         lam.create_function(
             FunctionName=LAMBDA_NAME, Runtime="python3.12", Architectures=["x86_64"],
@@ -127,23 +166,27 @@ def main() -> None:
     settings = load_settings()
     region = settings.region
     acct = boto3.client("sts").get_caller_identity()["Account"]
-    print(f"\n{_B}{'=' * 60}\n  ④ Web API 배포 — region={region}\n{'=' * 60}{_NC}\n")
+    print(f"\n{_B}{'=' * 60}\n  ④ Web API 배포 (v1.1) — region={region}\n{'=' * 60}{_NC}\n")
 
     iam = boto3.client("iam")
     lam = boto3.client("lambda", region_name=region)
     api = boto3.client("apigatewayv2", region_name=region)
+    ddb = boto3.client("dynamodb", region_name=region)
 
-    print(f"{_Y}[1/4] Lambda 실행 role(BasicExecution){_NC}")
+    print(f"{_Y}[1/5] Lambda 실행 role + BriefingTrial inline policy{_NC}")
     role_arn = _ensure_role(iam)
     time.sleep(10)                                           # IAM 전파
 
-    print(f"{_Y}[2/4] Lambda zip(fastapi+mangum+briefing){_NC}")
+    print(f"{_Y}[2/5] briefing-trials DDB 테이블{_NC}")
+    _ensure_trials_table(ddb)
+
+    print(f"{_Y}[3/5] Lambda zip(fastapi+mangum+pyyaml+boto3+briefing){_NC}")
     zip_bytes = _build_zip()
 
-    print(f"{_Y}[3/4] Lambda 함수{_NC}")
-    lambda_arn = _deploy_lambda(lam, role_arn, zip_bytes)
+    print(f"{_Y}[4/5] Lambda 함수{_NC}")
+    lambda_arn = _deploy_lambda(lam, role_arn, zip_bytes, settings)
 
-    print(f"{_Y}[4/4] HTTP API + $default 라우트{_NC}")
+    print(f"{_Y}[5/5] HTTP API + $default 라우트{_NC}")
     api_url = _ensure_http_api(api, lam, region, acct, lambda_arn)
 
     text = ENV_FILE.read_text(encoding="utf-8") if ENV_FILE.exists() else ""
