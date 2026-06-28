@@ -1,24 +1,24 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
-  브리핑 ① Gateway 승격 — Cognito(CUSTOM_JWT M2M) + IAM(Gateway·Lambda 역할). 선언적·재현 가능.
-  aiops infra/cognito-gateway/cognito.yaml 미러. Gateway·target·OAuth2 provider 는 deploy_gateway.py(boto3).
+  브리핑 ① Gateway 승격 — Cognito(CUSTOM_JWT 방식의 M2M 인증)와 IAM 역할(Gateway·Lambda)을 선언적으로 만든다(재현 가능).
+  aiops 의 infra/cognito-gateway/cognito.yaml 을 미러. Gateway·target·OAuth2 provider 는 deploy_gateway.py(boto3)가 만든다.
 
 Parameters:
   DemoUser:
     Type: String
     Default: gonsoo
-    Description: 리소스 이름 접두사(사용자별 격리)
+    Description: 리소스 이름에 붙는 접두사(사용자별로 격리한다)
   LambdaName:
     Type: String
     Default: briefing-gw-handler
-    Description: Gateway MCP 타깃 Lambda(zip) 이름 — deploy_gateway.py 가 이 이름으로 생성. Gateway 역할이 invoke 권한 부여 대상.
+    Description: Gateway 의 MCP 타깃 Lambda(zip) 이름 — deploy_gateway.py 가 이 이름으로 만든다. 아래 Gateway 역할이 이 Lambda 에 invoke 권한을 준다.
   SourceTable:
     Type: String
     Default: briefing-source-store
-    Description: get_source 가 읽는 DDB source-store 테이블
+    Description: get_source 도구가 읽는 DDB source-store 테이블 이름
 
 Resources:
-  # ── Cognito (M2M client_credentials → Gateway CUSTOM_JWT) ──
+  # ── Cognito — 기계 간 인증(M2M client_credentials)으로 토큰을 발급하고, Gateway 가 CUSTOM_JWT 로 검증한다 ──
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
@@ -32,7 +32,7 @@ Resources:
     Type: AWS::Cognito::UserPoolDomain
     Properties:
       UserPoolId: !Ref UserPool
-      Domain: !Sub 'briefing-gw-${DemoUser}-${AWS::AccountId}'   # 계정별 전역 유일
+      Domain: !Sub 'briefing-gw-${DemoUser}-${AWS::AccountId}'   # Cognito 도메인은 전역에서 유일해야 해서 계정 id 를 붙인다
 
   ResourceServer:
     Type: AWS::Cognito::UserPoolResourceServer
@@ -49,13 +49,13 @@ Resources:
     Properties:
       ClientName: !Sub 'briefing-gw-${DemoUser}-client'
       UserPoolId: !Ref UserPool
-      GenerateSecret: true                     # M2M = secret 필요(ClientSecret 는 CFN output 아님 → describe 로 조회)
+      GenerateSecret: true                     # M2M 클라이언트는 secret 이 필요. ClientSecret 은 CFN output 에 없어 describe API 로 따로 조회한다
       AllowedOAuthFlowsUserPoolClient: true
       AllowedOAuthFlows: [client_credentials]
       AllowedOAuthScopes: [!Sub 'briefing-gw-${DemoUser}/invoke']
       SupportedIdentityProviders: [COGNITO]
 
-  # ── IAM: Lambda 실행 역할(get_source 의 DDB 읽기 + logs) ──
+  # ── IAM: Lambda 실행 역할 — get_source 의 DDB 읽기 + CloudWatch logs ──
   LambdaExecRole:
     Type: AWS::IAM::Role
     Properties:
@@ -73,7 +73,7 @@ Resources:
                 Action: [dynamodb:GetItem, dynamodb:Query]
                 Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SourceTable}'
 
-  # ── IAM: Gateway 실행 역할(★ principal=bedrock-agentcore + 타깃 Lambda invoke) ──
+  # ── IAM: Gateway 실행 역할 — ★ trust principal 은 bedrock-agentcore, 권한은 타깃 Lambda invoke 뿐(최소권한) ──
   GatewayIamRole:
     Type: AWS::IAM::Role
     Properties:
