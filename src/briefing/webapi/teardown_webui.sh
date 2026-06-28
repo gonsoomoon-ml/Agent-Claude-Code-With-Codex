@@ -21,11 +21,19 @@ aws iam detach-role-policy --role-name briefing-webapi-lambda-role \
 aws iam delete-role --role-name briefing-webapi-lambda-role 2>/dev/null \
   && echo "deleted role briefing-webapi-lambda-role"
 
-# --- CloudFront + S3 (deploy_web.py 후 존재; 없으면 skip) ---
-# CloudFront 는 disable→배포완료대기(~15분)→delete 가 필요해 수동/별도. 아래는 S3 만 정리.
-BUCKET="${BRIEFING_WEB_BUCKET:-}"
-if [ -n "$BUCKET" ]; then
-  aws s3 rm "s3://$BUCKET" --recursive 2>/dev/null && aws s3api delete-bucket --bucket "$BUCKET" --region "$REGION" 2>/dev/null \
-    && echo "deleted S3 $BUCKET" || echo "S3 $BUCKET: 비우기/삭제 보류(CloudFront OAC 정책·배포중 가능)"
+# --- CloudFront + S3 ---
+source "$(git rev-parse --show-toplevel)/.env" 2>/dev/null || true
+if [ -n "${BRIEFING_CF_DIST_ID:-}" ]; then
+  ETAG=$(aws cloudfront get-distribution-config --id "$BRIEFING_CF_DIST_ID" --query ETag --output text 2>/dev/null)
+  if [ -n "$ETAG" ] && [ "$ETAG" != "None" ]; then
+    echo "CloudFront $BRIEFING_CF_DIST_ID: disable 후 콘솔/CLI 로 삭제 필요(전파 ~15분)."
+    echo "  1) get-distribution-config → Enabled:false 로 update-distribution(--if-match $ETAG)"
+    echo "  2) 배포 Deployed 후 delete-distribution --if-match <new ETag>"
+  fi
+fi
+if [ -n "${BRIEFING_WEB_BUCKET:-}" ]; then
+  aws s3 rm "s3://$BRIEFING_WEB_BUCKET" --recursive 2>/dev/null
+  aws s3api delete-bucket --bucket "$BRIEFING_WEB_BUCKET" --region "$REGION" 2>/dev/null \
+    && echo "deleted S3 $BRIEFING_WEB_BUCKET" || echo "S3 삭제 보류(CloudFront 가 아직 참조 중일 수 있음)"
 fi
 echo "== teardown done (CloudFront distribution 은 콘솔/별도에서 disable 후 삭제) =="
