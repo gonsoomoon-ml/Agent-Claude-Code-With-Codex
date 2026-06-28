@@ -72,21 +72,31 @@ def _print_event(ev: dict) -> None:
               f"published={ev.get('published')} quarantined={ev.get('quarantined')} bytes={ev.get('bytes')}")
     elif etype == "workflow_complete":
         print(f"{_B}■ workflow_complete{_NC}")
-    elif etype == "accepted":   # ⑤ scheduled — 즉시 ack(브리핑은 백그라운드 → CloudWatch 로 확인)
-        print(f"{_B}▶ accepted (scheduled async){_NC} users={ev.get('users')} now={ev.get('now_utc')} dry_run={ev.get('dry_run')}")
+    elif etype == "accepted":   # scheduled/trial — 즉시 ack(브리핑은 백그라운드 → CloudWatch 로 확인)
+        ev_mode = ev.get("mode", "scheduled")
+        if ev_mode == "trial":
+            print(f"{_B}▶ accepted (trial async){_NC} email={ev.get('email')} task_id={ev.get('task_id')} dry_run={ev.get('dry_run')}")
+        else:
+            print(f"{_B}▶ accepted (scheduled async){_NC} users={ev.get('users')} now={ev.get('now_utc')} dry_run={ev.get('dry_run')}")
     else:
         print(f"{_DIM}{json.dumps(ev, ensure_ascii=False)}{_NC}")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="② Runtime 1회 invoke + SSE 출력")
-    ap.add_argument("--mode", choices=["smoke", "harness", "real", "scheduled"], default="smoke",
-                    help="smoke|harness|real | scheduled=⑤ async(즉시 accepted, 브리핑 백그라운드)")
+    ap.add_argument("--mode", choices=["smoke", "harness", "real", "scheduled", "trial"], default="smoke",
+                    help="smoke|harness|real | scheduled=⑤ async(즉시 accepted) | trial=체험(email polling → brief → SES)")
     ap.add_argument("--window-hours", type=int, default=24)
     ap.add_argument("--now-utc", default=None, help="scheduled: now_utc override(ISO, 예 2026-06-27T22:00 → KST 07:00)")
     ap.add_argument("--users", default=None, help="콤마구분 user id override (예 gonsoo)")
-    ap.add_argument("--dry-run", action="store_true", help="scheduled: 발송 안 함(due+brief 만)")
+    ap.add_argument("--dry-run", action="store_true", help="scheduled/trial: 발송 안 함(due+brief 만)")
+    # trial 전용 인자
+    ap.add_argument("--email", default=None, help="trial: 체험 수신 이메일(SES 검증 완료 주소)")
+    ap.add_argument("--sources", default=None, help="trial: 콤마구분 소스 슬러그 (예 aitimes,aws-ml)")
     args = ap.parse_args()
+
+    if args.mode == "trial" and not args.email:
+        ap.error("--mode trial 은 --email 이 필요합니다")
 
     region = load_settings().region
     arn = _runtime_arn()
@@ -107,6 +117,11 @@ def main() -> None:
         payload["users"] = args.users.split(",")
     if args.dry_run:
         payload["dry_run"] = True
+    # trial 전용 필드
+    if args.mode == "trial":
+        payload["email"] = args.email
+        if args.sources:
+            payload["sources"] = args.sources.split(",")
 
     resp = client.invoke_agent_runtime(
         agentRuntimeArn=arn,
