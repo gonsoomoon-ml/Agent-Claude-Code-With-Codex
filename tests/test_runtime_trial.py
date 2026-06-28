@@ -63,3 +63,28 @@ def test_run_trial_no_send_on_verify_timeout():
               deliver_fn=lambda b: delivered.append(b), fallback_fn=lambda e: fellback.append(e),
               sleep_fn=lambda s: None, run_date="2026-06-28", attempts=2)
     assert not ran and not delivered and not fellback   # 미검증 → 생성/발송 0
+
+
+def test_run_trial_status_fn_sequence_on_delivered():
+    seen = []
+    run_trial(_settings(), object(), None, {"email": "u@x.com", "sources": ["aitimes"]},
+              ses=_Ses(success_on=1), run_briefing_fn=lambda *a, **k: [_Brief(3)],
+              deliver_fn=lambda b: None, fallback_fn=lambda e: None,
+              sleep_fn=lambda s: None, run_date="2026-06-28",
+              status_fn=lambda s, p=None: seen.append((s, p)))
+    assert ("generating", None) in seen and ("sent", 3) in seen
+
+
+def test_run_trial_status_fallback_and_expired():
+    seen = []
+    run_trial(_settings(), object(), None, {"email": "u@x.com", "sources": ["aitimes"]},
+              ses=_Ses(success_on=1), run_briefing_fn=lambda *a, **k: [_Brief(0)],
+              deliver_fn=lambda b: None, fallback_fn=lambda e: None, sleep_fn=lambda s: None,
+              run_date="2026-06-28", status_fn=lambda s, p=None: seen.append((s, p)))
+    assert ("fallback", None) in seen
+    seen.clear()
+    run_trial(_settings(), object(), None, {"email": "u@x.com", "sources": ["aitimes"]},
+              ses=_Ses(success_on=99), run_briefing_fn=lambda *a, **k: [_Brief(3)],
+              deliver_fn=lambda b: None, fallback_fn=lambda e: None, sleep_fn=lambda s: None,
+              run_date="2026-06-28", attempts=2, status_fn=lambda s, p=None: seen.append((s, p)))
+    assert ("expired", None) in seen

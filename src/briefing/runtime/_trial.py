@@ -64,11 +64,13 @@ def poll_verified(ses: Any, email: str, *, attempts: int, sleep_seconds: int,
 def run_trial(settings: Settings, store: Any, card_cache: Any, payload: dict, *,
               ses: Any, run_briefing_fn: Callable, deliver_fn: Callable[[Any], None],
               fallback_fn: Callable[[str], None], sleep_fn: Callable[[int], None],
-              run_date: str, attempts: int = 45, sleep_seconds: int = 20) -> str:
+              run_date: str, attempts: int = 45, sleep_seconds: int = 20,
+              status_fn: Callable[[str, int | None], None] = lambda s, p=None: None) -> str:
     """검증 polling → run_briefing → 발송/폴백. 상태 문자열 반환(로깅용).
 
     미검증(timeout) 시 run_briefing 호출 금지 (LLM 비용 0).
     published>0 → deliver_fn; ==0 또는 empty → fallback_fn.
+    각 단계마다 status_fn 콜백 호출(DI, 테스트용 상태 추적).
 
     Args:
         settings, store, card_cache: 블리핑 런타임
@@ -79,21 +81,27 @@ def run_trial(settings: Settings, store: Any, card_cache: Any, payload: dict, *,
         sleep_fn: 대기 함수(주입)
         run_date: ISO 날짜 문자열
         attempts, sleep_seconds: 폴링 설정
+        status_fn: 상태 콜백(주입) — status_fn(단계, published_count) 또는 status_fn(단계)
 
     Returns:
         상태 로그(str) — "trial timeout(...)", "trial empty(...)", "trial delivered(...)", "trial fallback(...)"
     """
     email = payload["email"]
     if not poll_verified(ses, email, attempts=attempts, sleep_seconds=sleep_seconds, sleep_fn=sleep_fn):
+        status_fn("expired")
         return f"trial timeout(unverified): {email}"
+    status_fn("generating")
     user = build_trial_user(payload, settings)
     briefs = run_briefing_fn(settings, store, [user], card_cache=card_cache, ledger=None, run_date=run_date)
     if not briefs:
         fallback_fn(email)
+        status_fn("fallback")
         return f"trial empty: {email}"
     b = briefs[0]
     if b.published > 0:
         deliver_fn(b)
+        status_fn("sent", b.published)
         return f"trial delivered({b.published}): {email}"
     fallback_fn(email)
+    status_fn("fallback")
     return f"trial fallback(published=0): {email}"
