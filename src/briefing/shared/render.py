@@ -169,10 +169,10 @@ def render_email(
         )
 
     area_prefix = f"{len(distinct)}개 분야 · " if grouped else ""
+    # 부제 = 콘텐츠(분야·개수·관점)만 — 검증 문구는 인장(✓ 원문 대조 완료)·카드 검증줄·푸터가 소유(중복 제거).
     subtitle = (
         f'<p style="{_MONO};font-size:12px;color:{_META};margin:4px 0 0">'
-        f"{area_prefix}소식 {len(published)}개 · {html.escape(lens)} 관점 요약 · "
-        "요약 후 다른 AI 에이전트가 원문 대조</p>"
+        f"{area_prefix}소식 {len(published)}개 · {html.escape(lens)} 관점 요약</p>"
     )
     coral_rule = f'<div style="border-top:2px solid {_CORAL};margin:10px 0 4px"></div>'
 

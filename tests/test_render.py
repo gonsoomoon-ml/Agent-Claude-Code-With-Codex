@@ -34,11 +34,11 @@ def test_header_shows_date_when_today_given():
     assert "6월 29일 (월)" in out
 
 
-def test_subtitle_shows_count_lens_process_no_area_label_when_single():
+def test_subtitle_shows_count_lens_without_duplicating_verification():
     out = render_email([_gated()], _user(lens="engineer"), None)
     assert "소식 1개" in out
     assert "engineer 관점" in out
-    assert "다른 AI 에이전트가 원문 대조" in out
+    assert out.count("원문 대조") == 1        # 헤더 인장에만 1회 — 부제의 "원문 대조" 중복 제거
     assert "개 분야" not in out               # 1개 분야면 분야 표기 안 함
 
 
