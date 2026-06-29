@@ -46,7 +46,7 @@ def test_run_briefing_degrades_blocked_supporting(tmp_path):
         draft_fn=lambda *_a: _card_two(), revise_fn=lambda *a, **k: _card_two(),
         verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"), CertVerdict("C2", "BLOCKED", "ev")),
     )
-    assert out[0].published == 1 and "보류" in out[0].email        # graceful degradation 이 드라이버 통과로도 동작
+    assert out[0].published == 1 and "제외" in out[0].email        # graceful degradation 이 드라이버 통과로도 동작
 
 
 def _fetch_distinct(source, _w):

@@ -75,7 +75,7 @@ def test_trust_line_credits_other_agent_with_figure_and_hides_claims():
     )
     out = render_email([gated], _user(), None)
     assert "다른 AI 에이전트가 사실 2건 검증" in out
-    assert "근거 보기" in out
+    assert "근거 보기" not in out             # ii: 펼침 제거 — 정직한 한 줄만
     assert "비밀주장" not in out              # 개별 claim 텍스트 비노출(불변식 유지)
 
 
@@ -87,7 +87,7 @@ def test_trust_line_marks_held_when_blocked_present():
     )
     out = render_email([gated], _user(), None)
     assert "사실 1건 검증" in out
-    assert "보류 1건" in out
+    assert "제외 1건" in out          # BLOCKED = 본문에서 제외(dropped)
 
 
 # ── QUARANTINE 제외 / 폴백 ─────────────────────────────

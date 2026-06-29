@@ -74,23 +74,19 @@ def _source_line(store: SourceStore | None, source_id: str) -> str:
 
 
 def _trust_line(card: GatedCard) -> str:
-    """검증줄 — "다른 AI 에이전트가 사실 N건 검증" + `<details>` 근거. 개별 claim 텍스트 비노출."""
+    """검증줄 — 펼침 없는 정직한 한 줄(ii). 확인 N + (미확인 M) + (제외 K) 집계만.
+
+    아침 스캔용 glance 신호 — per-claim 감사는 안 넣는다(대부분 안 펼침 + 모닝 calm).
+    더 깊이는 카드의 '원문 →' 링크 / 주간 'Withheld-and-Why' 다이제스트(후속)로. 개별 claim 텍스트 비노출.
+    """
     n = {k: sum(1 for v in card.verdicts if v.verdict == k) for k in ("VERIFIED", "DEMOTED", "BLOCKED")}
-    head = f"사실 {n['VERIFIED']}건 검증" if n["VERIFIED"] else "검증 완료"
-    bits = [f"✓ 다른 AI 에이전트가 {head}"]
+    bits = [f"✓ 다른 AI 에이전트가 사실 {n['VERIFIED']}건 검증" if n["VERIFIED"] else "✓ 검증 완료"]
     if n["DEMOTED"]:
         bits.append(f"미확인 {n['DEMOTED']}건")
     if n["BLOCKED"]:
-        bits.append(f"보류 {n['BLOCKED']}건")
+        bits.append(f"제외 {n['BLOCKED']}건")  # BLOCKED = 본문에서 제외(dropped, graceful degradation)
     color = _AMBER if (n["DEMOTED"] or n["BLOCKED"]) else _OK
-    body = "이 요약을 만든 AI 에이전트와 다른 AI 에이전트가, 요약 속 숫자·주장을 원문과 대조했어요."
-    return (
-        '<details style="margin:8px 0 0">'
-        f'<summary style="font-size:12px;color:{color};cursor:pointer">{" · ".join(bits)} · 근거 보기</summary>'
-        f'<p style="font-size:12px;color:{_META};margin:6px 0 0;padding-left:10px;'
-        f'border-left:2px solid {_RULE}">{body}</p>'
-        "</details>"
-    )
+    return f'<p style="font-size:12px;color:{color};margin:8px 0 0">{" · ".join(bits)}</p>'
 
 
 def _card_html(card: GatedCard, store: SourceStore | None, *, depth: str, lens: str, rank: int) -> str:
