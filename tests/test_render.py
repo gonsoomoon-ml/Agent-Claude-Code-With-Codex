@@ -1,46 +1,155 @@
-"""render — PUBLISH-only · 출처 도메인 reference·발행일·렌즈 · 집계 trust(개별 claim 비노출)."""
+"""render — 검증 명세서 메일: 헤더(인장·날짜·관점)·카드 2섹션(요약→해석, depth)·검증줄(다른 AI 에이전트 N건)·분야 밴드·다크모드·푸터."""
 from types import SimpleNamespace
 
 from briefing.shared.harness.author import Claim, DraftCard
 from briefing.shared.harness.certifier import CertVerdict
 from briefing.shared.gate import GatedCard
-from briefing.shared.render import render_email
+from briefing.shared.render import format_briefing_date, render_email
 
 
-def _user(depth="full"):
-    return SimpleNamespace(id="u", depth=depth, lens="engineer")
+def _user(depth="full", lens="engineer", send_hour=7):
+    return SimpleNamespace(id="u-secret-id", depth=depth, lens=lens, send_hour=send_hour)
 
 
-def _gated(decision, verdicts, claims):
-    return GatedCard(DraftCard("sid", "헤드라인", "요약", "왜중요", claims), verdicts, decision, 1)
+def _card(source_id="sid", headline="헤드라인", summary="요약문장.", why="해석문장.", claims=None):
+    claims = claims or (Claim("C1", "원자주장", "entailment", "core"),)
+    return DraftCard(source_id, headline, summary, why, claims)
 
 
-def test_render_hides_claims_shows_aggregate_and_lens():
-    gated = _gated("PUBLISH",
-                   (CertVerdict("C1", "VERIFIED", "ev"), CertVerdict("C2", "BLOCKED", "ev")),
-                   (Claim("C1", "검증된 항목", "entailment", "core"),
-                    Claim("C2", "미검증 항목", "arithmetic", "supporting")))
+def _gated(decision="PUBLISH", verdicts=None, **kw):
+    verdicts = verdicts or (CertVerdict("C1", "VERIFIED", "ev"),)
+    return GatedCard(_card(**kw), verdicts, decision, 1)
+
+
+# ── 헤더 ──────────────────────────────────────────────
+def test_header_shows_brand_and_seal_and_hides_user_id():
+    out = render_email([_gated()], _user(), None)
+    assert "오늘의 브리핑" in out
+    assert "원문 대조 완료" in out          # 검증 인장
+    assert "u-secret-id" not in out          # 내부 user.id 노출 제거
+
+
+def test_header_shows_date_when_today_given():
+    out = render_email([_gated()], _user(), None, today="6월 29일 (월)")
+    assert "6월 29일 (월)" in out
+
+
+def test_subtitle_shows_count_lens_process_no_area_label_when_single():
+    out = render_email([_gated()], _user(lens="engineer"), None)
+    assert "소식 1개" in out
+    assert "engineer 관점" in out
+    assert "다른 AI 에이전트가 원문 대조" in out
+    assert "개 분야" not in out               # 1개 분야면 분야 표기 안 함
+
+
+# ── 카드 2섹션 + depth 매핑 ──────────────────────────────
+def test_full_depth_shows_summary_and_interpretation():
+    out = render_email([_gated(summary="요약본문.", why="해석본문.")], _user(depth="full"), None)
+    assert "요약본문." in out
+    assert "나에게 왜 중요한가" in out
+    assert "해석본문." in out
+
+
+def test_summary_depth_omits_interpretation():
+    out = render_email([_gated(summary="요약본문.", why="해석본문.")], _user(depth="summary"), None)
+    assert "요약본문." in out
+    assert "나에게 왜 중요한가" not in out
+    assert "해석본문." not in out
+
+
+def test_title_only_depth_shows_headline_without_body():
+    out = render_email(
+        [_gated(headline="헤드만", summary="요약본문.", why="해석본문.")], _user(depth="title-only"), None
+    )
+    assert "헤드만" in out
+    assert "요약본문." not in out and "해석본문." not in out
+
+
+# ── 검증줄(다른 AI 에이전트 + 숫자 + 근거) ──────────────────
+def test_trust_line_credits_other_agent_with_figure_and_hides_claims():
+    gated = _gated(
+        verdicts=(CertVerdict("C1", "VERIFIED", "ev"), CertVerdict("C2", "VERIFIED", "ev")),
+        claims=(Claim("C1", "비밀주장하나", "entailment", "core"),
+                Claim("C2", "비밀주장둘", "arithmetic", "core")),
+    )
     out = render_email([gated], _user(), None)
-    assert "검증된 항목" not in out and "미검증 항목" not in out   # 개별 claim 텍스트 비노출(debug-time)
-    assert "사실 1건 독립 검증" in out and "보류 1건" in out        # 집계 trust 라인
-    assert "engineer 관점" in out                                  # lens
+    assert "다른 AI 에이전트가 사실 2건 검증" in out
+    assert "근거 보기" in out
+    assert "비밀주장" not in out              # 개별 claim 텍스트 비노출(불변식 유지)
 
 
-def test_render_excludes_quarantine_and_falls_back_when_empty():
-    gated = _gated("QUARANTINE", (CertVerdict("C1", "BLOCKED", "ev"),),
-                   (Claim("C1", "x", "entailment", "core"),))
+def test_trust_line_marks_held_when_blocked_present():
+    gated = _gated(
+        decision="PUBLISH",
+        verdicts=(CertVerdict("C1", "VERIFIED", "ev"), CertVerdict("C2", "BLOCKED", "ev")),
+        claims=(Claim("C1", "x", "entailment", "core"), Claim("C2", "y", "arithmetic", "supporting")),
+    )
     out = render_email([gated], _user(), None)
-    assert "헤드라인" not in out  # QUARANTINE 카드는 사용자 이메일에서 제외
-    assert "없습니다" in out       # 0건 발행 → 빈 메일 금지 폴백
+    assert "사실 1건 검증" in out
+    assert "보류 1건" in out
 
 
-def test_render_includes_domain_title_url_date_from_store(tmp_path):
+# ── QUARANTINE 제외 / 폴백 ─────────────────────────────
+def test_quarantine_excluded_and_fallback_when_empty():
+    out = render_email([_gated(decision="QUARANTINE", headline="격리카드")], _user(), None)
+    assert "격리카드" not in out
+    assert "없습니다" in out
+
+
+# ── 출처 줄(도메인·날짜·원문 링크) ──────────────────────────
+def test_source_line_has_domain_date_and_original_link(tmp_path):
     from briefing.shared.stores.source_store import SourceStore
+
     store = SourceStore(str(tmp_path / "s"))
-    fs = store.freeze(url="https://www.aitimes.com/a", title="원본 제목", raw_text="본문",
+    fs = store.freeze(url="https://www.aitimes.com/a", title="원본제목", raw_text="본문",
                       fetched_at="2026-06-27T06:00:00Z")
-    card = DraftCard(fs.source_id, "헤드라인", "요약", "왜중요", (Claim("C1", "x", "entailment", "core"),))
-    gated = GatedCard(card, (CertVerdict("C1", "VERIFIED", "ev"),), "PUBLISH", 1)
+    gated = GatedCard(_card(source_id=fs.source_id), (CertVerdict("C1", "VERIFIED", "ev"),), "PUBLISH", 1)
     out = render_email([gated], _user(), None, store)
-    assert "aitimes.com" in out                                    # 도메인 reference (www. 제거)
-    assert "원본 제목" in out and 'href="https://www.aitimes.com/a"' in out and "2026-06-27" in out
+    assert "aitimes.com" in out
+    assert 'href="https://www.aitimes.com/a"' in out
+    assert "2026-06-27" in out
+    assert "원문" in out
+
+
+# ── 분야(Area) 밴드: 2개 이상일 때만 ──────────────────────
+def test_area_bands_render_when_two_or_more_categories():
+    g1 = _gated(headline="가카드", source_id="s1")
+    g2 = _gated(headline="나카드", source_id="s2")
+    cats = {"s1": "AI 뉴스", "s2": "프런티어 AI 랩"}
+    out = render_email([g1, g2], _user(), None, source_categories=cats)
+    assert "AI 뉴스" in out and "프런티어 AI 랩" in out
+    assert "2개 분야" in out
+    assert out.index("AI 뉴스") < out.index("프런티어 AI 랩")   # 첫 등장 순서 유지
+
+
+def test_no_bands_when_single_category():
+    g1 = _gated(source_id="s1")
+    g2 = _gated(source_id="s2")
+    cats = {"s1": "AI 뉴스", "s2": "AI 뉴스"}
+    out = render_email([g1, g2], _user(), None, source_categories=cats)
+    assert "개 분야" not in out
+    assert "◆" not in out
+
+
+# ── 다크모드 캔버스 / 푸터 차별점 ──────────────────────────
+def test_dark_mode_canvas_anchored():
+    out = render_email([_gated()], _user(), None)
+    assert "background-color" in out
+    assert "color-scheme" in out
+
+
+def test_footer_explains_decorrelation_plainly():
+    out = render_email([_gated()], _user(lens="engineer"), None)
+    assert "요약을 만들지 않은 다른 AI 에이전트가 그 요약을 원문과 대조" in out
+    assert "확인되지 않은 내용은 보내지 않습니다" in out
+
+
+# ── 날짜 포맷터(헤더용) ──────────────────────────────────
+def test_format_briefing_date_korean():
+    assert format_briefing_date("2026-06-29") == "6월 29일 (월)"          # 2026-06-29 = 월요일
+    assert format_briefing_date("2026-06-29T07:00:00Z") == "6월 29일 (월)"  # ISO 타임스탬프도 OK
+
+
+def test_format_briefing_date_empty_or_invalid_is_blank():
+    assert format_briefing_date("") == ""
+    assert format_briefing_date("nope") == ""

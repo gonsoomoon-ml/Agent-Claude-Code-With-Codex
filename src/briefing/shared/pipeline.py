@@ -51,19 +51,24 @@ def run_briefing(
     by_key = curate(store, fetch_targets, window_hours=window_hours, fetch_article_fn=fetch_article_fn)
 
     out: list[UserBriefing] = []
+    today = render.format_briefing_date(run_date)
     for u in users:
-        user_keys = [s.key for s in src.resolve_sources(u.sources)]
-        frozen = [fs for k in user_keys for fs in by_key.get(k, [])]
+        # (frozen, category) 쌍 — category 는 출처 카탈로그 Source.category (분야 그룹 키)
+        fs_cat = [(fs, s.category) for s in src.resolve_sources(u.sources) for fs in by_key.get(s.key, [])]
         cards = tuple(
             _process(fs, u, settings, store, card_cache, ledger, run_date, draft_fn, revise_fn, verify_fn)
-            for fs in frozen
+            for fs, _ in fs_cat
         )
+        # render 는 *카드의* source_id 로 분야를 찾는다(실 author 는 fs.source_id 복사) → 카드 기준으로 매핑
+        source_categories = {g.card.source_id: cat for (_fs, cat), g in zip(fs_cat, cards)}
         out.append(
             UserBriefing(
                 user_id=u.id,
                 recipient=u.recipient,
                 cards=cards,
-                email=render.render_email(cards, u, settings, store),
+                email=render.render_email(
+                    cards, u, settings, store, source_categories=source_categories, today=today
+                ),
                 published=sum(1 for c in cards if c.decision == "PUBLISH"),
                 quarantined=sum(1 for c in cards if c.decision == "QUARANTINE"),
             )

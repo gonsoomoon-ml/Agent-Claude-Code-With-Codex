@@ -48,6 +48,10 @@ def curate_sources(window_hours: int = 24) -> str:
     by_key = curate(store, targets, window_hours=window_hours, fetch_article_fn=_fetch_fn)
     frozen = [fs for v in by_key.values() for fs in v]
     _CTX["frozen"] = {fs.source_id: fs for fs in frozen}
+    # 분야 그룹 키 — 출처 카탈로그 Source.category (render 가 source_id 로 조회). pipeline 과 동형.
+    _CTX["source_categories"] = {
+        fs.source_id: s.category for s in src.resolve_sources(keys) for fs in by_key.get(s.key, [])
+    }
     if not frozen:
         return "Curated 0 sources (empty feeds). Call render_briefing to finish with no items."
     listing = "\n".join(f"- {fs.source_id}  ::  {fs.title[:60]}" for fs in frozen)
@@ -80,7 +84,11 @@ def render_briefing() -> str:
     cards: list[GatedCard] = _CTX.get("cards", [])
     user: UserConfig = _CTX["user"]
     settings: Settings = _CTX["settings"]
-    email = render.render_email(cards, user, settings, _CTX["store"])
+    email = render.render_email(
+        cards, user, settings, _CTX["store"],
+        source_categories=_CTX.get("source_categories"),
+        today=render.format_briefing_date(_CTX.get("run_date", "")),
+    )
     _CTX["email"] = email
     published = sum(1 for c in cards if c.decision == "PUBLISH")
     return f"Rendered briefing: {published} published / {len(cards) - published} quarantined, {len(email)} bytes."
@@ -146,6 +154,7 @@ def run_supervisor(
     window_hours: int = 24,
     source_keys: list[str] | None = None,
     max_items: int = 5,
+    run_date: str = "",
 ) -> dict:
     """Strands supervisor 가 파이프라인을 오케스트레이션(curate→produce per source→render). 결과 dict 반환.
 
@@ -155,7 +164,8 @@ def run_supervisor(
     store = SourceStore(settings.source_store_path)
     user = load_user(user_id, settings)
     _CTX.clear()
-    _CTX.update(settings=settings, store=store, user=user, source_keys=source_keys, max_items=max_items)
+    _CTX.update(settings=settings, store=store, user=user, source_keys=source_keys,
+                max_items=max_items, run_date=run_date)
 
     agent = get_supervisor(settings)
     task = (
