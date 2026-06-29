@@ -29,3 +29,6 @@ __pycache__/
 # Playwright MCP 임시 스냅샷/스크린샷(테스트 아티팩트 — 커밋 금지)
 .playwright-mcp/
 *.jpeg
+
+# PPTX 슬라이드 — 바이너리 산출물(미커밋). 재생성: design/architecture/make_slide.py
+*.pptx
