@@ -50,19 +50,20 @@ def test_full_depth_shows_summary_and_interpretation():
     assert "해석본문." in out
 
 
-def test_summary_depth_omits_interpretation():
+def test_summary_depth_shows_summary_and_interpretation():
+    # mockup §4: summary(standard) = 요약 + 왜 중요한가 (둘 다). title-only 만 해석 생략.
     out = render_email([_gated(summary="요약본문.", why="해석본문.")], _user(depth="summary"), None)
     assert "요약본문." in out
-    assert "나에게 왜 중요한가" not in out
-    assert "해석본문." not in out
+    assert "나에게 왜 중요한가" in out
+    assert "해석본문." in out
 
 
-def test_title_only_depth_shows_headline_without_body():
+def test_title_only_depth_shows_summary_without_interpretation():
     out = render_email(
         [_gated(headline="헤드만", summary="요약본문.", why="해석본문.")], _user(depth="title-only"), None
     )
-    assert "헤드만" in out
-    assert "요약본문." not in out and "해석본문." not in out
+    assert "헤드만" in out and "요약본문." in out          # title-only 도 요약은 노출
+    assert "나에게 왜 중요한가" not in out and "해석본문." not in out  # 해석만 생략
 
 
 # ── 검증줄(다른 AI 에이전트 + 숫자 + 근거) ──────────────────

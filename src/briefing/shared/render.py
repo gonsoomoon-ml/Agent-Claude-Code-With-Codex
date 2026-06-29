@@ -101,11 +101,11 @@ def _card_html(card: GatedCard, store: SourceStore | None, *, depth: str, lens: 
         f'<h2 style="font-size:19px;margin:18px 0 2px">{rank_html}{html.escape(c.headline)}</h2>',
         _source_line(store, c.source_id),
     ]
-    if depth != "title-only":  # summary·full → 요약(검증 대상) 노출
-        lens_lbl = f"요약 · {html.escape(lens)} 관점" if lens else "요약"
-        parts.append(f'<p style="{_MONO};font-size:12px;color:{_META};margin:8px 0 2px">{lens_lbl}</p>')
-        parts.append(f'<p style="margin:0">{html.escape(c.summary)}</p>')
-    if depth == "full" and c.why_it_matters:  # full → 해석(검증 대상 아님 → 시각 구분)
+    # 요약(검증 대상) — 모든 depth 노출 (mockup §4: title-only 도 요약은 보인다)
+    lens_lbl = f"요약 · {html.escape(lens)} 관점" if lens else "요약"
+    parts.append(f'<p style="{_MONO};font-size:12px;color:{_META};margin:8px 0 2px">{lens_lbl}</p>')
+    parts.append(f'<p style="margin:0">{html.escape(c.summary)}</p>')
+    if depth != "title-only" and c.why_it_matters:  # summary·full → 해석(title-only 만 생략, 시각 구분)
         parts.append(f'<div style="border-top:1px dotted {_RULE};margin:8px 0"></div>')
         parts.append(
             f'<p style="font-size:12px;color:{_META};margin:0 0 2px">'
