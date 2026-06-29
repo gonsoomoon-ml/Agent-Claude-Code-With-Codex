@@ -5,6 +5,6 @@ recipient: moongons@amazon.com    # 수신 이메일 (SES sandbox: 사전 verify
 type: ai-news                     # TYPE: ai-news / stock-news ...
 sources: [aitimes, aws-ml, openai, deepmind, anthropic]   # 전역 CATALOG 키 선택(UI가 채움); 생략 시 전체
 depth: full                       # DEPTH: title-only / summary / full
-lens: engineer                    # LENS: 요약 관점 (general/executive/engineer/business)
+lens: engineer                    # LENS: 요약 관점 (general/engineer/business/researcher)
 send_hour: 7                      # 발송 시각(시)
 timezone: Asia/Seoul              # 발송 타임존 (KST)

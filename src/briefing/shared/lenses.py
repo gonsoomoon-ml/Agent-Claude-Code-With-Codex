@@ -1,7 +1,7 @@
 """lenses — 요약 관점(lens) 라이브러리(lenses.yaml) + per-user 선택 해석.
 
 설계:
-- LENS_LIBRARY = lenses.yaml 의 vetted 관점 목록(general/executive/engineer/business/...). 로드 시 검증.
+- LENS_LIBRARY = lenses.yaml 의 vetted 관점 목록(general/engineer/business/researcher/...). 로드 시 검증.
 - per-user 선택 = profile.yaml `lens: <key>` → resolve_lens(); 미설정/미상이면 default(general)로 폴백.
 - ★ lens 는 *편집 렌즈*(강조·어휘)만 — base 계약·검증을 못 바꿈. certifier 는 lens 미열람(불변식 #4).
 - author 프롬프트 = base(author_system.md) + lens.guidance + user.skill_md.

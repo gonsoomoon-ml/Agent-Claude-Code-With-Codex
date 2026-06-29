@@ -10,6 +10,8 @@ from briefing.shared.lenses import LENS_LIBRARY, _load_lenses, resolve_lens
 def test_library_has_default_and_roles():
     keys = [ln.key for ln in LENS_LIBRARY]
     assert "general" in keys and "engineer" in keys
+    assert "business" in keys and "researcher" in keys   # researcher 추가
+    assert "executive" not in keys                        # executive → business 통합
 
 
 def test_resolve_lens_fallback_to_general():
