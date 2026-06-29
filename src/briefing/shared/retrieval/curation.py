@@ -13,6 +13,7 @@ from collections.abc import Callable, Sequence
 from .. import _debug
 from . import sources as src
 from ..stores.source_store import FrozenSource, SourceStore
+from .relevance import is_ai_relevant
 from .sources import FetchedArticle, Source
 
 FetchArticleFn = Callable[[Source, int], Sequence[FetchedArticle]]
@@ -49,7 +50,12 @@ def curate(
             # source-level graceful degradation: skip 후 계속. non-silent — warn(항상 stderr→CloudWatch).
             _debug.warn("curate skip", f"{source.key}: {type(err).__name__}: {err}")
             continue
+        dropped = 0
         for art in articles:
+            # require_ai 소스(종합지 피드): AI 무관 기사를 요약·검증 *전* 컷 → 비용 절감(relevance v1, recall 우선)
+            if source.require_ai and not is_ai_relevant(art.title, art.raw_text):
+                dropped += 1
+                continue
             fs = store.freeze(
                 url=art.url, title=art.title, raw_text=art.raw_text,
                 fetched_at=art.published_at, media=source.name,  # 발행 매체 = catalog 정본명(예 "AI Times")
@@ -58,4 +64,6 @@ def curate(
                 continue
             seen.add(fs.source_id)
             by_key.setdefault(source.key, []).append(fs)
+        if dropped:  # non-silent — 무엇이/몇 건 빠졌나 기록(silent truncation 금지)
+            _debug.dprint("curate filter", f"{source.key}: AI 무관 {dropped}건 제외(require_ai)", "yellow")
     return by_key

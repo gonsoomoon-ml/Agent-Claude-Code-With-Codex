@@ -12,6 +12,7 @@
   kind: rss
   lang: ko
   category: AI 뉴스
+  require_ai: true   # allArticle = 종합지 피드(지역·행정 기사 섞임) → AI 관련 기사만 통과(relevance v1)
 
 - key: aws-ml
   name: AWS ML Blog

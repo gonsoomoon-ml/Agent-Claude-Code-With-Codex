@@ -50,9 +50,10 @@ def test_run_briefing_degrades_blocked_supporting(tmp_path):
 
 
 def _fetch_distinct(source, _w):
-    # 출처별 *다른 본문* → content-addressed source_id 가 출처마다 달라진다(분야 그룹 검증용)
-    return [FetchedArticle(source.key, f"https://x/{source.key}", f"{source.key} 제목",
-                           f"{source.key} 고유 본문.", "2026-06-27T00:00:00Z")]
+    # 출처별 *다른 본문* → content-addressed source_id 가 출처마다 달라진다(분야 그룹 검증용).
+    # "AI" 포함 → require_ai 소스(aitimes)의 relevance 필터를 통과(이 테스트 주제는 그룹핑).
+    return [FetchedArticle(source.key, f"https://x/{source.key}", f"{source.key} AI 제목",
+                           f"{source.key} 고유 AI 본문.", "2026-06-27T00:00:00Z")]
 
 
 def test_run_briefing_groups_by_area_and_dates_header(tmp_path):

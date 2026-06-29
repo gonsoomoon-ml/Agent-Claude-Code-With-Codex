@@ -4,8 +4,35 @@ from briefing.shared.stores.source_store import SourceStore
 from briefing.shared.retrieval.sources import FetchedArticle, Source
 
 
-def _src(key, fragile=False):
-    return Source(key=key, name=key.upper(), url=f"https://{key}", kind="rss", lang="en", fragile=fragile)
+def _src(key, fragile=False, require_ai=False):
+    return Source(key=key, name=key.upper(), url=f"https://{key}", kind="rss", lang="en",
+                  fragile=fragile, require_ai=require_ai)
+
+
+def test_curate_require_ai_drops_non_ai_articles(tmp_path):
+    store = SourceStore(str(tmp_path))
+
+    def fetch(_source, _w):
+        return [
+            FetchedArticle("aitimes", "u1", "딥시크, 추론 속도↑ 오픈소스 공개", "AI 모델", "2026-06-29T00:00:00Z"),
+            FetchedArticle("aitimes", "u2", "여수세계섬박람회 현장 점검", "지역 행사", "2026-06-29T00:00:00Z"),
+        ]
+
+    by_key = curate(store, [_src("aitimes", require_ai=True)], fetch_article_fn=fetch)
+    assert len(by_key["aitimes"]) == 1   # AI 기사만 통과(여수박람회 컷)
+
+
+def test_curate_without_require_ai_keeps_all(tmp_path):
+    store = SourceStore(str(tmp_path))
+
+    def fetch(_source, _w):
+        return [
+            FetchedArticle("aitimes", "u1", "딥시크 오픈소스 공개", "AI", "2026-06-29T00:00:00Z"),
+            FetchedArticle("aitimes", "u2", "여수세계섬박람회 점검", "행사", "2026-06-29T00:00:00Z"),
+        ]
+
+    by_key = curate(store, [_src("aitimes", require_ai=False)], fetch_article_fn=fetch)
+    assert len(by_key["aitimes"]) == 2   # 필터 off(기본) → 둘 다 (byte-identical)
 
 
 def test_curate_skips_failing_source_and_continues(tmp_path, capsys):

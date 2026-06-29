@@ -31,6 +31,7 @@ class Source:
     lang: str              # "en" | "ko"
     fragile: bool = False  # True = *진짜 차단*(Cloudflare challenge/JS-only) — v1 미구현, 현 catalog 엔 없음
     category: str = ""     # 관심 버킷(type 직교). catalog 필수(로더가 빈값 거부); UI 분야 그룹핑 키. 기본 ""=임시 Source()용
+    require_ai: bool = False  # True = 종합지 피드 → curate 가 AI 관련 기사만 통과(relevance.is_ai_relevant). 기본 off=전부 통과
 
 
 _KINDS = frozenset({"rss", "html", "auto"})
@@ -68,6 +69,7 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
                 lang=e["lang"],
                 fragile=bool(e.get("fragile", False)),
                 category=e["category"],
+                require_ai=bool(e.get("require_ai", False)),
             )
         )
     return tuple(out)
