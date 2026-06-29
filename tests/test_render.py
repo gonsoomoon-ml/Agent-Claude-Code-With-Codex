@@ -25,7 +25,7 @@ def _gated(decision="PUBLISH", verdicts=None, **kw):
 def test_header_shows_brand_and_seal_and_hides_user_id():
     out = render_email([_gated()], _user(), None)
     assert "오늘의 브리핑" in out
-    assert "원문 대조 완료" in out          # 검증 인장
+    assert "AI 에이전트 원문 대조" in out     # 검증 인장 — 누가 검증했는지(차별점) 포함
     assert "u-secret-id" not in out          # 내부 user.id 노출 제거
 
 

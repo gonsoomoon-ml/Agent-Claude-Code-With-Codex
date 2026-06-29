@@ -155,10 +155,11 @@ def render_email(
     title = "오늘의 브리핑" + (f" · {html.escape(today)}" if today else "")
     seal = (
         f'<span style="{_MONO};font-size:12px;color:{_OK};border:1px solid {_RULE};'
-        'border-radius:6px;padding:2px 8px">✓ 원문 대조 완료</span>'
+        'border-radius:6px;padding:2px 8px;white-space:nowrap">✓ AI 에이전트 원문 대조</span>'
     )
     header = (
-        '<div style="display:flex;justify-content:space-between;align-items:baseline">'
+        '<div style="display:flex;flex-wrap:wrap;gap:4px 10px;'
+        'justify-content:space-between;align-items:baseline">'
         f'<h1 style="font-size:22px;margin:0">{title}</h1>{seal}</div>'
     )
     if not published:
