@@ -25,7 +25,9 @@ from ..lenses import resolve_lens
 from ..prompts import apply_prompt_template
 from ..stores.source_store import FrozenSource
 
-_AUTHOR_TIMEOUT_S = 180  # `claude -p` 한 카드 작성 타임아웃(초)
+_AUTHOR_TIMEOUT_S = 240  # `claude -p` 한 카드(1회 호출) 작성 타임아웃(초). 느리지만-완료되는 호출 여유
+# (180→240, 2026-07-01 인시던트 후). ★ pipeline 이 카드별로 이 실패를 격리하므로 초과 카드는 자기만 드롭
+# (배치 전체 중단 아님) → 상향이 안전. 정상 author 는 30~90s 라 happy-path wall-clock 엔 영향 없음.
 
 # author 가 emit 해야 하는 JSON 계약 (static → 캐시 프리픽스 안전). 변수·날짜 없음.
 _OUTPUT_CONTRACT = (

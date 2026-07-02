@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from . import render
+from . import _debug, render
 from .retrieval import sources as src
 from .stores.cache import CardCache, card_key
 from .config import Settings, UserConfig
@@ -55,12 +55,21 @@ def run_briefing(
     for u in users:
         # (frozen, category) 쌍 — category 는 출처 카탈로그 Source.category (분야 그룹 키)
         fs_cat = [(fs, s.category) for s in src.resolve_sources(u.sources) for fs in by_key.get(s.key, [])]
-        cards = tuple(
-            _process(fs, u, settings, store, card_cache, ledger, run_date, draft_fn, revise_fn, verify_fn)
-            for fs, _ in fs_cat
-        )
+        # ★ 카드별 격리(비협상): 한 카드의 author/certify 실패(TimeoutExpired·throttle rc≠0·네트워크)가
+        #   *브리핑 전체*를 무너뜨리지 않게 각 카드를 개별 try 로 감싼다 — 실패 카드만 드롭하고 나머지는 발행.
+        #   (fs↔category 를 카드와 *묶어서* 유지 → 카드 드롭 시 positional zip 오정렬 방지.)
+        produced: list[tuple[GatedCard, str]] = []
+        for fs, cat in fs_cat:
+            try:
+                g = _process(fs, u, settings, store, card_cache, ledger, run_date,
+                             draft_fn, revise_fn, verify_fn)
+            except Exception as e:  # noqa: BLE001 — graceful degradation(스케일): 한 카드 유실이 배치를 막지 않게
+                _debug.warn("pipeline card", f"{u.id}/{fs.source_id}: {type(e).__name__}: {e}")
+                continue            # silent drop 아님 — 위 warn 로 관측 가능(빈-발송 알림은 별도 계층)
+            produced.append((g, cat))
+        cards = tuple(g for g, _ in produced)
         # render 는 *카드의* source_id 로 분야를 찾는다(실 author 는 fs.source_id 복사) → 카드 기준으로 매핑
-        source_categories = {g.card.source_id: cat for (_fs, cat), g in zip(fs_cat, cards)}
+        source_categories = {g.card.source_id: cat for g, cat in produced}
         out.append(
             UserBriefing(
                 user_id=u.id,

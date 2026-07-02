@@ -56,6 +56,35 @@ def _fetch_distinct(source, _w):
                            f"{source.key} 고유 AI 본문.", "2026-06-27T00:00:00Z")]
 
 
+def test_run_briefing_isolates_failing_card(tmp_path):
+    """한 카드의 author 가 TimeoutExpired 로 죽어도 나머지 카드는 발행된다(카드별 격리).
+
+    2026-07-01 인시던트 재현: `claude -p` 한 건이 180s 타임아웃 → 예외가 run_briefing 전체를
+    무너뜨려 그날 브리핑이 통째로 유실됐다(발송 0). 격리 후엔 실패 카드만 드롭하고 나머지는 발행.
+    """
+    import subprocess
+
+    store = SourceStore(str(tmp_path / "store"))
+    users = [_user("u", ["aitimes", "openai"])]   # 2개 출처 → 2개 카드
+
+    calls = {"n": 0}
+
+    def _draft(source, *_a):
+        calls["n"] += 1
+        if calls["n"] == 1:                        # 첫 카드 작성자 타임아웃(인시던트 재현)
+            raise subprocess.TimeoutExpired(cmd=["claude", "-p"], timeout=240)
+        return DraftCard(source.source_id, "헤드라인", "요약", "왜중요",
+                         (Claim("C1", "ok", "entailment", "core"),))
+
+    out = run_briefing(
+        SimpleNamespace(), store, users, window_hours=0, fetch_article_fn=_fetch_distinct,
+        draft_fn=_draft, verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    # 격리 전(버그)이면 run_briefing 이 TimeoutExpired 로 죽어 여기 도달조차 못 한다.
+    assert out[0].published == 1                   # 실패 카드는 드롭, 나머지 1건은 발행
+    assert len(out[0].cards) == 1                  # 죽은 카드는 브리핑에서 빠진다
+
+
 def test_run_briefing_groups_by_area_and_dates_header(tmp_path):
     store = SourceStore(str(tmp_path / "store"))
     users = [_user("alice", ["aitimes", "openai"])]   # AI 뉴스 + 프런티어 AI 랩 = 2개 분야
