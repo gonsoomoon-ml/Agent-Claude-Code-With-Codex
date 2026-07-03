@@ -2,7 +2,8 @@
 #
 # ★ toolkit 동작: 빌드 dir 에 Dockerfile 이 *이미 있으면* 생성 대신 이걸 사용(container.py "Using existing Dockerfile").
 #   빌드 컨텍스트 = deploy_runtime.stage_build_context() 가 만든 .agentcore_build/ —
-#   {briefing/ 패키지, requirements.txt, codex_config.toml, claude_config.json, Dockerfile(이 파일)}.
+#   {briefing/ 패키지, requirements.txt, codex_config.toml, claude_config.json, Dockerfile(이 파일)}
+#   ★ 이 파일과 4종 자산의 출처: src/briefing/runtime/container/
 # ★ 비밀값 0: claude(CLAUDE_CODE_USE_BEDROCK=1) · codex(config.toml model_provider=amazon-bedrock) 둘 다
 #   **Bedrock SigV4 = execution role** 로 인증 → Anthropic/OpenAI API 키 안 구움.
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim

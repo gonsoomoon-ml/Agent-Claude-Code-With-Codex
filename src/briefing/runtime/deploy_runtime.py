@@ -115,7 +115,7 @@ def stage_build_context() -> Path:
     #   - Dockerfile        → toolkit 이 "기존 Dockerfile" 로 인식해 생성 대신 사용(②b 하니스 이미지)
     #   - requirements.txt  → uv pip install
     #   - {codex,claude} config → 컨테이너 ~/.codex/config.toml · ~/.claude.json 으로 굽기(비밀 0)
-    rt = PACKAGE_DIR / "runtime"
+    rt = PACKAGE_DIR / "runtime" / "container"
     for fname in ("Dockerfile", "requirements.txt", "codex_config.toml", "claude_config.json"):
         shutil.copy2(rt / fname, BUILD_DIR / fname)
     # ⑤: users/ 도 컨테이너로 — mode=scheduled/real 이 실 사용자(send_hour/timezone/recipient) 로드(USERS_DIR=./users → /app/users).
