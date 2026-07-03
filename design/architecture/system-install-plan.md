@@ -45,7 +45,7 @@
 | 단계 | 번들 | 입력(.env/env) | 출력 | 출력 방식 ⚠️ | 멱등 |
 |---|---|---|---|---|---|
 | [1] DDB③ | `infra/deploy_ddb.sh` (SEED=1) | region·prefix | CACHE/LEDGER/SOURCE/USERS_TABLE | **print** | ✓ |
-| [2a] Gateway① | `runtime/deploy_gateway.py` | region·DDB tables | GATEWAY_URL·GATEWAY_TARGET·COGNITO_SCOPE/CLIENT_ID/TOKEN_URL·OAUTH_PROVIDER_NAME | **print** | ✓ |
+| [2a] Gateway① | `gateway/deploy_gateway.py` | region·DDB tables | GATEWAY_URL·GATEWAY_TARGET·COGNITO_SCOPE/CLIENT_ID/TOKEN_URL·OAUTH_PROVIDER_NAME | **print** | ✓ |
 | [2b] Auth H3 | `infra/auth/deploy_users.sh` | region·CALLBACK_URLS | COGNITO_USER_POOL_ID·HOSTED_UI·PUBLIC_CLIENT_ID·JWT_AUDIENCE | **print** | ✓ |
 | [3] Runtime② | `runtime/deploy_runtime.py` | region·BACKEND·tables·models·SES_SENDER·gateway | BRIEFING_RUNTIME_{NAME,ARN,ID} | **writeback** | ✓(auto_update) |
 | [4] Scheduler⑤ | `scheduler/deploy_scheduler.py` | RUNTIME_ARN·schedule | (EventBridge rule) | — | ✓ |

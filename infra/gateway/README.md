@@ -14,14 +14,14 @@
 | `discover_feed(url)` | 사이트의 RSS/Atom 피드 발견 | 비권위 보조 |
 
 **guardrail(decorrelation 비협상):** gate/verify/certify/author/freeze 는 **절대 미노출**. Lambda
-핸들러(`runtime/gateway_handler.py`)는 dispatch 화이트리스트 = 위 3 도구뿐 → certify/produce_card 도달 경로 없음.
+핸들러(`gateway/gateway_handler.py`)는 dispatch 화이트리스트 = 위 3 도구뿐 → certify/produce_card 도달 경로 없음.
 
 ## 구성 (aiops `infra/cognito-gateway/` 미러)
 | 파일 | 역할 |
 |---|---|
 | `cognito.yaml` | **CFN** — Cognito(UserPool·Domain·ResourceServer·M2M Client) + IAM(Gateway 역할·Lambda 역할). 선언적·재현. |
-| `../../src/briefing/runtime/deploy_gateway.py` | **boto3 오케스트레이터**(멱등) — CFN → zip Lambda(S3) → OAuth2 provider → Gateway+target. |
-| `../../src/briefing/runtime/gateway_handler.py` | Lambda MCP dispatcher(기존 함수 호출, 구현 0 변경). |
+| `../../src/briefing/gateway/deploy_gateway.py` | **boto3 오케스트레이터**(멱등) — CFN → zip Lambda(S3) → OAuth2 provider → Gateway+target. |
+| `../../src/briefing/gateway/gateway_handler.py` | Lambda MCP dispatcher(기존 함수 호출, 구현 0 변경). |
 
 ## Lambda = zip (docker 불필요)
 aiops 처럼 **zip Lambda**(python3.12). lxml/trafilatura 는 C 확장이지만 **네이티브 wheel** 로 해결 —
@@ -36,7 +36,7 @@ glibc 요구(≤2.25)가 Lambda AL2023(2.34)에 포함되므로, `uv pip install
 **전제:** AWS 자격증명 · `uv sync` · DDB 스택(`infra/ddb.yaml`) 배포됨 · region=`us-east-1` · 빌드 호스트=linux x86_64.
 
 ```bash
-AWS_REGION=us-east-1 DEMO_USER=<id> uv run python -m briefing.runtime.deploy_gateway
+AWS_REGION=us-east-1 DEMO_USER=<id> uv run python -m briefing.gateway.deploy_gateway
 ```
 
 전부 **멱등** — 재실행 안전(존재 시 재사용/갱신). 끝에 출력되는 키들을 `.env` 에 붙이고 `GATEWAY_ENABLED=1`.

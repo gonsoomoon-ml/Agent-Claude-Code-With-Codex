@@ -1,7 +1,7 @@
 """deploy_gateway — ① Gateway 승격을 실제로 배포하는 스크립트(재현 가능). aiops 의 cognito.yaml + setup_gateway.py + deploy_runtime.py 를 합쳐 미러.
 
 누구든 재현하려면(docker 불필요):
-    AWS 자격증명 + `uv sync` → AWS_REGION=us-east-1 DEMO_USER=<id> uv run python -m briefing.runtime.deploy_gateway
+    AWS 자격증명 + `uv sync` → AWS_REGION=us-east-1 DEMO_USER=<id> uv run python -m briefing.gateway.deploy_gateway
 
 아래 순서로 만든다(전부 멱등 — 재실행해도 안전):
     Cognito + IAM(CloudFormation) → zip Lambda(S3 경유) → OAuth2 provider(비밀=볼트) → Gateway + target(3도구).
@@ -125,14 +125,17 @@ def _lambda(bucket: str, key: str, role_arn: str) -> str:
     lam = boto3.client("lambda", region_name=REGION)
     env = {"Variables": {"BACKEND": "dynamo", "SOURCE_TABLE": "briefing-source-store"}}
     common = dict(FunctionName=LAMBDA_NAME, Runtime="python3.12", Role=role_arn,
-                  Handler="briefing.runtime.gateway_handler.lambda_handler",
+                  Handler="briefing.gateway.gateway_handler.lambda_handler",
                   Timeout=120, MemorySize=512, Environment=env)
     try:
         lam.create_function(Code={"S3Bucket": bucket, "S3Key": key}, **common)
         print(f"⏳ Lambda create(zip): {LAMBDA_NAME}")
     except lam.exceptions.ResourceConflictException:
         lam.update_function_code(FunctionName=LAMBDA_NAME, S3Bucket=bucket, S3Key=key)
-        print(f"♻ Lambda update(zip): {LAMBDA_NAME}")
+        lam.get_waiter("function_updated_v2").wait(FunctionName=LAMBDA_NAME)
+        # Handler 는 create 시에만 설정됨 — 모듈 이동(briefing.gateway) 을 기존 Lambda 에도 밀어넣는다
+        lam.update_function_configuration(FunctionName=LAMBDA_NAME, Handler=common["Handler"])
+        print(f"♻ Lambda update(zip+handler): {LAMBDA_NAME}")
     lam.get_waiter("function_active_v2").wait(FunctionName=LAMBDA_NAME)
     arn = lam.get_function(FunctionName=LAMBDA_NAME)["Configuration"]["FunctionArn"]
     print(f"✅ Lambda active: {arn}")
