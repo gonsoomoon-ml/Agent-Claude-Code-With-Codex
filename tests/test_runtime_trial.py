@@ -4,7 +4,7 @@ from __future__ import annotations
 import dataclasses
 
 from briefing.runtime._trial import build_trial_user, poll_verified, run_trial
-from briefing.shared.config import load_settings
+from briefing.core.config import load_settings
 
 
 def _settings():

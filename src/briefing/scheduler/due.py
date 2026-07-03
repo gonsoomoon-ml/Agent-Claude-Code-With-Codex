@@ -27,7 +27,7 @@ def users_due_now(users: Sequence[U], now_utc: datetime, *, granularity_h: int =
         try:
             local = now_utc.astimezone(ZoneInfo(u.timezone))
         except Exception:  # noqa: BLE001 — 잘못된 tz 는 이 사용자만 건너뜀(배치 보호)
-            from ..shared._debug import warn
+            from ..core._debug import warn
             warn("due.skip_bad_tz", f"user={getattr(u, 'id', u)!r} timezone={u.timezone!r}")
             continue
         # 시간 버킷팅: granularity_h=1 이면 local.hour == send_hour

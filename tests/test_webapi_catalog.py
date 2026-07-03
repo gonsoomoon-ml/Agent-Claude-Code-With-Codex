@@ -6,7 +6,7 @@ from briefing.webapi.catalog import MAX_SOURCES, SEND_HOURS, build_catalog
 
 def test_catalog_groups_by_category():
     # H2(LANE-A) 적용 → category 별 그룹(폴백 "전체" 아님). catalog_categories() 와 일치(데이터 주도).
-    from briefing.shared.retrieval.sources import catalog_categories
+    from briefing.core.retrieval.sources import catalog_categories
 
     cat = build_catalog()
     assert {g["name"] for g in cat["categories"]} == set(catalog_categories())

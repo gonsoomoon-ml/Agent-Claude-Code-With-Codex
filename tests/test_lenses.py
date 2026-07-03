@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from briefing.shared.lenses import LENS_LIBRARY, _load_lenses, resolve_lens
+from briefing.core.lenses import LENS_LIBRARY, _load_lenses, resolve_lens
 
 
 def test_library_has_default_and_roles():

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from briefing.shared.config import _user_from_fields, list_users, load_settings, load_user
+from briefing.core.config import _user_from_fields, list_users, load_settings, load_user
 
 
 def test_settings_defaults(monkeypatch):
@@ -45,7 +45,7 @@ def test_load_user_dynamo_merges_file_skill_not_ddb(monkeypatch, tmp_path):
     (tmp_path / "u1" / "skill.md").write_text("FILE SKILL", encoding="utf-8")
     s = dataclasses.replace(load_settings(), backend="dynamo", users_dir=str(tmp_path))
     rec = {"recipient": "x@y", "lens": "engineer", "skill_md": "DDB INJECTION — MUST IGNORE"}
-    monkeypatch.setattr("briefing.shared.stores.dynamo.user_store_from_settings",
+    monkeypatch.setattr("briefing.core.stores.dynamo.user_store_from_settings",
                         lambda _s: SimpleNamespace(get_user=lambda _uid: rec))
     u = load_user("u1", s)
     assert u.recipient == "x@y" and u.lens == "engineer"
@@ -54,7 +54,7 @@ def test_load_user_dynamo_merges_file_skill_not_ddb(monkeypatch, tmp_path):
 
 def test_load_user_dynamo_missing_raises(monkeypatch):
     s = dataclasses.replace(load_settings(), backend="dynamo")
-    monkeypatch.setattr("briefing.shared.stores.dynamo.user_store_from_settings",
+    monkeypatch.setattr("briefing.core.stores.dynamo.user_store_from_settings",
                         lambda _s: SimpleNamespace(get_user=lambda _uid: None))
     with pytest.raises(KeyError):
         load_user("ghost", s)
@@ -62,6 +62,6 @@ def test_load_user_dynamo_missing_raises(monkeypatch):
 
 def test_list_users_dynamo_backend(monkeypatch):
     s = dataclasses.replace(load_settings(), backend="dynamo")
-    monkeypatch.setattr("briefing.shared.stores.dynamo.user_store_from_settings",
+    monkeypatch.setattr("briefing.core.stores.dynamo.user_store_from_settings",
                         lambda _s: SimpleNamespace(list_users=lambda: ["a", "b"]))
     assert list_users(s) == ["a", "b"]

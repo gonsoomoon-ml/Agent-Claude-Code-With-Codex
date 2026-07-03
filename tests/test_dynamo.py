@@ -28,7 +28,7 @@ def _ensure(ddb, name, keys):
 def backends():
     import boto3
 
-    from briefing.shared.stores.dynamo import DynamoCardCache, DynamoLedger, DynamoSourceStore
+    from briefing.core.stores.dynamo import DynamoCardCache, DynamoLedger, DynamoSourceStore
     ep = os.environ["DDB_ENDPOINT_URL"]
     ddb = boto3.resource("dynamodb", endpoint_url=ep, region_name="us-east-1",
                          aws_access_key_id="local", aws_secret_access_key="local")
@@ -42,10 +42,10 @@ def backends():
 
 def test_dynamo_cache_roundtrip(backends):
     cache, _, _ = backends
-    from briefing.shared.harness.author import Claim, DraftCard
-    from briefing.shared.stores.cache import card_key
-    from briefing.shared.harness.certifier import CertVerdict
-    from briefing.shared.gate import GatedCard
+    from briefing.core.authoring.author import Claim, DraftCard
+    from briefing.core.stores.cache import card_key
+    from briefing.core.verification.certifier import CertVerdict
+    from briefing.core.gate import GatedCard
     g = GatedCard(DraftCard("S1", "헤드라인", "요약", "왜", (Claim("C1", "x", "arithmetic", "core"),)),
                   (CertVerdict("C1", "VERIFIED", "ev", "deterministic"),), "PUBLISH", 1)
     k = card_key("S1", "engineer", "", "m")

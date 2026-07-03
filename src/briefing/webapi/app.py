@@ -76,8 +76,8 @@ def _profile_deps() -> dict:
     """실 boto3 의존성(운영). 테스트는 monkeypatch 로 fake 주입."""
     import boto3
     region = os.getenv("AWS_REGION", "us-east-1")
-    from ..shared.config import load_settings
-    from ..shared.stores.dynamo import user_store_from_settings
+    from ..core.config import load_settings
+    from ..core.stores.dynamo import user_store_from_settings
     store = user_store_from_settings(load_settings())
     ses = boto3.client("ses", region_name=region)
     cat = build_catalog()

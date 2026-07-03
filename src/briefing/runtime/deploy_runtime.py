@@ -3,7 +3,7 @@
 
 흐름(aiops `monitor/runtime/deploy_runtime.py` 미러 + 우리 적응):
   [1] stage   — `src/briefing` 패키지를 self-contained 빌드 컨텍스트(.agentcore_build/)로 복사.
-                ★ toolkit 빌드 컨텍스트 = entrypoint 디렉토리라, 우리 `from ..shared` 패키지 import 가
+                ★ toolkit 빌드 컨텍스트 = entrypoint 디렉토리라, 우리 `from ..core` 패키지 import 가
                   깨지지 않게 *패키지 통째로* 컨텍스트에 둔다(aiops 의 "copy shared in" 패턴의 패키지 버전).
   [2] configure — toolkit 이 Dockerfile·ECR·**IAM execution role 자동 생성**(우리는 손-생성 안 함).
   [3] launch  — CodeBuild 가 ARM64 이미지 빌드→ECR 푸시→Runtime 생성(로컬 docker 불필요).
@@ -29,7 +29,7 @@ from pathlib import Path
 
 import boto3
 
-from ..shared.config import Settings, load_settings
+from ..core.config import Settings, load_settings
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]      # …/briefing-lane-b
 PACKAGE_DIR = PROJECT_ROOT / "src" / "briefing"
@@ -99,7 +99,7 @@ def _upsert_env_lines(text: str, updates: dict[str, str], *, section: str) -> st
 def stage_build_context() -> Path:
     """`src/briefing` 패키지 + 컨테이너 requirements 를 self-contained 빌드 컨텍스트로 복사.
 
-    ★ 우리 entrypoint 는 `from ..shared` 패키지 상대 import → 컨테이너에서 `briefing/` 패키지가
+    ★ 우리 entrypoint 는 `from ..core` 패키지 상대 import → 컨테이너에서 `briefing/` 패키지가
       통째로 있어야 resolve. toolkit 이 빌드 컨텍스트(= cwd)를 COPY 하므로 여기에 패키지를 둔다.
     """
     print(f"{_Y}[1/6] 빌드 컨텍스트 staging → {BUILD_DIR.relative_to(PROJECT_ROOT)}/{_NC}")

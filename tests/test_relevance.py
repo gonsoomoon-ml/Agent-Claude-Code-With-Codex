@@ -1,5 +1,5 @@
 """relevance — broad(종합지) 소스용 AI 키워드 필터(결정론·recall 우선)."""
-from briefing.shared.retrieval.relevance import is_ai_relevant
+from briefing.core.retrieval.relevance import is_ai_relevant
 
 
 def test_keeps_ai_articles():

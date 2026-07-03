@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from ..shared.config import load_settings
-from ..shared.retrieval import sources as src
-from ..shared.retrieval.curation import _default_fetch       # fetch 만 쓴다(freeze 아님 — option A: 동결은 fabric 이 로컬에서)
-from ..shared.stores.backends import make_stores
+from ..core.config import load_settings
+from ..core.retrieval import sources as src
+from ..core.retrieval.curation import _default_fetch       # fetch 만 쓴다(freeze 아님 — option A: 동결은 fabric 이 로컬에서)
+from ..core.stores.backends import make_stores
 
 _CATALOG = {s.key: s for s in src.CATALOG}   # import 될 때 1회 만든다(부작용 없음 — CATALOG 는 이미 로드돼 있음)
 _STORE = None                                # 지연 초기화(콜드스타트 때 1회; get_source 에서만 필요)

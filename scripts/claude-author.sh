@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # headless Claude Code(author 하니스)를 Bedrock 로 라우팅해 실행 — 수동 테스트/디버깅 편의용.
 #
-# 코드의 src/briefing/shared/author.py:bedrock_author_env() 와 *동일* 라우팅을 셸에서 재현한다.
+# 코드의 src/briefing/core/authoring/author.py:bedrock_author_env() 와 *동일* 라우팅을 셸에서 재현한다.
 # 글로벌 ~/.claude/settings.json 은 건드리지 않는다(인터랙티브 Claude Code 기본값 보존).
 # claude 의 기본 설정엔 Bedrock 라우팅이 없으므로 호출 시 env 를 주입(codex 가 자기 config 로 상주하는 것과 대조).
 #

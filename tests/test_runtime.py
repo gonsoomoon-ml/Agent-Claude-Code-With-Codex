@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import dataclasses
 
-from briefing.shared.config import Settings, load_settings
+from briefing.core.config import Settings, load_settings
 
 
 def _settings(tmp_path, *, users_dir: str | None = None, **overrides) -> Settings:
@@ -135,8 +135,8 @@ def test_smoke_users_synthesizes_when_no_real_users(tmp_path):
 
 def test_smoke_invoke_publishes_deterministically(tmp_path):
     from briefing.runtime._smoke import smoke_fns, smoke_users
-    from briefing.shared.pipeline import run_briefing
-    from briefing.shared.stores.source_store import SourceStore
+    from briefing.core.pipeline import run_briefing
+    from briefing.core.stores.source_store import SourceStore
 
     settings = _settings(tmp_path)
     store = SourceStore(settings.source_store_path)

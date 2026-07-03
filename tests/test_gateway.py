@@ -5,9 +5,9 @@ from types import SimpleNamespace
 import pytest
 
 from briefing.runtime import gateway_handler as h
-from briefing.shared.retrieval import gateway_client as gc
-from briefing.shared.retrieval.sources import FetchedArticle, Source
-from briefing.shared.stores.source_store import FrozenSource
+from briefing.core.retrieval import gateway_client as gc
+from briefing.core.retrieval.sources import FetchedArticle, Source
+from briefing.core.stores.source_store import FrozenSource
 
 
 def _ctx(tool):   # AgentCore 규약: TARGET___tool

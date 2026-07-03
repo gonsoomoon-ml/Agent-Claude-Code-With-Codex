@@ -9,7 +9,7 @@ import sys
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from ..shared.config import list_users, load_settings, load_user
+from ..core.config import list_users, load_settings, load_user
 from .due import users_due_now
 
 

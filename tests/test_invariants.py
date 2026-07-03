@@ -5,11 +5,11 @@
 """
 import inspect
 
-import briefing.shared.harness.certifier as cert
-from briefing.shared import gate
-from briefing.shared.harness import author
-from briefing.shared.harness.author import _parse_card_json, _to_draft_card
-from briefing.shared.harness.certifier import Envelope, _build_codex_prompt, certify
+import briefing.core.verification.certifier as cert
+from briefing.core import gate
+from briefing.core.authoring import author
+from briefing.core.authoring.author import _parse_card_json, _to_draft_card
+from briefing.core.verification.certifier import Envelope, _build_codex_prompt, certify
 
 
 def test_author_does_not_import_certifier():

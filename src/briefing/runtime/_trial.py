@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from typing import Any, Callable
 
-from ..shared.config import Settings, UserConfig
+from ..core.config import Settings, UserConfig
 
 
 def _slug(email: str) -> str:

@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
-from ..shared.pipeline import run_briefing
+from ..core.pipeline import run_briefing
 from .deliver import DeliverFn, should_deliver
 from .due import users_due_now
 

@@ -5,9 +5,9 @@
 from types import SimpleNamespace
 
 from briefing.runtime import supervisor
-from briefing.shared.gate import GatedCard
-from briefing.shared.harness.author import Claim, DraftCard
-from briefing.shared.harness.certifier import CertVerdict
+from briefing.core.gate import GatedCard
+from briefing.core.authoring.author import Claim, DraftCard
+from briefing.core.verification.certifier import CertVerdict
 
 
 def _gated(sid, n):

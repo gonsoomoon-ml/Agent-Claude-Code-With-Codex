@@ -1,7 +1,7 @@
 # Author Skill — gonsoo (편집 개인화 레이어)
 
 > 이 파일은 **편집 취향**만 정의한다. 검증 규칙(claim 분해·grounding·출력 스키마)은
-> base(`src/briefing/shared/prompts/author_system.md`)가 소유하며 **여기서 못 바꾼다**.
+> base(`src/briefing/core/prompts/author_system.md`)가 소유하며 **여기서 못 바꾼다**.
 > certifier(Codex)는 이 파일을 *보지 않는다* — 그래서 여기에 무엇을 써도 사실 검증은 약화되지 않는다.
 > (이 경계는 *컨벤션*이 아니라 certifier 미열람으로 *구조적으로 강제*된다 — 여기서 검증을 약화하려 해도 무의미.)
 

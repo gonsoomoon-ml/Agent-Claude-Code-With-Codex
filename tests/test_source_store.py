@@ -3,7 +3,7 @@ import unicodedata
 
 import pytest
 
-from briefing.shared.stores.source_store import SourceStore, content_id, media_from_url, normalize
+from briefing.core.stores.source_store import SourceStore, content_id, media_from_url, normalize
 
 
 def test_normalize_crlf_and_trailing_ws():

@@ -1,12 +1,12 @@
 """ledger — run history(시간·사용자 인덱스): append/query(since 필터) + 파이프라인이 매 처리 1줄 기록."""
 from types import SimpleNamespace
 
-from briefing.shared.harness.author import Claim, DraftCard
-from briefing.shared.harness.certifier import CertVerdict
-from briefing.shared.stores.ledger import LocalLedger, NullLedger
-from briefing.shared.pipeline import run_briefing
-from briefing.shared.stores.source_store import SourceStore
-from briefing.shared.retrieval.sources import FetchedArticle
+from briefing.core.authoring.author import Claim, DraftCard
+from briefing.core.verification.certifier import CertVerdict
+from briefing.core.stores.ledger import LocalLedger, NullLedger
+from briefing.core.pipeline import run_briefing
+from briefing.core.stores.source_store import SourceStore
+from briefing.core.retrieval.sources import FetchedArticle
 
 
 def test_null_ledger_noop():

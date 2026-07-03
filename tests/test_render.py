@@ -1,10 +1,10 @@
 """render — 검증 명세서 메일: 헤더(인장·날짜·관점)·카드 2섹션(요약→해석, depth)·검증줄(다른 AI 에이전트 N건)·분야 밴드·다크모드·푸터."""
 from types import SimpleNamespace
 
-from briefing.shared.harness.author import Claim, DraftCard
-from briefing.shared.harness.certifier import CertVerdict
-from briefing.shared.gate import GatedCard
-from briefing.shared.render import format_briefing_date, render_email
+from briefing.core.authoring.author import Claim, DraftCard
+from briefing.core.verification.certifier import CertVerdict
+from briefing.core.gate import GatedCard
+from briefing.core.render import format_briefing_date, render_email
 
 
 def _user(depth="full", lens="engineer", send_hour=7):
@@ -99,7 +99,7 @@ def test_quarantine_excluded_and_fallback_when_empty():
 
 # ── 출처 줄(도메인·날짜·원문 링크) ──────────────────────────
 def test_source_line_has_domain_date_and_original_link(tmp_path):
-    from briefing.shared.stores.source_store import SourceStore
+    from briefing.core.stores.source_store import SourceStore
 
     store = SourceStore(str(tmp_path / "s"))
     fs = store.freeze(url="https://www.aitimes.com/a", title="원본제목", raw_text="본문",

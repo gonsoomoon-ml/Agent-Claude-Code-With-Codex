@@ -1,4 +1,4 @@
-# src/briefing/shared/retrieval/catalog.yaml — 전역 vetted 출처 CATALOG.
+# src/briefing/core/retrieval/catalog.yaml — 전역 vetted 출처 CATALOG.
 # 추가 = 이 파일 편집 + PR 리뷰(= vetting). 임의 URL 금지(큐레이션).
 # 필수: key · name · url · kind(rss|html|auto) · lang(en|ko) · category.  선택: fragile(기본 false; *진짜 차단* 출처 — 현재 없음).
 #   category = 관심 버킷(UserConfig.type 버티컬과 직교) → UI 분야 그룹핑 키. 비어있지 않음(로더 강제). catalog_categories() 가 유도.

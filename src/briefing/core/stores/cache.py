@@ -14,8 +14,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Protocol
 
-from ..harness.author import Claim, DraftCard
-from ..harness.certifier import CertVerdict
+from ..authoring.author import Claim, DraftCard
+from ..verification.certifier import CertVerdict
 from ..gate import GatedCard
 
 

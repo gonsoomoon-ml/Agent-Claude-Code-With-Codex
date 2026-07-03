@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import dataclasses
 
-from briefing.shared.config import list_users, load_settings, load_user
-from briefing.shared.stores.dynamo import user_store_from_settings
+from briefing.core.config import list_users, load_settings, load_user
+from briefing.core.stores.dynamo import user_store_from_settings
 
 _FIELDS = ("recipient", "type", "sources", "depth", "lens", "send_hour", "timezone")
 

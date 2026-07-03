@@ -24,11 +24,11 @@ from datetime import timedelta
 from mcp.client.streamable_http import streamablehttp_client
 from strands.tools.mcp.mcp_client import MCPClient
 
-from briefing.shared.config import load_settings
-from briefing.shared.retrieval import sources as src
-from briefing.shared.retrieval.curation import _default_fetch
-from briefing.shared.retrieval.gateway_client import _token
-from briefing.shared.stores.backends import make_stores
+from briefing.core.config import load_settings
+from briefing.core.retrieval import sources as src
+from briefing.core.retrieval.curation import _default_fetch
+from briefing.core.retrieval.gateway_client import _token
+from briefing.core.stores.backends import make_stores
 
 
 def _payload(res):

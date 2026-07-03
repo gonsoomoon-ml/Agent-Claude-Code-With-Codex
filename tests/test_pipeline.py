@@ -4,11 +4,11 @@
 """
 from types import SimpleNamespace
 
-from briefing.shared.harness.author import Claim, DraftCard
-from briefing.shared.harness.certifier import CertVerdict
-from briefing.shared.pipeline import run_briefing
-from briefing.shared.stores.source_store import SourceStore
-from briefing.shared.retrieval.sources import FetchedArticle
+from briefing.core.authoring.author import Claim, DraftCard
+from briefing.core.verification.certifier import CertVerdict
+from briefing.core.pipeline import run_briefing
+from briefing.core.stores.source_store import SourceStore
+from briefing.core.retrieval.sources import FetchedArticle
 
 
 def _user(uid, sources):

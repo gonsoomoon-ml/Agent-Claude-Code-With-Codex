@@ -1,7 +1,7 @@
 """DynamoUserStore.update_profile_from_jwt — IDOR-safe(PK=sub·recipient=email 인자에서만)."""
 from __future__ import annotations
 
-from briefing.shared.stores.dynamo import DynamoUserStore
+from briefing.core.stores.dynamo import DynamoUserStore
 
 
 class _FakeTable:

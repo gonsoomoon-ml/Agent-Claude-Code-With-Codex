@@ -23,7 +23,7 @@ from pathlib import Path
 import boto3
 from botocore.config import Config
 
-from ..shared.config import load_settings
+from ..core.config import load_settings
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 ENV_FILE = PROJECT_ROOT / ".env"

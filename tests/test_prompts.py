@@ -1,9 +1,9 @@
 """prompts — 브레이스-안전 로더 + 캐싱-인지 조립."""
 import re
 
-from briefing.shared.harness.author import build_system_prompt, build_user_prompt
-from briefing.shared.prompts import apply_prompt_template, render
-from briefing.shared.stores.source_store import FrozenSource
+from briefing.core.authoring.author import build_system_prompt, build_user_prompt
+from briefing.core.prompts import apply_prompt_template, render
+from briefing.core.stores.source_store import FrozenSource
 
 
 def test_render_brace_and_dollar_safe():

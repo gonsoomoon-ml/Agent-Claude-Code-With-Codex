@@ -126,18 +126,18 @@ def _full_user(uid, send_hour, tz, sources=("aws-ml",)):
 
 
 def _fetch(source, _w):
-    from briefing.shared.retrieval.sources import FetchedArticle
+    from briefing.core.retrieval.sources import FetchedArticle
     return [FetchedArticle(source.key, "https://x", "제목", "직원 약 100명.", "2026-06-27T00:00:00Z")]
 
 
 def _draft(*_a):
-    from briefing.shared.harness.author import Claim, DraftCard
+    from briefing.core.authoring.author import Claim, DraftCard
     return DraftCard("sid", "헤드라인", "요약", "왜중요",
                      (Claim("C1", "직원이 100명이다.", "arithmetic", "core"),))
 
 
 def _verify(_card):
-    from briefing.shared.harness.certifier import CertVerdict
+    from briefing.core.verification.certifier import CertVerdict
     return (CertVerdict("C1", "VERIFIED", "ev"),)
 
 
@@ -146,7 +146,7 @@ _NOW_KST7 = datetime(2026, 6, 27, 22, 0, tzinfo=timezone.utc)   # = 07:00 KST
 
 def test_dispatch_delivers_only_due_publishable_users(tmp_path):
     from briefing.scheduler.dispatch import dispatch
-    from briefing.shared.stores.source_store import SourceStore
+    from briefing.core.stores.source_store import SourceStore
 
     store = SourceStore(str(tmp_path / "store"))
     users = [_full_user("seoul7", 7, "Asia/Seoul"), _full_user("seoul8", 8, "Asia/Seoul")]
@@ -160,7 +160,7 @@ def test_dispatch_delivers_only_due_publishable_users(tmp_path):
 
 def test_dispatch_noop_when_nobody_due(tmp_path):
     from briefing.scheduler.dispatch import dispatch
-    from briefing.shared.stores.source_store import SourceStore
+    from briefing.core.stores.source_store import SourceStore
 
     store = SourceStore(str(tmp_path / "store"))
     delivered: list[str] = []
@@ -172,7 +172,7 @@ def test_dispatch_noop_when_nobody_due(tmp_path):
 
 def test_dispatch_dedups_already_sent(tmp_path):
     from briefing.scheduler.dispatch import dispatch
-    from briefing.shared.stores.source_store import SourceStore
+    from briefing.core.stores.source_store import SourceStore
 
     class SentLog:
         def __init__(self):
@@ -224,7 +224,7 @@ def test_dynamo_sent_log_marks_and_detects():
 def test_dynamo_sent_log_dedups_through_dispatch(tmp_path):
     from briefing.scheduler.dispatch import dispatch
     from briefing.scheduler.sent_log import DynamoSentLog
-    from briefing.shared.stores.source_store import SourceStore
+    from briefing.core.stores.source_store import SourceStore
 
     store = SourceStore(str(tmp_path / "store"))
     log = DynamoSentLog(_FakeTable())
