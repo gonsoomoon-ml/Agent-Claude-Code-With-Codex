@@ -1,8 +1,8 @@
 # ruff: noqa  — 일회성 슬라이드 생성기(레이아웃 좌표 밀집). src 린트 기준 비적용.
 """solution-architecture.pptx — 다크 테마 솔루션 아키텍처 슬라이드 생성기. 16:9, Noto Sans CJK KR.
 
-재생성:  uv run --with python-pptx python design/architecture/make_slide.py
-미리보기(PNG): libreoffice --headless --convert-to png --outdir <dir> design/architecture/solution-architecture.pptx
+재생성:  uv run --with python-pptx python docs/deck/make_slide.py
+미리보기(PNG): libreoffice --headless --convert-to png --outdir <dir> docs/deck/solution-architecture.pptx
 ※ 출력 .pptx 는 .gitignore(바이너리) — 이 스크립트가 진실의 원천.
 """
 import os

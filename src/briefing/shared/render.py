@@ -1,6 +1,6 @@
 """render — PUBLISH 카드 → "검증 명세서(Verified Dispatch)" 이메일.
 
-디자인(`design/email-ux-mockup.md`):
+디자인(`design/ux/email-ux-mockup.md`):
 - 카드 = **요약(검증 대상) → 점선 → 나에게 왜 중요한가(해석, 시각 구분) → 검증줄**. depth 로 밀도(title-only/summary/full).
 - 검증줄 = **"다른 AI 에이전트가 사실 N건 검증"** (decorrelation 을 평이하게) + `<details>` 근거. 개별 claim 텍스트는 비노출(불변식).
 - 분야(Area) = 출처 카탈로그 category 로 그룹 — **분야 2개 이상일 때만 밴드**, 번호 분야별 리셋(`source_categories` 주입).

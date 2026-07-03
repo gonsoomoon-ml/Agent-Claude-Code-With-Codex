@@ -20,7 +20,7 @@
 가벼운 **개인화 데일리 모닝 AI-뉴스 브리핑**(딥리서치 아님). 사용자가 매체(출처)와 관점을 고르면, 매일 정해진 시각에 검증된 카드들을 이메일로 받습니다.
 
 - **관점(lens):** `general / engineer / business / researcher` — 요약의 강조·어휘를 바꿈(사실은 못 바꿈; certifier 미열람).
-- **검증 명세서(Verified Dispatch) 메일:** 헤더 인장 `✓ AI 에이전트 원문 대조` → 카드마다 `요약 · {관점}` → `나에게 왜 중요한가(해석)` → 한 줄 검증줄 `✓ 다른 AI 에이전트가 사실 N건 검증 [· 미확인 M · 제외 K]`. 출처 **분야 밴드** · 다크모드 · `depth`(title-only/summary/full). 설계: `design/email-ux-mockup.md`.
+- **검증 명세서(Verified Dispatch) 메일:** 헤더 인장 `✓ AI 에이전트 원문 대조` → 카드마다 `요약 · {관점}` → `나에게 왜 중요한가(해석)` → 한 줄 검증줄 `✓ 다른 AI 에이전트가 사실 N건 검증 [· 미확인 M · 제외 K]`. 출처 **분야 밴드** · 다크모드 · `depth`(title-only/summary/full). 설계: `design/ux/email-ux-mockup.md`.
 - **관련성 필터:** 종합지 피드(예 AI Times)는 AI 무관 기사를 요약·검증 *전* 에 컷(`Source.require_ai`).
 
 ## 빌드 & 실행 (UV)
@@ -50,7 +50,7 @@ src/briefing/
   webapi/        # FastAPI on Lambda(④ 체험/구독)
   local/         # AWS-free 베이스라인
 web/             # Vite + React SPA (랜딩 · 구독 설정)
-design/          # 설계 문서(prd · research · architecture) + email-ux-mockup.md
+design/          # 설계 문서(prd · research · architecture) + design/ux/email-ux-mockup.md
 tests/           # 불변식·결정론 (DI fake 로 전 파이프라인)
 ```
 
@@ -77,7 +77,7 @@ tests/           # 불변식·결정론 (DI fake 로 전 파이프라인)
 ## 더 보기
 
 - **`CLAUDE.md`** — 개발 가이드(아키텍처·하니스 규칙·범위 제약·언어 규칙).
-- **`design/`** — PRD · 외부 리서치 · 아키텍처 분석 · `email-ux-mockup.md`(메일 UX 스펙).
+- **`design/`** — PRD · 외부 리서치 · 아키텍처 분석 · `design/ux/email-ux-mockup.md`(메일 UX 스펙).
 
 ## 언어 규칙
 

@@ -30,5 +30,5 @@ __pycache__/
 .playwright-mcp/
 *.jpeg
 
-# PPTX 슬라이드 — 바이너리 산출물(미커밋). 재생성: design/architecture/make_slide.py
+# PPTX 슬라이드 — 바이너리 산출물(미커밋). 재생성: docs/deck/make_slide.py
 *.pptx
