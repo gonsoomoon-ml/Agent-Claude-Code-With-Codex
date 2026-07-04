@@ -17,6 +17,8 @@ export default function Form() {
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<string[]>([])
   const [sendHour, setSendHour] = useState(7)
+  const [lens, setLens] = useState('general')
+  const [depth, setDepth] = useState('summary')
   const [email, setEmail] = useState('')
   const [recipient, setRecipient] = useState<string | null>(null)
   const [authed, setAuthed] = useState(false)
@@ -41,7 +43,17 @@ export default function Form() {
     setAuthed(isAuthed())
     if (isAuthed()) {
       getProfile()
-        .then((p) => { setRecipient(p.recipient || null); if (p.max_sources) setMaxSources(p.max_sources) })
+        .then((p) => {
+          setRecipient(p.recipient || null)
+          if (p.max_sources) setMaxSources(p.max_sources)
+          if (p.subscribed && p.profile) {
+            const prof = p.profile
+            if (Array.isArray(prof.sources)) setSelected(prof.sources as string[])
+            if (typeof prof.send_hour === 'number') setSendHour(prof.send_hour)
+            if (typeof prof.lens === 'string') setLens(prof.lens)
+            if (typeof prof.depth === 'string') setDepth(prof.depth)
+          }
+        })
         .catch((e) => console.error('Failed to get profile:', e))
     }
     return stopPolling // 언마운트 시 인터벌 정리
@@ -118,7 +130,7 @@ export default function Form() {
     setCard({ text: '구독 중…', busy: true })
 
     try {
-      const r = await putProfile({ sources: selected, send_hour: sendHour, lens: 'general', depth: 'summary' })
+      const r = await putProfile({ sources: selected, send_hour: sendHour, lens, depth })
       const text =
         r.delivery === 'active'
           ? '구독 완료 — 매일 발송'
@@ -165,7 +177,39 @@ export default function Form() {
         })}
       </div>
 
-      <h2 style={{ fontSize: 16 }}>3. 이메일</h2>
+      <h2 style={{ fontSize: 16 }}>3. 관점 (렌즈)</h2>
+      <div>
+        {catalog.lenses.map((l) => (
+          <label key={l.key} style={{ marginRight: 16 }}>
+            <input
+              type="radio"
+              name="lens"
+              aria-label={l.name}
+              checked={lens === l.key}
+              onChange={() => setLens(l.key)}
+            />{' '}
+            {l.name}
+          </label>
+        ))}
+      </div>
+
+      <h2 style={{ fontSize: 16 }}>4. 깊이</h2>
+      <div>
+        {catalog.depths.map((d) => (
+          <label key={d} style={{ marginRight: 16 }}>
+            <input
+              type="radio"
+              name="depth"
+              aria-label={d}
+              checked={depth === d}
+              onChange={() => setDepth(d)}
+            />{' '}
+            {d}
+          </label>
+        ))}
+      </div>
+
+      <h2 style={{ fontSize: 16 }}>5. 이메일</h2>
       {authed ? (
         <div style={{ padding: 8, fontSize: 14 }}>
           구독 주소: <strong>{recipient || '로딩 중…'}</strong>
