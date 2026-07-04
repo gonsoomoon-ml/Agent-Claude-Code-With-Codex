@@ -62,3 +62,63 @@ def test_put_validation_400(monkeypatch):
     r, _ = _put(monkeypatch, {"sub": "S", "email": "e@x.com", "token_use": "id", "email_verified": "true"},
                 {"sources": ["ghost"]})
     assert r.status_code == 400
+
+
+# --- cognito:groups → is_admin → policy 상한 배선 (Task 3) ---
+
+def _deps6():
+    d = _deps()
+    d["keys"] = ["a", "b", "c", "d", "e", "f"]
+    return d
+
+
+def _claims_base():
+    return {"sub": "S", "email": "e@x.com", "token_use": "id", "email_verified": "true"}
+
+
+def _event_with_groups(groups):
+    # 파일 기존 헬퍼는 bare `_event()` 가 아니라 claims dict 를 인자로 받는 인라인 이벤트 구성
+    # (`_put` 참고)이므로, 여기서는 그 shape 을 그대로 재사용해 groups 를 얹는다.
+    claims = _claims_base()
+    if groups is not None:
+        claims["cognito:groups"] = groups
+    return {"requestContext": {"authorizer": {"jwt": {"claims": claims}}}}
+
+
+def test_parse_groups_accepts_list_and_flattened_string():
+    from briefing.webapi.app import _parse_groups
+    assert _parse_groups(["admins"]) == {"admins"}
+    assert _parse_groups("[admins]") == {"admins"}
+    assert _parse_groups("[admins ops]") == {"admins", "ops"}
+    assert _parse_groups(None) == set()
+
+
+def test_get_profile_max_sources_default_5(monkeypatch):
+    monkeypatch.setattr(appmod, "_profile_deps", _deps)
+    monkeypatch.setattr(appmod, "_event_from_request", lambda req: _event_with_groups(None))
+    r = TestClient(app).get("/profile")
+    assert r.status_code == 200 and r.json()["max_sources"] == 5
+
+
+def test_get_profile_admin_gets_catalog_size(monkeypatch):
+    from briefing.core.retrieval.sources import CATALOG
+    monkeypatch.setattr(appmod, "_profile_deps", _deps)
+    monkeypatch.setattr(appmod, "_event_from_request", lambda req: _event_with_groups("[admins]"))
+    r = TestClient(app).get("/profile")
+    assert r.json()["max_sources"] == len(CATALOG)
+
+
+def test_put_profile_six_sources_rejected_for_general(monkeypatch):
+    monkeypatch.setattr(appmod, "_profile_deps", _deps6)
+    monkeypatch.setattr(appmod, "_event_from_request", lambda req: _event_with_groups(None))
+    r = TestClient(app).put("/profile", json={"sources": ["a", "b", "c", "d", "e", "f"], "send_hour": 7,
+                                              "lens": "general", "depth": "summary"})
+    assert r.status_code == 400
+
+
+def test_put_profile_six_sources_accepted_for_admin(monkeypatch):
+    monkeypatch.setattr(appmod, "_profile_deps", _deps6)
+    monkeypatch.setattr(appmod, "_event_from_request", lambda req: _event_with_groups(["admins"]))
+    r = TestClient(app).put("/profile", json={"sources": ["a", "b", "c", "d", "e", "f"], "send_hour": 7,
+                                              "lens": "general", "depth": "summary"})
+    assert r.status_code == 200

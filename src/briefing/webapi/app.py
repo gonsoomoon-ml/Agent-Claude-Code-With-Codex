@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .catalog import DEPTHS, SEND_HOURS, build_catalog
+from .policy import max_sources
 from .profile import validate_profile
 from .trial import TrialStore, handle_trial, _parse_emails
 
@@ -51,10 +52,19 @@ def _event_from_request(req: Request) -> dict:
     return req.scope.get("aws.event") or {}
 
 
+def _parse_groups(raw) -> set[str]:
+    """cognito:groups 정규화 — HTTP API v2 authorizer 는 배열 claim 을 "[a b]" 문자열로 평탄화한다(list·str 둘 다 수용)."""
+    if raw is None:
+        return set()
+    if isinstance(raw, (list, tuple)):
+        return {str(g).strip() for g in raw}
+    return {g for g in str(raw).strip("[]").replace(",", " ").split() if g}
+
+
 def _claims(req: Request) -> dict:
     """JWT claims 추출 (HTTP API v2 authorizer). id token 만 수락(access token 거부).
 
-    Returns: {"sub": str, "email": str}
+    Returns: {"sub": str, "email": str, "is_admin": bool}
     Raises: HTTPException(401) if JWT 미존재 or token_use != "id" or sub/email 미존재
     """
     ev = _event_from_request(req)
@@ -69,7 +79,8 @@ def _claims(req: Request) -> dict:
     sub, email = c.get("sub"), c.get("email")
     if not sub or not email:
         raise HTTPException(status_code=401, detail="sub/email claim missing")
-    return {"sub": sub, "email": email}
+    return {"sub": sub, "email": email,
+            "is_admin": "admins" in _parse_groups(c.get("cognito:groups"))}
 
 
 def _profile_deps() -> dict:
@@ -103,7 +114,8 @@ def get_profile(req: Request) -> dict:
     """구독 프로필 조회(prefill). JWT claims 로 sub 확인 후 store 에서 사용자 레코드 조회."""
     cl = _claims(req)
     rec = _profile_deps()["store"].get_user(cl["sub"])
-    return {"subscribed": rec is not None, "recipient": cl["email"], "profile": rec or {}}
+    return {"subscribed": rec is not None, "recipient": cl["email"], "profile": rec or {},
+            "max_sources": max_sources(cl["is_admin"])}
 
 
 @app.put("/profile")
@@ -113,7 +125,8 @@ async def put_profile(req: Request):
     body = await req.json()
     d = _profile_deps()
     err = validate_profile(body, catalog_keys=d["keys"], lens_keys=d["lenses"],
-                           depths=DEPTHS, send_hours=SEND_HOURS)
+                           depths=DEPTHS, send_hours=SEND_HOURS,
+                           max_sources=max_sources(cl["is_admin"]))
     if err:
         return JSONResponse(status_code=400, content={"error": err})
     d["store"].update_profile_from_jwt(sub=cl["sub"], email=cl["email"], fields=body)

@@ -73,3 +73,15 @@ def test_post_trial_non_allowlist_hits_cooldown(monkeypatch):
     monkeypatch.setattr(appmod, "_trial_deps", lambda: deps)
     r = client.post("/trial", json={"email": "u@x.com", "sources": ["aitimes"]})
     assert r.status_code == 429
+
+
+def test_post_trial_six_sources_rejected_even_with_admin_claims(monkeypatch):
+    """회귀(스펙 §6 불변식5): trial 은 role 을 조회조차 안 하므로 admins 그룹 claim 이 실려도
+    5 초과 소스는 무조건 400 — is_admin 배선이 trial 로 새지 않았음을 증명."""
+    deps = _fake_deps()
+    monkeypatch.setattr(appmod, "_trial_deps", lambda: deps)
+    ev = {"requestContext": {"authorizer": {"jwt": {"claims": {"cognito:groups": ["admins"]}}}}}
+    monkeypatch.setattr(appmod, "_event_from_request", lambda req: ev)
+    r = client.post("/trial", json={"email": "u@x.com",
+                                     "sources": ["a", "b", "c", "d", "e", "f"]})
+    assert r.status_code == 400
