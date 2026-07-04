@@ -4,7 +4,7 @@
 verify-before-publish 게이트(author→certifier→**결정론 decide**)는 `verify_and_produce_card` 도구 *안*에 있어
 supervisor 가 reach/override 불가 — 결정·실행은 도구가, supervisor 는 순서만 통제.
 - **decorrelation:** supervisor 는 author↔certifier 사이에 *앉지 않는다* — 그 핸드오프는 produce_card 도구 내부(envelope).
-- 도구 3개는 전부 결정론 Python(shared/runtime)을 얇게 감싼 것. **LLM 은 supervisor 하나뿐.**
+- 도구 3개는 전부 결정론 Python(core/runtime)을 얇게 감싼 것. **LLM 은 supervisor 하나뿐.**
 - 1회 실행 컨텍스트는 모듈 전역 `_CTX`(global node-state 패턴) — 도구들이 공유.
 """
 from __future__ import annotations

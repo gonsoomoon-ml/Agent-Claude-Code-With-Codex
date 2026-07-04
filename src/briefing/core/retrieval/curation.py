@@ -4,7 +4,7 @@
 이 함수를 Strands `GraphBuilder`(collect→cluster→rank→fan-out, 각 단계 = FunctionNode)로 *승격* — gate 는 무변경.
 권위 페치 = fabric(여기) 소유 → content-addressed 동결 → author·certifier 가 같은 바이트(anti-cheat).
 fetch 실 구현은 sources.py(clean RSS=feedparser, fragile=Browser Tool v1.5); 여기선 *오케스트레이션*만.
-(AgentCore 무관 = 호스트 무관 fabric 로직이라 shared/ 에 둔다.)
+(AgentCore 무관 = 호스트 무관 fabric 로직이라 core/ 에 둔다.)
 """
 from __future__ import annotations
 

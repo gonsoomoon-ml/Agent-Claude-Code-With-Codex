@@ -41,17 +41,18 @@ DEBUG=1 uv run python scripts/e2e_smoke.py     # 실 e2e: RSS→claude author→
 
 ```
 src/briefing/
-  shared/        # 진실(host-agnostic) — config·gate·pipeline·render·lenses·relevance·_debug·prompts
-    stores/      # source_store(content-addressed sha256)·cache·ledger·dynamo·backends
-    retrieval/   # sources(catalog.yaml)·curation·relevance·gateway_client
-    harness/     # author(claude -p)·certifier(codex exec)
-  runtime/       # AgentCore 어댑터 + Strands supervisor(옵션) + ① Gateway
-  scheduler/     # ⑤ due→dispatch→SES 발송(EventBridge→Lambda)
-  webapi/        # FastAPI on Lambda(④ 체험/구독)
-  local/         # AWS-free 베이스라인
-web/             # Vite + React SPA (랜딩 · 구독 설정)
-design/          # 설계 문서(prd · research · architecture) + design/ux/email-ux-mockup.md
-tests/           # 불변식·결정론 (DI fake 로 전 파이프라인)
+├── core/          # 도메인(구 shared): pipeline·gate·config·render·lenses(+yaml)
+│   │              #   + retrieval/(catalog.yaml) · authoring/(author=claude -p)
+│   │              #   + verification/(certifier=codex exec) · stores/ · prompts/
+├── runtime/       # AgentCore 어댑터 + container/(Dockerfile 등 이미지 빌드 자산 4종)
+├── gateway/       # ① Gateway Lambda 어댑터 (gateway_handler + deploy_gateway)
+├── scheduler/     # ⑤ 발송 체인 (due→dispatch→deliver + flat Lambda handler)
+├── webapi/        # ④ Web UI 백엔드 (FastAPI + Lambda)
+└── local/         # AWS-free 베이스라인 (fake DI 전체 파이프라인)
+web/               # ④ 프론트엔드 (Vite+React → CloudFront)
+infra/             # CFN 템플릿 + 배포 단위 인덱스(infra/README.md)
+design/            # 설계 문서: prd/ · research/ · architecture/ · ux/(email-ux-mockup.md)
+docs/              # 산출물: superpowers/(specs·plans) · deck/ · assets/
 ```
 
 ## 하니스 라우팅 (어느 하니스가 무엇을)

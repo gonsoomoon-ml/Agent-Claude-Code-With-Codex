@@ -1,6 +1,6 @@
-"""AgentCore Runtime entrypoint — *얇은 어댑터*. 오케스트레이션은 `shared/pipeline.run_briefing` 이 소유.
+"""AgentCore Runtime entrypoint — *얇은 어댑터*. 오케스트레이션은 `core/pipeline.run_briefing` 이 소유.
 
-shared(진실)=로직, 이 파일=배포 어댑터. `BedrockAgentCoreApp` + `@app.entrypoint`(async generator → SSE dict).
+core(진실)=로직, 이 파일=배포 어댑터. `BedrockAgentCoreApp` + `@app.entrypoint`(async generator → SSE dict).
 ★ 호스트 무관 드라이버(`pipeline.run_briefing`)를 호출만 — entrypoint·로컬 스모크·테스트가 같은 함수 공유
   (오케스트레이션을 어댑터에 용접 + 스모크 중복 제거). 배달(SES)·QUARANTINE 행선지는 여기(어댑터) 책임.
 호출 경로(U2): EventBridge Scheduler → Lambda(async) → invoke_agent_runtime.

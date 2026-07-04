@@ -4,7 +4,7 @@
 응답(브리핑은 백그라운드 ≤8h) → 이 핸들러는 그 ack 만 받고 ~2초 내 반환. **Lambda 15분과 무관**(대기 안 함).
 
 ★ boto3-only(`..core` 미import) — Lambda zip 을 최소로. SSE 파서는 invoke_runtime 의 동형 로직을 *복제*
-  (shared 의존 회피). 환경변수: BRIEFING_RUNTIME_ARN(필수) · BRIEFING_DRY_RUN(기본 "1"=발송 안 함, 안전).
+  (core 의존 회피). 환경변수: BRIEFING_RUNTIME_ARN(필수) · BRIEFING_DRY_RUN(기본 "1"=발송 안 함, 안전).
 """
 from __future__ import annotations
 

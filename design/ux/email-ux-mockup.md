@@ -1,6 +1,6 @@
 # 메일 UX 목업 — "검증 명세서 (Verified Dispatch)" · 확정본
 
-> **스코프: 받는 브리핑 이메일만.** 대상 코드: `src/briefing/shared/render.py` · 현재 캡처: `design/ux/email_ui.png`
+> **스코프: 받는 브리핑 이메일만.** 대상 코드: `src/briefing/core/render.py` · 현재 캡처: `design/ux/email_ui.png`
 
 제품: 원문 기사를 **관점(lens)으로 요약** → **요약을 만들지 않은 다른 AI 에이전트가 그 요약을 원문과 대조해 검증** → 확인된 것만 발송. 기사를 직접 쓰지 않음. ([[feedback-summarize-not-write]])
 
