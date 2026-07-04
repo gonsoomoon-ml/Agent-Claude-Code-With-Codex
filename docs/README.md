@@ -36,4 +36,9 @@
 | specs `2026-07-04-admin-roles-design` | SHIPPED — Cognito 그룹(admins) + webapi policy seam |
 | plans `2026-07-04-admin-roles` | SHIPPED — Task 7 인수: admin 계정 6/6 저장 성공, 비admin 5 상한 라이브 확인 |
 
+### web-profile-manage (웹 프로필 관리 완성) — SHIPPED (2026-07-04)
+| 문서 | 상태 |
+|---|---|
+| specs `2026-07-04-web-profile-manage-design` | SHIPPED — lens·depth 라디오 + 구독자 prefill(하드코딩 제거); gonsoo→admin(sub) 신원 이관·skill 오버레이 베이크·dry-run 검증 동반 |
+
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.
