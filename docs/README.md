@@ -21,7 +21,7 @@
 | `…v1.1c-trial-progress` · `…v1.1d-progress-modal` | SHIPPED (v1.1c 진행 표시를 v1.1d 모달이 발전) |
 | `…v1.1e-trial-cooldown-bypass` (TRIAL_TEST_EMAILS) | SHIPPED |
 | `…v1.1f-cta-coral-pill` · `…v1.1g-sourcepicker-card-grid` | SHIPPED |
-| `…v1.2-subscribe` (Cognito 가입 + PUT /profile) | SHIPPED (가입자 아직 0) |
+| `…v1.2-subscribe` (Cognito 가입 + PUT /profile) | SHIPPED — self-signup 차단 결정(2026-07-04): 사용자 생성은 운영자 `admin-create-user` 로만 |
 | deliveries `web-ui-v1.0-delivery.md` | v1.0 전달 기록 |
 
 ### folder-restructure (저장소 구조 v3) — SHIPPED (2026-07-04 머지+재배포 완료)
