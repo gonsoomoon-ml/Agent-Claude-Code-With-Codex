@@ -30,9 +30,10 @@
 | specs `2026-07-03-folder-restructure-design` | SHIPPED — 살아남은 결정은 CLAUDE.md·폴더 README 로 승격됨 |
 | plans `2026-07-03-folder-restructure-v3` | SHIPPED (Task 7 재배포 사다리 포함 완료) |
 
-### admin-roles (administrator 역할) — DRAFT
+### admin-roles (administrator 역할) — 구현 중
 | 문서 | 상태 |
 |---|---|
-| specs `2026-07-04-admin-roles-design` | DRAFT — Cognito 그룹 + policy seam; 승인 후 플랜 예정 |
+| specs `2026-07-04-admin-roles-design` | DRAFT — Cognito 그룹 + policy seam |
+| plans `2026-07-04-admin-roles` | 구현 중 |
 
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.

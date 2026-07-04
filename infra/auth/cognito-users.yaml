@@ -30,7 +30,7 @@ Resources:
       UsernameAttributes: [email]              # 이메일 = 로그인 ID
       AutoVerifiedAttributes: [email]          # 가입 시 이메일 검증코드 발송
       AdminCreateUserConfig:
-        AllowAdminCreateUserOnly: false        # ★ self sign-up 허용(M2M pool 과 반대)
+        AllowAdminCreateUserOnly: true         # ★ 2026-07-04 결정: self-signup 차단 — 가입은 운영자 admin-create-user 로만 (admin-roles 스펙 §1; 라이브 풀과 정렬)
       EmailConfiguration:
         EmailSendingAccount: COGNITO_DEFAULT    # Cognito 기본 발신(SES 아님 — H1 승인 후 전환). 한도 ~50/day.
       Policies:
