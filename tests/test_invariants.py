@@ -15,7 +15,7 @@ from briefing.core.verification.certifier import Envelope, _build_codex_prompt, 
 def test_author_does_not_import_certifier():
     # 불변식: gate 가 certifier 를 호출, author 는 못 함 → author 는 certifier 를 import 하지 않는다
     src = inspect.getsource(author)
-    assert "import certifier" not in src and "from .certifier" not in src
+    assert "import certifier" not in src and "from .certifier" not in src and "verification" not in src
 
 
 def test_gate_calls_certify():

@@ -28,7 +28,7 @@
 ```bash
 uv sync                                        # 의존성
 uv run ruff check src tests                    # 린트
-uv run pytest                                  # 테스트(현재 ~175 passed)
+uv run pytest                                  # 테스트(현재 176 passed + 3 skipped)
 
 uv run python -m briefing.local.run            # AWS-free 베이스라인(무지출·결정론)
 DEBUG=1 uv run python -m briefing.local.run    # + 파이프라인 디버그 추적(stderr)

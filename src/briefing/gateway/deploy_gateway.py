@@ -23,7 +23,7 @@ from pathlib import Path
 
 import boto3
 
-ROOT = Path(__file__).resolve().parents[3]          # 저장소 루트 — 이 파일이 src/briefing/runtime/ 안이라 3단계 위
+ROOT = Path(__file__).resolve().parents[3]          # 저장소 루트 — 이 파일이 src/briefing/gateway/ 안이라 3단계 위
 REGION = os.getenv("AWS_REGION", "us-east-1")
 DEMO_USER = os.getenv("DEMO_USER", "gonsoo")
 STACK = f"briefing-gw-{DEMO_USER}-cognito"
@@ -135,6 +135,7 @@ def _lambda(bucket: str, key: str, role_arn: str) -> str:
         lam.get_waiter("function_updated_v2").wait(FunctionName=LAMBDA_NAME)
         # Handler 는 create 시에만 설정됨 — 모듈 이동(briefing.gateway) 을 기존 Lambda 에도 밀어넣는다
         lam.update_function_configuration(FunctionName=LAMBDA_NAME, Handler=common["Handler"])
+        lam.get_waiter("function_updated_v2").wait(FunctionName=LAMBDA_NAME)
         print(f"♻ Lambda update(zip+handler): {LAMBDA_NAME}")
     lam.get_waiter("function_active_v2").wait(FunctionName=LAMBDA_NAME)
     arn = lam.get_function(FunctionName=LAMBDA_NAME)["Configuration"]["FunctionArn"]
