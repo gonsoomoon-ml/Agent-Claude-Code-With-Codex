@@ -13,12 +13,15 @@
 - 웹 UI 풀 `us-east-1_ANfcEK61A`(briefing-users-gonsoo)에 그룹 **`admins`** 생성.
 - 판별: 검증된 JWT 의 **`cognito:groups`** claim 에 `admins` 포함 여부 → `is_admin: bool`. Cognito 가 서명하므로 위조 불가.
 - **DDB 에 role 을 저장하지 않는다** — `briefing-users` 아이템 무변경. 공개 API 로 자기 role 을 승격하는 mass-assignment 경로가 원천적으로 없다.
-- **부트스트랩 런북** (풀이 현재 비어 있음 — 2026-07-04 확인):
-  1. owner 가 웹 UI 에서 self-signup (풀에 Cognito 사용자 생성)
-  2. `aws cognito-idp create-group --group-name admins --user-pool-id us-east-1_ANfcEK61A` (1회)
-  3. `aws cognito-idp admin-add-user-to-group --user-pool-id us-east-1_ANfcEK61A --username <sub|email> --group-name admins`
-  4. 재로그인 → 새 토큰에 그룹 claim 탑재
-  - 이 런북은 `infra/README.md` 에 기록(회수 = `admin-remove-user-from-group`).
+- **정책 결정 (2026-07-04, 사용자 확정):** self-signup 은 **차단 유지** — 라이브 풀의 현 상태(AllowAdminCreateUserOnly=true)를 의도로 승격한다. 사용자 생성은 운영자 CLI 로만.
+  - ⚠️ **CFN 정렬 필수:** `infra/auth/cognito-users.yaml:33` 이 `AllowAdminCreateUserOnly: false`(허용)로 남아 있음 — **true 로 고치지 않으면 다음 스택 업데이트가 self-signup 을 조용히 열어버린다** (deploy_scheduler 의 DRY_RUN 리셋과 같은 선언-실제 드리프트 지뢰). 구현 플랜에 포함.
+- **부트스트랩 런북** (풀이 현재 비어 있음 — 2026-07-04 확인; 로그인 체인은 같은 날 라이브 테스트로 실증: hosted UI→PKCE 교환→GET /profile 200):
+  1. `aws cognito-idp admin-create-user --user-pool-id us-east-1_ANfcEK61A --username <email>` → Cognito 가 임시 비밀번호 초대 메일 발송(COGNITO_DEFAULT, ~50통/일)
+  2. owner 첫 로그인 시 hosted UI 가 새 비밀번호 설정을 강제 — 비밀번호가 CLI/히스토리에 남지 않음
+  3. `aws cognito-idp create-group --group-name admins --user-pool-id us-east-1_ANfcEK61A` (1회)
+  4. `aws cognito-idp admin-add-user-to-group --user-pool-id us-east-1_ANfcEK61A --username <sub|email> --group-name admins`
+  5. 재로그인 → 새 토큰에 그룹 claim 탑재
+  - 이 런북은 `infra/README.md` 에 기록(회수 = `admin-remove-user-from-group`, 일반 사용자 생성도 1번 절차와 동일).
 
 ## 2. 정책 seam — role→능력 매핑의 단일 지점
 
@@ -67,7 +70,7 @@ def max_sources(is_admin: bool) -> int:
 
 ## 7. 검증 사다리
 
-pytest(기존 176+신규 동과) → `webapi/run.py` 로컬 uvicorn 스모크 → `deploy_api.py` 재배포 → 부트스트랩 런북 실행(가입+그룹 추가) → **실제 로그인으로 6개 소스 저장 성공 + 일반 계정(그룹 미소속)으로 6개 저장 거부** 확인.
+pytest(기존 176+신규 동과) → `webapi/run.py` 로컬 uvicorn 스모크 → `deploy_api.py` 재배포 → 부트스트랩 런북 실행(admin-create-user+그룹 추가) → **실제 로그인으로 6개 소스 저장 성공 + 일반 계정(그룹 미소속)으로 6개 저장 거부** 확인.
 
 ## 8. 구현 확인 항목 (플랜 단계에서 검증)
 
