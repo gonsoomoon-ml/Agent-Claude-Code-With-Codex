@@ -40,5 +40,6 @@
 | 문서 | 상태 |
 |---|---|
 | specs `2026-07-04-web-profile-manage-design` | SHIPPED — lens·depth 라디오 + 구독자 prefill(하드코딩 제거); gonsoo→admin(sub) 신원 이관·skill 오버레이 베이크·dry-run 검증 동반 |
+| deliveries `2026-07-04-restructure-admin-delivery.md` | 하루 전달 기록 — 리팩토링 v3 + admin + 신원 통합 + 웹 관리 (검증 증거·최종 라이브 상태 포함) |
 
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.
