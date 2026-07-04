@@ -39,3 +39,16 @@ def test_timezone_valid_passes():
 
 def test_timezone_nonstring_rejected():
     assert validate_profile({"sources": ["aitimes"], "timezone": 123}, **KW)
+
+
+def test_limit_param_allows_six_when_raised():
+    kw = dict(KW, catalog_keys=("a", "b", "c", "d", "e", "f"))
+    six = {"sources": ["a", "b", "c", "d", "e", "f"], "send_hour": 7}
+    assert validate_profile(six, **kw) == "출처를 1~5개 선택하세요."  # 기본 5 유지
+    assert validate_profile(six, max_sources=6, **kw) is None
+
+
+def test_limit_message_reflects_actual_limit():
+    kw = dict(KW, catalog_keys=tuple("abcdefg"))
+    seven = {"sources": list("abcdefg"), "send_hour": 7}
+    assert validate_profile(seven, max_sources=6, **kw) == "출처를 1~6개 선택하세요."

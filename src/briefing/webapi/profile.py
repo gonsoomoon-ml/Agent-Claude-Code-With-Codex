@@ -8,11 +8,11 @@ from collections.abc import Sequence
 
 
 def validate_profile(fields: dict, *, catalog_keys, lens_keys, depths, send_hours,
-                     types: Sequence[str] = ("ai-news",)) -> str | None:
+                     types: Sequence[str] = ("ai-news",), max_sources: int = 5) -> str | None:
     """6 선호 필드 검증 실패 메시지 or None. recipient/user_id 는 여기서 안 봄(JWT 소유)."""
     sources = fields.get("sources") or []
-    if not (1 <= len(sources) <= 5):
-        return "출처를 1~5개 선택하세요."
+    if not (1 <= len(sources) <= max_sources):
+        return f"출처를 1~{max_sources}개 선택하세요."
     if any(s not in set(catalog_keys) for s in sources):
         return "알 수 없는 출처가 포함되어 있습니다."
     if fields.get("type", "ai-news") not in set(types):
