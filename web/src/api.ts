@@ -24,7 +24,7 @@ export async function getTrialStatus(email: string): Promise<{ status: string; p
   return r.json()
 }
 
-export async function getProfile(): Promise<{ subscribed?: boolean; recipient?: string; delivery?: string; profile?: Record<string, unknown> }> {
+export async function getProfile(): Promise<{ subscribed?: boolean; recipient?: string; delivery?: string; profile?: Record<string, unknown>; max_sources?: number }> {
   const r = await authedFetch('/profile')
   if (!r.ok) throw new Error(`profile ${r.status}`)
   return r.json()

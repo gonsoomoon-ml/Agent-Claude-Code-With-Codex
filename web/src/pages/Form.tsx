@@ -20,6 +20,7 @@ export default function Form() {
   const [email, setEmail] = useState('')
   const [recipient, setRecipient] = useState<string | null>(null)
   const [authed, setAuthed] = useState(false)
+  const [maxSources, setMaxSources] = useState<number | null>(null)
 
   // 진행 UI 상태
   const [submitting, setSubmitting] = useState<'trial' | 'subscribe' | null>(null)
@@ -40,7 +41,7 @@ export default function Form() {
     setAuthed(isAuthed())
     if (isAuthed()) {
       getProfile()
-        .then((p) => setRecipient(p.recipient || null))
+        .then((p) => { setRecipient(p.recipient || null); if (p.max_sources) setMaxSources(p.max_sources) })
         .catch((e) => console.error('Failed to get profile:', e))
     }
     return stopPolling // 언마운트 시 인터벌 정리
@@ -137,11 +138,13 @@ export default function Form() {
   const isSubSubmitting = submitting === 'subscribe'
   const trialDisabled = isTrialSubmitting || !(selected.length && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
 
+  const maxSel = maxSources ?? catalog.max_sources
+
   return (
     <div>
       <h1 style={{ fontSize: 22 }}>구독 설정</h1>
-      <h2 style={{ fontSize: 16 }}>1. 미디어 선택 <span style={{ color: '#999', fontSize: 13 }}>(최대 {catalog.max_sources}개)</span></h2>
-      <SourcePicker categories={catalog.categories} max={catalog.max_sources} selected={selected} onChange={setSelected} />
+      <h2 style={{ fontSize: 16 }}>1. 미디어 선택 <span style={{ color: '#999', fontSize: 13 }}>(최대 {maxSel}개)</span></h2>
+      <SourcePicker categories={catalog.categories} max={maxSel} selected={selected} onChange={setSelected} />
 
       <h2 style={{ fontSize: 16 }}>2. 발송 시각 (KST)</h2>
       <div>
