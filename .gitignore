@@ -23,6 +23,7 @@ __pycache__/
 /users/*
 !/users/gonsoo/
 !/users/README.md
+!/users/445814b8-5001-70a6-84a6-6c010ac347ba/
 .gw_build/
 .gw_build.zip
 
