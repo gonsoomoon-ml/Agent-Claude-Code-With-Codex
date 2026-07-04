@@ -1,6 +1,6 @@
 # Administrator 역할 v1 — 설계 스펙 (2026-07-04)
 
-> 상태: **DRAFT** (승인 후 플랜 작성) · 관련: `docs/superpowers/specs/2026-06-28-web-ui-v1.2-subscribe.md`(PUT /profile) · `2026-06-28-web-ui-v1.1e-trial-cooldown-bypass.md`(TRIAL_TEST_EMAILS 선례)
+> 상태: **SHIPPED** (2026-07-04 배포 + 실계정 인수 통과) · 관련: `docs/superpowers/specs/2026-06-28-web-ui-v1.2-subscribe.md`(PUT /profile) · `2026-06-28-web-ui-v1.1e-trial-cooldown-bypass.md`(TRIAL_TEST_EMAILS 선례)
 
 ## 0. 목표와 범위
 
