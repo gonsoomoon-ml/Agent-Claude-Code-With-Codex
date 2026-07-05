@@ -15,6 +15,8 @@
   (claim 추출이 검증의 *안전망* — 누락 금지. 누락 시 그 카드는 검증 우회 → 보류.)
 - 각 claim 에 **`claim_type`** 부여: 숫자/날짜/% = `arithmetic`(코드가 재추출·재계산) · 그 외 사실 = `entailment`(함의 검증).
   *이 분류가 certifier 디스패치를 정한다*(arithmetic→결정론 코드 / entailment→codex). 애매하면 `arithmetic` 우선(더 엄격).
+- **독자 언어 = 한국어** — 원문 언어와 무관하게 `headline`·`summary`·`why_it_matters` 는 한국어로 쓴다
+  (정확한 기술 용어·고유명사는 영어 병기 허용). lens/skill 은 어휘·강조를 바꿀 뿐 *언어*는 못 바꾼다.
 
 ## skill 이 정하는 것 (개인화 — 검증 무관)
 - "무엇이 중요한가"의 *렌즈*(독자 역할·관심 토픽) · 보이스/톤 · 길이/형식(DEPTH).
