@@ -15,14 +15,15 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, replace
 from typing import Literal
 
 from . import _debug
 from .config import Settings, UserConfig
 from .authoring import author
-from .authoring.author import Claim, DraftCard
-from .verification.certifier import CertVerdict, Envelope, certify
+from .authoring.author import Claim, DraftCard, Interpretation
+from .verification.certifier import _NUM_RE, CertVerdict, Envelope, certify
 from .stores.source_store import FrozenSource, SourceStore
 
 _SCHEMA = '{"verdict":"VERIFIED|DEMOTED|BLOCKED","evidence":"str"}'
@@ -36,6 +37,19 @@ class GatedCard:
     verdicts: tuple[CertVerdict, ...]
     decision: GateDecision   # 카드 최종: PUBLISH / QUARANTINE(author↔certifier 불일치 소진 → 사람 검토)
     attempts: int            # author↔certifier 라운드 수 (감사 = 원장)
+
+
+def reroute_claim_types(card: DraftCard) -> DraftCard:
+    """claim_type 결정론 재라우팅(card-layering §6 ⓑ) — 숫자 포함 claim 은 author 라벨 무시하고 arithmetic 강제.
+
+    같은 사실이 lens/시행마다 arithmetic↔entailment 로 흔들리던 '분류 추첨'을 제거 — 검증 경로를
+    author 의 확률 분류가 아니라 *코드*가 정한다(certifier 의 _NUM_RE 와 단일 정의 공유).
+    """
+    claims = tuple(
+        replace(c, claim_type="arithmetic") if _NUM_RE.search(c.text) and c.claim_type != "arithmetic" else c
+        for c in card.claims
+    )
+    return card if claims == card.claims else replace(card, claims=claims)
 
 
 def _build_envelope(source: FrozenSource, claim: Claim) -> Envelope:
@@ -93,7 +107,7 @@ def produce_card(
     revise_fn = revise_fn or author.revise_claims  # 기본 = 같은 `claude -p`(실패 claim 만 재도출)
     verify_fn = verify_fn or (lambda c: verify_card(c, store))  # 기본 = codex certifier(per claim)
 
-    card = draft_fn(source, user, settings)
+    card = reroute_claim_types(draft_fn(source, user, settings))  # 재라우팅 = 검증 경로를 코드가 결정
     _debug.dprint("gate ← author", f"draft: {len(card.claims)} claims · source={card.source_id[:12]}")
     verdicts: tuple[CertVerdict, ...] = ()
     for attempt in range(1, max_attempts + 1):
@@ -104,7 +118,7 @@ def produce_card(
             return GatedCard(card, verdicts, "PUBLISH", attempt)
         if attempt < max_attempts:
             _debug.dprint("gate → revise", f"failed={list(failed)} → 실패 claim 재도출 (attempt {attempt + 1})", "yellow")
-            card = revise_fn(source, user, settings, prior=card, failed_ids=failed)
+            card = reroute_claim_types(revise_fn(source, user, settings, prior=card, failed_ids=failed))
     # 캡 소진: BLOCKED 가 남음 → claim-단위 graceful degradation (카드 통째 격리 대신)
     return _degrade_or_quarantine(card, verdicts, max_attempts)
 
@@ -130,3 +144,70 @@ def _degrade_or_quarantine(
     dropped = sum(1 for v in verdicts if v.verdict == "BLOCKED")
     _debug.dprint("gate decision", f"PUBLISH degraded — BLOCKED {dropped}개 드롭, 검증분 발행", "green")
     return GatedCard(card, verdicts, "PUBLISH", attempts)
+
+
+# ───────────────────────── 해석층 (interpretation layer) — card-layering §5 ─────────────────────────
+
+
+def verified_claims(fact: GatedCard) -> tuple[Claim, ...]:
+    """사실층에서 VERIFIED 로 판정된 claim 만 — 해석층 seam 은 이것만 본다(미검증 claim 미노출)."""
+    ok = {v.claim_id for v in fact.verdicts if v.verdict == "VERIFIED"}
+    return tuple(c for c in fact.card.claims if c.id in ok)
+
+
+def _num_tokens(text: str) -> set[str]:
+    """텍스트의 숫자 토큰(콤마 정규화) — certifier 의 _NUM_RE 와 단일 정의 공유."""
+    return {m.group().replace(",", "") for m in _NUM_RE.finditer(text)}
+
+
+def _interp_lint(interp: Interpretation, fact: GatedCard, source: FrozenSource) -> str | None:
+    """해석층 결정론 lint (no-new-facts 가드) — 통과 None / 실패 사유 문자열.
+
+    trust laundering 차단: 해석은 "✓ 검증" 배지 카드에 실리므로, 검증되지 않은 새 사실(특히 수치)을
+    밀수할 수 없어야 한다. 규칙(v1 — 미결 #5 의 '결정론 lint 부터' 채택):
+      ① why 비어있지 않음  ② based_on ≠ ∅ 이고 전부 VERIFIED claim id
+      ③ why 의 모든 숫자 토큰이 (동결 원문 ∪ VERIFIED claims) 에 존재.
+    """
+    if not interp.why_it_matters.strip():
+        return "why 빈값"
+    ok_ids = {c.id for c in verified_claims(fact)}
+    if not interp.based_on or not set(interp.based_on) <= ok_ids:
+        return f"based_on 인용 무효 ({list(interp.based_on)} ⊄ {sorted(ok_ids)})"
+    allowed = _num_tokens(source.text) | {t for c in verified_claims(fact) for t in _num_tokens(c.text)}
+    # claim id 본문 인용("C5에 기술된…")의 숫자는 사실 수치가 아님 — 오탐 방지(2026-07-06 라이브 e2e 회귀).
+    # 후행 \b 없음: 한글 조사가 id 에 직접 붙고("C1이") 한글도 \w 라 boundary 가 성립하지 않는다.
+    why_wo_ids = re.sub(r"\bC\d+", " ", interp.why_it_matters)
+    smuggled = _num_tokens(why_wo_ids) - allowed
+    if smuggled:
+        return f"미검증 수치 밀수 {sorted(smuggled)}"
+    return None
+
+
+def interpret_card(
+    fact: GatedCard,
+    source: FrozenSource,
+    user: UserConfig,
+    settings: Settings,
+    *,
+    interp_fn=None,
+) -> GatedCard:
+    """검증된 사실층 위에 lens 해석(why)만 교체 — 가드 통과 시에만. 실패는 **해석만 강등**(층별 격리).
+
+    - QUARANTINE 사실층 → 해석 생성 자체를 차단(gate 결정 재사용, LLM 비용 0).
+    - interp 실패(예외)·lint 실패 → 사실층(일반 lens) why 그대로 반환 — 카드·브리핑은 무붕괴
+      (2026-07-02 인시던트의 격리 교훈을 카드→층 단위로 하강).
+    - verdicts·decision·summary·claims 는 불변 — 해석층은 검증 결과를 절대 못 건드린다.
+    """
+    if fact.decision == "QUARANTINE":
+        return fact
+    interp_fn = interp_fn or author.draft_interpretation  # 기본 = 같은 headless `claude -p`(짧은 출력)
+    try:
+        interp = interp_fn(source, verified_claims(fact), user, settings)
+    except Exception as e:  # noqa: BLE001 — 층별 격리: 해석 실패가 검증된 카드를 죽이면 안 됨
+        _debug.warn("gate interp", f"{fact.card.source_id[:12]}: {type(e).__name__}: {e} → 사실층 why 폴백")
+        return fact
+    reason = _interp_lint(interp, fact, source)
+    if reason is not None:
+        _debug.dprint("gate interp", f"lint 실패({reason}) → 사실층 why 폴백", "yellow")
+        return fact
+    return replace(fact, card=replace(fact.card, why_it_matters=interp.why_it_matters))

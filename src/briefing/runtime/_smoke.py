@@ -13,7 +13,7 @@ entrypoint 가 payload `{"mode":"smoke"}` 일 때 `smoke_fns()`/`smoke_users()` 
 from __future__ import annotations
 
 from ..core.retrieval import sources as src
-from ..core.authoring.author import Claim, DraftCard
+from ..core.authoring.author import Claim, DraftCard, Interpretation
 from ..core.verification.certifier import CertVerdict
 from ..core.config import Settings, UserConfig, list_users, load_user
 from ..core.stores.source_store import FrozenSource
@@ -63,13 +63,27 @@ def smoke_verify_fn(card: DraftCard) -> tuple[CertVerdict, ...]:
     )
 
 
+def smoke_interp_fn(source: FrozenSource, verified_claims, user: UserConfig, settings: Settings) -> Interpretation:
+    """fake 해석층 — `claude -p` 미호출. 숫자 없는 why(결정론 lint 통과) + 첫 VERIFIED claim 인용.
+
+    실 사용자 lens 가 general 이 아니면 파이프라인이 해석층을 타므로, smoke 도 이 seam 을 fake 로 채운다
+    (안 채우면 smoke invoke 가 진짜 author 를 부르게 됨 — plumbing 검증의 결정론 붕괴).
+    """
+    cid = verified_claims[0].id if verified_claims else "C1"
+    return Interpretation(
+        why_it_matters=f"(smoke) {getattr(user, 'lens', '')} 관점 해석 — 해석층 plumbing 검증.",
+        based_on=(cid,),
+    )
+
+
 def smoke_fns() -> dict:
-    """run_briefing 에 주입할 DI seam 4종(fetch/draft/revise/verify) — 전부 fake."""
+    """run_briefing 에 주입할 DI seam 5종(fetch/draft/revise/verify/interp) — 전부 fake."""
     return {
         "fetch_article_fn": smoke_fetch_fn,
         "draft_fn": smoke_draft_fn,
         "revise_fn": smoke_revise_fn,
         "verify_fn": smoke_verify_fn,
+        "interp_fn": smoke_interp_fn,
     }
 
 

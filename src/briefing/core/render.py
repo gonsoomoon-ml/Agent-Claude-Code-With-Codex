@@ -55,8 +55,15 @@ def _domain(url: str) -> str:
     return net[4:] if net.startswith("www.") else net
 
 
+_TITLE_MAX = 40  # 출처줄 원제목 말줄임 길이 — h2(생성 headline)와 경쟁하지 않게 짧게
+
+
 def _source_line(store: SourceStore | None, source_id: str) -> str:
-    """📰 도메인 · 발행일 · 원문 → (mono · meta색). store 없거나 미발견이면 빈 문자열."""
+    """📰 도메인 · 발행일 · "원제목(말줄임)" · 원문 → (mono · meta색). store 없거나 미발견이면 빈 문자열.
+
+    원제목 = 신뢰 앵커(영수증): 독자가 클릭 전에 요약과 원문 제목을 대조할 수 있다(card-layering §3).
+    h2 병기가 아니라 메타로만 — 클릭베이트 재유입·제목 2줄 스캔 비용 차단.
+    """
     if store is None:
         return ""
     try:
@@ -65,11 +72,19 @@ def _source_line(store: SourceStore | None, source_id: str) -> str:
         return ""
     domain = _domain(s.url)
     date = s.fetched_at[:10] if s.fetched_at else ""
+    title = (s.title or "").strip()
+    if len(title) > _TITLE_MAX:
+        title = title[:_TITLE_MAX] + "…"
     link = (
         f'<a href="{html.escape(s.url)}" style="color:{_CORAL};text-decoration:underline">원문 →</a>'
         if s.url else ""
     )
-    meta = " · ".join(p for p in (f"📰 {html.escape(domain)}" if domain else "", date, link) if p)
+    meta = " · ".join(p for p in (
+        f"📰 {html.escape(domain)}" if domain else "",
+        date,
+        f"“{html.escape(title)}”" if title else "",
+        link,
+    ) if p)
     return f'<p style="{_MONO};font-size:12px;color:{_META};margin:2px 0 8px">{meta}</p>'
 
 
@@ -80,7 +95,8 @@ def _trust_line(card: GatedCard) -> str:
     더 깊이는 카드의 '원문 →' 링크 / 주간 'Withheld-and-Why' 다이제스트(후속)로. 개별 claim 텍스트 비노출.
     """
     n = {k: sum(1 for v in card.verdicts if v.verdict == k) for k in ("VERIFIED", "DEMOTED", "BLOCKED")}
-    bits = [f"✓ 다른 AI 에이전트가 사실 {n['VERIFIED']}건 검증" if n["VERIFIED"] else "✓ 검증 완료"]
+    # "요약의" = 검증 범위 정직화(card-layering §5) — 배지는 요약(사실층)만 커버, 해석(관점)은 라벨로 구분.
+    bits = [f"✓ 다른 AI 에이전트가 요약의 사실 {n['VERIFIED']}건 검증" if n["VERIFIED"] else "✓ 검증 완료"]
     if n["DEMOTED"]:
         bits.append(f"미확인 {n['DEMOTED']}건")
     if n["BLOCKED"]:
@@ -98,14 +114,15 @@ def _card_html(card: GatedCard, store: SourceStore | None, *, depth: str, lens: 
         _source_line(store, c.source_id),
     ]
     # 요약(검증 대상) — 모든 depth 노출 (mockup §4: title-only 도 요약은 보인다)
-    lens_lbl = f"요약 · {html.escape(lens)} 관점" if lens else "요약"
-    parts.append(f'<p style="{_MONO};font-size:12px;color:{_META};margin:8px 0 2px">{lens_lbl}</p>')
+    # 2층화: 요약 라벨에서 lens 제거(공통 사실층) — 개인화 라벨은 해석 블록으로 재정박(UX 채택 조건).
+    parts.append(f'<p style="{_MONO};font-size:12px;color:{_META};margin:8px 0 2px">요약 · 원문 사실</p>')
     parts.append(f'<p style="margin:0">{html.escape(c.summary)}</p>')
     if depth != "title-only" and c.why_it_matters:  # summary·full → 해석(title-only 만 생략, 시각 구분)
+        why_lbl = f"나에게 왜 중요한가 · {html.escape(lens)} 관점" if lens else "나에게 왜 중요한가"
         parts.append(f'<div style="border-top:1px dotted {_RULE};margin:8px 0"></div>')
         parts.append(
             f'<p style="font-size:12px;color:{_META};margin:0 0 2px">'
-            f'나에게 왜 중요한가 <span>(해석)</span></p>'
+            f'{why_lbl} <span>(해석)</span></p>'
         )
         parts.append(
             f'<p style="margin:0;font-style:italic;color:#5A514A;'
@@ -171,9 +188,10 @@ def render_email(
 
     area_prefix = f"{len(distinct)}개 분야 · " if grouped else ""
     # 부제 = 콘텐츠(분야·개수·관점)만 — 검증 문구는 인장(✓ 원문 대조 완료)·카드 검증줄·푸터가 소유(중복 제거).
+    # "관점 해석"(≠ 관점 요약) — 2층화 후 lens 가 소유하는 것은 해석이므로 카피도 그렇게 말한다.
     subtitle = (
         f'<p style="{_MONO};font-size:12px;color:{_META};margin:4px 0 0">'
-        f"{area_prefix}소식 {len(published)}개 · {html.escape(lens)} 관점 요약</p>"
+        f"{area_prefix}소식 {len(published)}개 · {html.escape(lens)} 관점 해석</p>"
     )
     coral_rule = f'<div style="border-top:2px solid {_CORAL};margin:10px 0 4px"></div>'
 
@@ -196,8 +214,9 @@ def render_email(
         f'<div style="border-top:2px solid {_RULE};margin:22px 0 0;padding-top:10px;'
         f'font-size:12px;color:{_META}">'
         f'<p style="margin:0 0 6px">이 브리핑은 어떻게 만드나요? — AI 에이전트가 원문 기사를 '
-        f"{html.escape(lens)} 관점으로 요약하면, 요약을 만들지 않은 다른 AI 에이전트가 그 요약을 "
-        "원문과 대조해 확인합니다. 확인되지 않은 내용은 보내지 않습니다.</p>"
+        "요약하면, 요약을 만들지 않은 다른 AI 에이전트가 그 요약을 원문과 대조해 확인하고, "
+        f"확인된 요약 위에 {html.escape(lens)} 관점의 해석을 덧붙입니다. "
+        "확인되지 않은 내용은 보내지 않습니다.</p>"
         f'<p style="margin:0">다음 브리핑 내일 {int(send_hour):02d}:00 · 관점 바꾸기 · 구독 해지</p></div>'
     )
     return _WRAP + header + subtitle + coral_rule + body + footer + "</div>"

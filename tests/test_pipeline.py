@@ -11,8 +11,9 @@ from briefing.core.stores.source_store import SourceStore
 from briefing.core.retrieval.sources import FetchedArticle
 
 
-def _user(uid, sources):
-    return SimpleNamespace(id=uid, recipient=f"{uid}@example.com", sources=tuple(sources), depth="full")
+def _user(uid, sources, lens=""):
+    return SimpleNamespace(id=uid, recipient=f"{uid}@example.com", sources=tuple(sources),
+                           depth="full", lens=lens, skill_md="")
 
 
 def _fetch(source, _w):
@@ -36,7 +37,7 @@ def test_run_briefing_multiuser_end_to_end(tmp_path):
     )
     assert [b.user_id for b in out] == ["alice", "bob"]            # per-user 팬아웃
     assert all(b.published == 1 and b.quarantined == 0 for b in out)
-    assert "다른 AI 에이전트가 사실" in out[0].email and out[0].recipient == "alice@example.com"
+    assert "요약의 사실" in out[0].email and out[0].recipient == "alice@example.com"
 
 
 def test_run_briefing_degrades_blocked_supporting(tmp_path):
@@ -99,3 +100,76 @@ def test_run_briefing_groups_by_area_and_dates_header(tmp_path):
     assert "2개 분야" in email                                   # 출처 기준 분야 카운트
     assert "AI 뉴스" in email and "프런티어 AI 랩" in email        # 분야 밴드(2개+)
     assert "6월 29일" in email                                   # run_date → 헤더 날짜
+
+
+# ── 2층화: 사실층 공유 + lens 해석층 (card-layering §5) ─────────────────
+
+
+def test_layered_fact_once_interp_per_lens(tmp_path):
+    """사실층은 출처당 1회(사용자 무관), 해석층은 (출처, lens)당 1회 — 캐시 없이도 run 내 공유."""
+    from briefing.core.authoring.author import Interpretation
+
+    store = SourceStore(str(tmp_path / "store"))
+    users = [_user("alice", ["aws-ml"], lens="engineer"),
+             _user("bob", ["aws-ml"], lens="business"),
+             _user("carol", ["aws-ml"], lens="engineer")]   # 3명·2 lens
+    calls = {"draft": 0, "interp": 0}
+
+    def draft(source, *_a):
+        calls["draft"] += 1
+        return DraftCard(source.source_id, "헤드라인", "요약", "일반 해석",
+                         (Claim("C1", "ok", "entailment", "core"),))
+
+    def interp(source, claims, user, settings):
+        calls["interp"] += 1
+        return Interpretation(f"{user.lens} 관점 해석", (claims[0].id,))
+
+    out = run_briefing(
+        SimpleNamespace(), store, users, window_hours=0, fetch_article_fn=_fetch,
+        draft_fn=draft, interp_fn=interp,
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert calls == {"draft": 1, "interp": 2}                  # 사실 1회 + lens 2종
+    assert "engineer 관점 해석" in out[0].email                 # alice
+    assert "business 관점 해석" in out[1].email                 # bob
+    assert "engineer 관점 해석" in out[2].email                 # carol = alice 와 공유
+
+
+def test_layered_general_lens_skips_interp(tmp_path):
+    """general lens 는 해석층 호출 없이 사실층 why 를 그대로 쓴다(사실층=general 이라 동일물)."""
+    store = SourceStore(str(tmp_path / "store"))
+    called = {"n": 0}
+
+    def interp(*_a):
+        called["n"] += 1
+        raise AssertionError("general 은 interp 를 부르면 안 됨")
+
+    out = run_briefing(
+        SimpleNamespace(), store, [_user("u", ["aws-ml"], lens="general")],
+        window_hours=0, fetch_article_fn=_fetch,
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "헤드라인", "요약", "일반 해석",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        interp_fn=interp,
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert called["n"] == 0
+    assert "일반 해석" in out[0].email
+
+
+def test_layered_interp_failure_falls_back_to_fact_why(tmp_path):
+    """층별 격리: 해석층이 죽어도 카드는 사실층 why 로 발행된다(브리핑 무붕괴)."""
+    store = SourceStore(str(tmp_path / "store"))
+
+    def interp(*_a):
+        raise RuntimeError("interp harness down")
+
+    out = run_briefing(
+        SimpleNamespace(), store, [_user("u", ["aws-ml"], lens="engineer")],
+        window_hours=0, fetch_article_fn=_fetch,
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "헤드라인", "요약", "일반 해석",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        interp_fn=interp,
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert out[0].published == 1
+    assert "일반 해석" in out[0].email                          # 폴백 = 사실층(일반) why

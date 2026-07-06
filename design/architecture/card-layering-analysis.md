@@ -2,7 +2,8 @@
 
 > **방법:** lens 실측 실험 2건(실 `claude -p`, 통제 변수) + 6-에이전트 동적 워크플로우(5관점 병렬 분석 → 적대 반박 → 종합 판정, run `wf_94e64e85`) · 2026-07-06 · Korean-friendly
 > **제안(사용자):** 카드를 두 층으로 — **사실층**(원제목 + headline·summary 를 general 로 공통 생성·검증) / **해석층**(why_it_matters 만 lens 별: engineer·business·ai-agent…).
-> **판정: `adopt-modified`** — 방향 채택, 원안 그대로는 기각(무가드 해석층 = trust laundering), **본체 착수는 게이트 조건부**(확대 실증 + 구독자 손익분기). 지금 실행은 0단계 3건만(§6).
+> **판정: `adopt-modified`** — 방향 채택, 원안 그대로는 기각(무가드 해석층 = trust laundering), 본체 착수는 게이트 조건부 권고(확대 실증 + 구독자 손익분기).
+> **UPDATE 2026-07-06: 소유자 결정으로 본체 즉시 구현** — §5 구조(사실층 공유 + 가드된 해석층 + 층별 격리)와 §6 의 ⓑ(claim_type 재라우팅)·ⓒ(원제목 출처줄)를 TDD 로 구현, 208 테스트 + 라이브 e2e(사실층 14/14 VERIFIED + engineer 해석 lint PASS + 오탐 회귀 수정) 통과. §6 의 ⓐ(silent-failure 통지)와 착수 게이트의 확대 실증은 여전히 미완 — 게이트는 '착수 조건'에서 '사후 검증 과제'로 전환됨.
 > **핵심 통찰:** lens 의 실제 발산 지점은 why_it_matters — lens 가치는 희석이 아니라 **응축**된다. 검증은 (기사, claims)의 canonical 속성이 되어야 하고, 개인화는 검증이 필요 없는 층(선택·해석·형식)에 산다.
 > **연결 문서:** [`value-roadmap.md`](value-roadmap.md) · [`news-agent-differentiation.md`](news-agent-differentiation.md) · [`../research/personalized-morning-briefing-research.md`](../research/personalized-morning-briefing-research.md) · `src/briefing/core/`(author·gate·cache·render·lenses)
 

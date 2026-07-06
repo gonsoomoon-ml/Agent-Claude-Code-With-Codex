@@ -61,5 +61,5 @@ def test_author_parser_is_pure_and_normalizes_claim_type():
     card = _to_draft_card("SID", data)
     assert card.source_id == "SID" and card.headline == "H"
     assert card.claims[0].claim_type == "arithmetic" and card.claims[0].importance == "core"
-    assert card.claims[1].claim_type == "entailment"  # 미상 값 → entailment 로 정규화
+    assert card.claims[1].claim_type == "arithmetic"  # 미상 값 → arithmetic (계약 '애매하면 arithmetic' — 더 엄격)
     assert card.claims[1].importance == "supporting"  # importance 누락 → 기본 supporting

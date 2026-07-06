@@ -37,7 +37,8 @@ def test_header_shows_date_when_today_given():
 def test_subtitle_shows_count_lens_without_duplicating_verification():
     out = render_email([_gated()], _user(lens="engineer"), None)
     assert "소식 1개" in out
-    assert "engineer 관점" in out
+    assert "engineer 관점 해석" in out        # 2층화: lens 는 '해석'을 소유(요약은 공통 사실)
+    assert "관점 요약" not in out             # 옛 카피('{lens} 관점 요약')는 거짓이 됨 — 제거
     assert out.count("원문 대조") == 1        # 헤더 인장에만 1회 — 부제의 "원문 대조" 중복 제거
     assert "개 분야" not in out               # 1개 분야면 분야 표기 안 함
 
@@ -74,7 +75,7 @@ def test_trust_line_credits_other_agent_with_figure_and_hides_claims():
                 Claim("C2", "비밀주장둘", "arithmetic", "core")),
     )
     out = render_email([gated], _user(), None)
-    assert "다른 AI 에이전트가 사실 2건 검증" in out
+    assert "다른 AI 에이전트가 요약의 사실 2건 검증" in out   # 검증 범위 정직화 — 배지는 '요약'만 커버
     assert "근거 보기" not in out             # ii: 펼침 제거 — 정직한 한 줄만
     assert "비밀주장" not in out              # 개별 claim 텍스트 비노출(불변식 유지)
 
@@ -110,6 +111,20 @@ def test_source_line_has_domain_date_and_original_link(tmp_path):
     assert 'href="https://www.aitimes.com/a"' in out
     assert "2026-06-27" in out
     assert "원문" in out
+    assert "원본제목" in out                  # 신뢰 앵커(영수증): 기사 원제목을 출처줄 메타로 노출
+
+
+def test_source_line_truncates_long_original_title(tmp_path):
+    from briefing.core.stores.source_store import SourceStore
+
+    store = SourceStore(str(tmp_path / "s"))
+    long_title = "아주 " * 40 + "긴 제목"     # h2 와 경쟁하지 않게 말줄임(스캔 비용 억제)
+    fs = store.freeze(url="https://x.com/a", title=long_title, raw_text="본문",
+                      fetched_at="2026-06-27T06:00:00Z")
+    gated = GatedCard(_card(source_id=fs.source_id), (CertVerdict("C1", "VERIFIED", "ev"),), "PUBLISH", 1)
+    out = render_email([gated], _user(), None, store)
+    assert long_title not in out              # 전문 그대로는 미노출
+    assert "…" in out                          # 말줄임 표기
 
 
 # ── 분야(Area) 밴드: 2개 이상일 때만 ──────────────────────
@@ -142,7 +157,17 @@ def test_dark_mode_canvas_anchored():
 def test_footer_explains_decorrelation_plainly():
     out = render_email([_gated()], _user(lens="engineer"), None)
     assert "요약을 만들지 않은 다른 AI 에이전트가 그 요약을 원문과 대조" in out
+    assert "확인된 요약 위에 engineer 관점의 해석" in out   # 2층 구조를 정직하게 설명(검증=요약, 해석=관점)
     assert "확인되지 않은 내용은 보내지 않습니다" in out
+
+
+# ── 2층화 카드 라벨 (card-layering §5): 요약=공통 사실, 해석=lens 소유 ──────
+
+
+def test_card_labels_split_fact_and_lens_interpretation():
+    out = render_email([_gated()], _user(lens="engineer"), None)
+    assert "요약 · 원문 사실" in out                       # 요약 라벨에서 lens 제거(공통 사실층)
+    assert "나에게 왜 중요한가 · engineer 관점" in out      # 개인화 재정박 = 해석 블록(UX 채택 조건)
 
 
 # ── 날짜 포맷터(헤더용) ──────────────────────────────────

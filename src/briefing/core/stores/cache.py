@@ -1,8 +1,9 @@
 """cache — 파이프라인 결과(카드) 캐시 (③ DB v1: 로컬 파일 / v1.5: DynamoDB 가 같은 `CardCache` Protocol).
 
-★ 목적: 다른 사용자가 *같은 (출처, lens, skill, author 모델)* 에 대해 비싼 파이프라인을 다시 돌리지 않게 한다 —
-  cache hit 면 `claude -p`(author) + `codex`(certifier) 를 둘 다 건너뛴다.
-- 키 = sha256(source_id | lens | skill_md | author_model_id). source_id 가 content-addressed 라 기사가 바뀌면 키도 바뀐다(자동 무효화).
+★ 목적: 비싼 파이프라인(author+certifier)을 재실행하지 않는다 — 2층 키(card-layering §5):
+- **사실층** `fact_card_key(source_id|model|prompt_version)` — lens·skill 없음 → **전 사용자 공유**.
+- **해석층** `interp_card_key(source_id|lens|fact_key)` — (출처, lens) 코호트 공유; fact_key 연쇄로 자동 무효화.
+- source_id 가 content-addressed 라 기사가 바뀌면 두 키 다 바뀐다(자동 무효화). 구 단층 `card_key` 는 호환용.
 - **gate(SOP)는 캐시를 모른다(순수하게 유지).** 캐시 조회는 *드라이버(run_briefing) 레벨의 메모이제이션* — trust 경계·decorrelation 과 무관.
 - v1.5: `DynamoCardCache`(같은 Protocol) — boto3 로 테이블 생성(PAY_PER_REQUEST) + get/put_item + DDB 기본 TTL.
 """
@@ -20,11 +21,32 @@ from ..gate import GatedCard
 
 
 def card_key(source_id: str, lens: str, skill_md: str, author_model_id: str) -> str:
-    """카드 캐시 키 = sha256(source_id | lens | skill_md | author_model_id).
+    """(구) 단층 카드 키 = sha256(source_id | lens | skill_md | author_model_id).
 
-    같은 (동결 출처, 렌즈, skill, 작성 모델)이면 같은 카드(결정론)라 재사용해도 안전하다. 넷 중 하나라도 다르면 키가 달라져 miss.
+    skill_md 가 per-user 라 사용자 간 공유가 사실상 0 이던 키 — 2층화(fact/interp)로 대체됨.
+    구 캐시 항목 호환·감사용으로 유지(신규 기록은 fact_card_key/interp_card_key).
     """
     raw = f"{source_id}|{lens}|{skill_md}|{author_model_id}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def fact_card_key(source_id: str, author_model_id: str, prompt_version: str) -> str:
+    """사실층 키 = sha256(source_id | author_model_id | prompt_version) — **lens·skill 없음 = 전 사용자 공유**.
+
+    card-layering §5: 검증이 (기사, claims)의 canonical 속성이 되는 지점. prompt_version(작성 계약 개정)이
+    바뀌면 자동 무효화 — 구 계약으로 만든 카드가 새 계약인 척 재사용되는 것을 차단.
+    """
+    raw = f"fact|{source_id}|{author_model_id}|{prompt_version}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def interp_card_key(source_id: str, lens: str, fact_key: str) -> str:
+    """해석층 키 = sha256(source_id | lens | fact_key) — (출처, lens) 코호트 공유, skill 미포함(v1).
+
+    fact_key 를 성분으로 포함 → 사실층이 재생성되면 해석층도 자동 무효화(층 간 정합성).
+    저장물은 '조립 완료' GatedCard(사실층 + lens why) — 기존 직렬화 그대로 재사용.
+    """
+    raw = f"interp|{source_id}|{lens}|{fact_key}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
