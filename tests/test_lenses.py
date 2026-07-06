@@ -11,7 +11,14 @@ def test_library_has_default_and_roles():
     keys = [ln.key for ln in LENS_LIBRARY]
     assert "general" in keys and "engineer" in keys
     assert "business" in keys and "researcher" in keys   # researcher 추가
+    assert "agent-builder" in keys                        # 에이전트 빌더(card-layering §6 후속 ⓑ)
     assert "executive" not in keys                        # executive → business 통합
+
+
+def test_agent_builder_lens_bounded_from_engineer():
+    # 에이전트 빌더 = engineer 와 별개 페르소나 — guidance 가 에이전트 설계·운영 어휘를 명시해야 중복을 피함
+    g = resolve_lens("agent-builder").guidance
+    assert "에이전트" in g and ("오케스트레이션" in g or "도구" in g)
 
 
 def test_resolve_lens_fallback_to_general():
