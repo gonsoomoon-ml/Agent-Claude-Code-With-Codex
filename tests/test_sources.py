@@ -25,6 +25,8 @@ def test_catalog_loaded_from_yaml():
     assert len(CATALOG) >= 5
     assert "aitimes" in catalog_keys() and "anthropic" in catalog_keys()
     assert "anthropic-eng" in catalog_keys()   # 공식 발표(news)와 별개의 엔지니어링 블로그
+    assert "google-ai" in catalog_keys()       # The Keyword AI — Gemini 공식 발표 채널
+    assert "google-dev" in catalog_keys()      # Google Developers Blog — Gemini API·에이전트 dev
 
 
 def test_resolve_sources_empty_is_all():
