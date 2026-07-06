@@ -24,6 +24,7 @@ from briefing.core.retrieval.sources import (
 def test_catalog_loaded_from_yaml():
     assert len(CATALOG) >= 5
     assert "aitimes" in catalog_keys() and "anthropic" in catalog_keys()
+    assert "anthropic-eng" in catalog_keys()   # 공식 발표(news)와 별개의 엔지니어링 블로그
 
 
 def test_resolve_sources_empty_is_all():

@@ -51,3 +51,12 @@
   lang: en
   category: 프런티어 AI 랩
   # /news + 기사 본문 평문 200(robots Allow:/) → fetch_generic_html(trafilatura), fragile 아님
+
+- key: anthropic-eng
+  name: Anthropic Engineering
+  url: https://www.anthropic.com/engineering
+  kind: html
+  lang: en
+  category: AI·ML 연구·플랫폼
+  # 공식 발표(anthropic/news)와 별개의 엔지니어링 블로그 — 리스팅+trafilatura 평문 200, fragile 아님.
+  # 발행 빈도 낮음(월 단위) → 24h 윈도우 특성상 새 글 있는 날만 카드 기여(quiet source). last-verified: 2026-07-06
