@@ -88,3 +88,27 @@ def test_run_trial_status_fallback_and_expired():
               deliver_fn=lambda b: None, fallback_fn=lambda e: None, sleep_fn=lambda s: None,
               run_date="2026-06-28", attempts=2, status_fn=lambda s, p=None: seen.append((s, p)))
     assert ("expired", None) in seen
+
+
+def test_run_trial_forwards_window_hours():
+    # 회귀(2026-07-06 발견): payload window_hours 가 run_briefing 에 전달되지 않아 항상 24h —
+    # 저빈도 출처(주말 quiet)의 trial 이 무조건 fallback 이 되던 결함. payload → run_briefing 포워딩 검증.
+    seen = {}
+
+    def rb(*a, **k):
+        seen.update(k)
+        return [_Brief(1)]
+
+    run_trial(_settings(), object(), None,
+              {"email": "u@x.com", "sources": ["google-ai"], "window_hours": 120},
+              ses=_Ses(success_on=1), run_briefing_fn=rb,
+              deliver_fn=lambda b: None, fallback_fn=lambda e: None,
+              sleep_fn=lambda s: None, run_date="2026-07-06")
+    assert seen.get("window_hours") == 120
+
+    seen.clear()
+    run_trial(_settings(), object(), None, {"email": "u@x.com", "sources": ["aitimes"]},
+              ses=_Ses(success_on=1), run_briefing_fn=rb,
+              deliver_fn=lambda b: None, fallback_fn=lambda e: None,
+              sleep_fn=lambda s: None, run_date="2026-07-06")
+    assert seen.get("window_hours") == 24   # 미지정 시 기본 24h 유지

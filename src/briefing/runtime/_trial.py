@@ -92,7 +92,9 @@ def run_trial(settings: Settings, store: Any, card_cache: Any, payload: dict, *,
         return f"trial timeout(unverified): {email}"
     status_fn("generating")
     user = build_trial_user(payload, settings)
-    briefs = run_briefing_fn(settings, store, [user], card_cache=card_cache, ledger=None, run_date=run_date)
+    # window_hours 포워딩(기본 24h) — 누락 시 payload 값이 조용히 무시돼 저빈도 출처 trial 이 무조건 fallback.
+    briefs = run_briefing_fn(settings, store, [user], card_cache=card_cache, ledger=None, run_date=run_date,
+                             window_hours=int(payload.get("window_hours", 24)))
     if not briefs:
         fallback_fn(email)
         status_fn("fallback")
