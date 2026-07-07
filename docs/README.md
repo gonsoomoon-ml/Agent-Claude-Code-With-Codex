@@ -48,4 +48,9 @@
 | specs `2026-07-07-source-homepage-links-design` | SHIPPED — 카드에 클릭 가능 홈페이지 링크(호스트명 파생, RSS XML 미노출) + `claude-blog` 소스 |
 | plans `2026-07-07-source-homepage-links` | SHIPPED — 배포·라이브 검증(링크 새 탭·클릭 토글 안 함, claude-blog 노출) |
 
+### web-dark-theme (웹 다크 테마 — 웜 잉크) — SHIPPED·LIVE (2026-07-07)
+| 문서 | 상태 |
+|---|---|
+| deliveries `2026-07-07-web-dark-theme-delivery.md` | SHIPPED·LIVE — 전 페이지 다크(웜 잉크 `#191410`) + `:root` 토큰 단일화. 결정: 토글 보류(deferred)·이메일 라이트 유지(프레이밍)·대안 뉴트럴/슬레이트 기각 |
+
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.
