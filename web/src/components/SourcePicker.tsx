@@ -37,20 +37,34 @@ export function SourcePicker({ categories, max, selected, onChange }: Props) {
               const dimmed = atLimit && !checked
               const initial = s.name.trim().charAt(0)
               return (
-                <label key={s.key} className="src-card" style={cardStyle(checked, dimmed)}>
-                  <input
-                    type="checkbox"
-                    aria-label={s.name}
-                    checked={checked}
-                    disabled={dimmed}
-                    onChange={() => onChange(toggleSource(selected, s.key, max))}
-                    style={SR_ONLY}
-                  />
-                  <span aria-hidden="true" style={avatarStyle(checked)}>{initial}</span>
-                  <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 2 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.4, color: '#999' }}>{s.lang.toUpperCase()}</span>
-                  </span>
+                <div key={s.key} className="src-card" style={cardStyle(checked, dimmed)}>
+                  <label className="src-toggle" style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: dimmed ? 'not-allowed' : 'pointer', minWidth: 0 }}>
+                    <input
+                      type="checkbox"
+                      aria-label={s.name}
+                      checked={checked}
+                      disabled={dimmed}
+                      onChange={() => onChange(toggleSource(selected, s.key, max))}
+                      style={SR_ONLY}
+                    />
+                    <span aria-hidden="true" style={avatarStyle(checked)}>{initial}</span>
+                    <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 2 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.4, color: '#999' }}>{s.lang.toUpperCase()}</span>
+                    </span>
+                  </label>
+                  {s.homepage && (
+                    <a
+                      className="src-host"
+                      href={s.homepage}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ fontSize: 11, color: colors.coralTo, textDecoration: 'none', marginLeft: 42, marginTop: 2 }}
+                    >
+                      {hostLabel(s.homepage)} ↗
+                    </a>
+                  )}
                   {checked && (
                     <span aria-hidden="true" style={{
                       position: 'absolute', top: 6, right: 6, width: 18, height: 18,
@@ -58,7 +72,7 @@ export function SourcePicker({ categories, max, selected, onChange }: Props) {
                       fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>✓</span>
                   )}
-                </label>
+                </div>
               )
             })}
           </div>
@@ -70,13 +84,17 @@ export function SourcePicker({ categories, max, selected, onChange }: Props) {
 
 function cardStyle(checked: boolean, dimmed: boolean): CSSProperties {
   return {
-    position: 'relative', display: 'flex', alignItems: 'center', gap: 10,
+    position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 4,
     padding: '12px 14px', borderRadius: 12, cursor: dimmed ? 'not-allowed' : 'pointer',
     background: checked ? colors.coralWash : '#fff',
     border: checked ? `1.5px solid ${colors.coralTo}` : '1px solid #eee',
     boxShadow: checked ? '0 1px 3px rgba(255,107,71,0.18)' : undefined,  // undefined(=인라인 미설정) → 미선택 카드에 index.html .src-card:hover box-shadow 적용
     opacity: dimmed ? 0.45 : 1,
   }
+}
+
+function hostLabel(homepage: string): string {
+  try { return new URL(homepage).hostname.replace(/^www\./, '') } catch { return homepage }
 }
 
 function avatarStyle(checked: boolean): CSSProperties {
