@@ -62,7 +62,7 @@ export function SourcePicker({ categories, max, selected, onChange }: Props) {
                       onClick={(e) => e.stopPropagation()}
                       style={{ fontSize: 11, color: colors.coralTo, textDecoration: 'none', marginLeft: 42, marginTop: 2 }}
                     >
-                      {hostLabel(s.homepage)} ↗
+                      {hostLabel(s.homepage)} <span aria-hidden="true">↗</span>
                     </a>
                   )}
                   {checked && (
