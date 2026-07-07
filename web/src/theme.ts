@@ -1,11 +1,12 @@
-// web/src/theme.ts — v1.1f: 시그니처 코랄 pill CTA 토큰(레퍼런스 차용).
+// web/src/theme.ts — v1.2: 웜 잉크 다크 테마 + 시그니처 코랄 pill CTA 토큰.
+// 팔레트 원천은 index.html 의 :root CSS 변수(var(--bg/panel/text-body …)) — 여기선 그 변수를 참조만 한다.
 // base look 은 인라인 스프레드, hover/disabled-glyph 는 index.html 의 전역 <style>.
 import type { CSSProperties } from 'react'
 
 export const colors = {
   coralFrom: '#FF9E80', coralTo: '#FF6B47', coralInk: '#1A0F0A',
-  ghostBorder: 'rgba(0,0,0,0.15)', ghostText: '#444',
-  coralWash: 'rgba(255,107,71,0.06)',
+  ghostBorder: 'rgba(255,255,255,0.22)', ghostText: 'var(--text-body)',
+  coralWash: 'var(--coral-wash)',
 }
 
 export const coralPill: CSSProperties = {
@@ -25,5 +26,6 @@ export const ghostPill: CSSProperties = {
 }
 
 export const coralDisabled: CSSProperties = {
-  background: '#ececec', color: '#aaa', boxShadow: 'none', cursor: 'not-allowed',
+  background: 'var(--panel-2)', color: 'var(--text-dim)', boxShadow: 'none',
+  cursor: 'not-allowed', border: '1px solid var(--border)',
 }

@@ -143,7 +143,7 @@ export default function Form() {
     }
   }
 
-  if (error) return <p style={{ color: '#c00' }}>카탈로그를 불러오지 못했습니다: {error}</p>
+  if (error) return <p style={{ color: 'var(--danger)' }}>카탈로그를 불러오지 못했습니다: {error}</p>
   if (!catalog) return <p>불러오는 중…</p>
 
   const isTrialSubmitting = submitting === 'trial'
@@ -155,7 +155,7 @@ export default function Form() {
   return (
     <div>
       <h1 style={{ fontSize: 22 }}>구독 설정</h1>
-      <h2 style={{ fontSize: 16 }}>1. 미디어 선택 <span style={{ color: '#999', fontSize: 13 }}>(최대 {maxSel}개)</span></h2>
+      <h2 style={{ fontSize: 16 }}>1. 미디어 선택 <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>(최대 {maxSel}개)</span></h2>
       <SourcePicker categories={catalog.categories} max={maxSel} selected={selected} onChange={setSelected} />
 
       <h2 style={{ fontSize: 16 }}>2. 발송 시각 (KST)</h2>
@@ -262,7 +262,7 @@ export default function Form() {
         />
       )}
 
-      <p style={{ fontSize: 12, color: '#999', marginTop: 8 }}>
+      <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8 }}>
         선택: {selected.length}개 출처 · {String(sendHour).padStart(2, '0')}:00 KST · {authed ? `${recipient || '로딩 중…'}` : email || '이메일 미입력'}
       </p>
     </div>

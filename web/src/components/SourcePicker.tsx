@@ -22,8 +22,8 @@ export function SourcePicker({ categories, max, selected, onChange }: Props) {
   return (
     <div>
       <div style={{
-        position: 'sticky', top: 0, background: '#fff', zIndex: 1,
-        fontSize: 13, color: atLimit ? colors.coralTo : '#555',
+        position: 'sticky', top: 0, background: 'var(--bg)', zIndex: 1,
+        fontSize: 13, color: atLimit ? colors.coralTo : 'var(--text-dim)',
         fontWeight: atLimit ? 600 : 400, padding: '4px 0', marginBottom: 8,
       }}>
         선택 {selected.length} / {max} (최대 {max}개)
@@ -50,7 +50,7 @@ export function SourcePicker({ categories, max, selected, onChange }: Props) {
                     <span aria-hidden="true" style={avatarStyle(checked)}>{initial}</span>
                     <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 2 }}>
                       <span title={s.name} style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflowWrap: 'anywhere' }}>{s.name}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.4, color: '#999' }}>{s.lang.toUpperCase()}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.4, color: 'var(--text-dim)' }}>{s.lang.toUpperCase()}</span>
                     </span>
                   </label>
                   {s.homepage && (
@@ -86,9 +86,9 @@ function cardStyle(checked: boolean, dimmed: boolean): CSSProperties {
   return {
     position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 4,
     padding: '12px 14px', borderRadius: 12, cursor: dimmed ? 'not-allowed' : 'pointer',
-    background: checked ? colors.coralWash : '#fff',
-    border: checked ? `1.5px solid ${colors.coralTo}` : '1px solid #eee',
-    boxShadow: checked ? '0 1px 3px rgba(255,107,71,0.18)' : undefined,  // undefined(=인라인 미설정) → 미선택 카드에 index.html .src-card:hover box-shadow 적용
+    background: checked ? colors.coralWash : 'var(--panel)',
+    border: checked ? `1.5px solid ${colors.coralTo}` : '1px solid var(--border)',
+    boxShadow: checked ? '0 1px 10px rgba(255,107,71,0.25)' : undefined,  // 미선택은 인라인 미설정 → hover 시 index.html .src-card:hover 의 코랄 border 로 강조
     opacity: dimmed ? 0.45 : 1,
   }
 }
@@ -102,7 +102,7 @@ function avatarStyle(checked: boolean): CSSProperties {
     flexShrink: 0, width: 32, height: 32, borderRadius: 9999,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 14, fontWeight: 700,
-    background: checked ? CORAL_GRADIENT : '#f3f3f3',
-    color: checked ? colors.coralInk : '#666',
+    background: checked ? CORAL_GRADIENT : 'var(--panel-2)',
+    color: checked ? colors.coralInk : 'var(--text-dim)',
   }
 }
