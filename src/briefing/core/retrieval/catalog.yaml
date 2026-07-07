@@ -78,3 +78,12 @@
   category: AI·ML 연구·플랫폼
   require_ai: true   # 종합 개발 블로그(Android·Chrome 등 혼재) → AI 관련만 통과(Gemini API·ADK·에이전트)
   # 피드 자동발견 없음 → 리스팅+trafilatura 전문 200. last-verified: 2026-07-06
+
+- key: claude-blog
+  name: Claude Blog
+  url: https://claude.com/blog
+  kind: html
+  lang: en
+  category: AI·ML 연구·플랫폼
+  # 공식 RSS 없음(표준 경로 404) → 리스팅+trafilatura 평문(anthropic 소스 동형, fragile 아님).
+  # robots Allow:/ · 제품 아닌 공개 블로그. last-verified: 2026-07-07
