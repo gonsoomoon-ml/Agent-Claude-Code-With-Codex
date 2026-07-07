@@ -20,6 +20,7 @@
   kind: rss
   lang: en
   category: AI·ML 연구·플랫폼
+  homepage: https://aws.amazon.com/blogs/machine-learning/   # rss 피드 호스트(aws.amazon.com)는 회사 대문 → 실제 ML 블로그 랜딩 명시
 
 - key: openai
   name: OpenAI News

@@ -20,10 +20,26 @@ def test_each_source_exposes_expected_fields():
     assert set(src) == {"key", "name", "lang", "homepage"}   # 파생 homepage 노출, 원 url/kind/fragile 은 미노출
 
 
-def test_homepage_is_derived_host_not_feed_url():
+def test_homepage_rss_uses_hostname():
+    # RSS 출처: url 이 XML 피드라 호스트명으로 파생(경로 없음)
     srcs = {s["key"]: s for g in build_catalog()["categories"] for s in g["sources"]}
-    assert srcs["openai"]["homepage"] == "https://openai.com"          # RSS url(…/rss.xml) 아님 — 경로 없음
-    assert srcs["anthropic"]["homepage"] == "https://www.anthropic.com"
+    assert srcs["openai"]["homepage"] == "https://openai.com"          # openai.com/news/rss.xml → root
+
+
+def test_homepage_html_uses_source_url():
+    # HTML 출처: url 이 곧 사람이 볼 랜딩 페이지 → 그대로 노출(발행처 경로 보존)
+    srcs = {s["key"]: s for g in build_catalog()["categories"] for s in g["sources"]}
+    assert srcs["anthropic"]["homepage"] == "https://www.anthropic.com/news"
+    assert srcs["anthropic-eng"]["homepage"] == "https://www.anthropic.com/engineering"
+    assert srcs["claude-blog"]["homepage"] == "https://claude.com/blog"
+    # 두 anthropic 카드가 서로 다른 발행처로 링크(충돌 해소)
+    assert srcs["anthropic"]["homepage"] != srcs["anthropic-eng"]["homepage"]
+
+
+def test_homepage_explicit_override_wins():
+    # aws-ml: RSS 피드 url 의 호스트(aws.amazon.com)는 회사 대문 → catalog 의 명시적 homepage 로 실제 블로그 지정
+    srcs = {s["key"]: s for g in build_catalog()["categories"] for s in g["sources"]}
+    assert srcs["aws-ml"]["homepage"] == "https://aws.amazon.com/blogs/machine-learning/"
 
 
 def test_no_source_leaks_feed_or_xml_url():

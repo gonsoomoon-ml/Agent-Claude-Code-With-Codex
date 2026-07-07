@@ -36,11 +36,14 @@ claude.com/blog                     →  https://claude.com    →  claude.com
 
 ### ① 서버 — `src/briefing/webapi/catalog.py`
 
-`build_catalog`의 소스 dict(현재 `{key, name, lang}`)에 `homepage` 추가:
+`build_catalog`의 소스 dict(현재 `{key, name, lang}`)에 `homepage` 추가.
 
-- `homepage = "https://" + urlparse(s.url).hostname` (hostname 원형 — www 포함 그대로; www 제거는 표시에서만).
-- hostname 이 없으면(비정상 url) `homepage` 키 생략 → 프런트가 링크 없이 렌더.
-- 파일 docstring의 "url/kind/fragile 은 UI 에 노출하지 않는다"를 갱신: **파생 homepage 만 노출, 원 fetch/feed URL 은 여전히 미노출**(XML 엔드포인트 안 샘).
+**REFINED 2026-07-07 (v1.1):** 호스트명-only 파생은 발행처가 서브경로에 있는 출처(aws-ml → aws.amazon.com 회사 대문, anthropic vs anthropic-eng 충돌)에 너무 lossy했다. `_homepage(s)` 우선순위로 교체:
+1. **명시적 `homepage` 오버라이드** (Source 에 optional 필드 추가; catalog.yaml 에서 지정) — rss 피드 호스트가 회사 대문일 때(aws-ml → `https://aws.amazon.com/blogs/machine-learning/`).
+2. **html/auto 출처는 `s.url` 자체** — html 출처의 url 은 이미 사람이 볼 리스팅/랜딩 페이지(anthropic.com/news, /engineering, claude.com/blog) → 발행처 경로 보존 + anthropic 충돌 자동 해소.
+3. **rss 출처는 `https://<hostname>`** — url 이 XML 피드라 호스트만(openai.com, deepmind.google 등 org 루트).
+
+hostname 없으면 키 생략. 불변식: 어떤 경로도 `.xml`/`/rss`/`/feed` 미노출(`test_no_source_leaks_feed_or_xml_url` 강제 — 오버라이드·html url 도 사람 페이지라 통과).
 
 ### ② 타입 — `web/src/types.ts`
 
