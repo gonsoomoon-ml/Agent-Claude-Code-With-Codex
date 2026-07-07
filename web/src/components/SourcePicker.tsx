@@ -49,7 +49,7 @@ export function SourcePicker({ categories, max, selected, onChange }: Props) {
                     />
                     <span aria-hidden="true" style={avatarStyle(checked)}>{initial}</span>
                     <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 2 }}>
-                      <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                      <span title={s.name} style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflowWrap: 'anywhere' }}>{s.name}</span>
                       <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.4, color: '#999' }}>{s.lang.toUpperCase()}</span>
                     </span>
                   </label>
