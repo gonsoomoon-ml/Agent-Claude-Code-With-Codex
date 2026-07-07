@@ -33,3 +33,6 @@ __pycache__/
 
 # PPTX 슬라이드 — 바이너리 산출물(미커밋). 재생성: docs/deck/make_slide.py
 *.pptx
+
+# superpowers 작업 스크래치(SDD 레저·브레인스토밍 목업) — 미커밋
+.superpowers/
