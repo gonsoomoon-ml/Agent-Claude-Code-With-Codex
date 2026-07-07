@@ -15,9 +15,21 @@ def test_catalog_groups_by_category():
     assert len(keys) == len(set(keys))                     # 중복 0
 
 
-def test_each_source_exposes_key_name_lang_only():
+def test_each_source_exposes_expected_fields():
     src = build_catalog()["categories"][0]["sources"][0]
-    assert set(src) == {"key", "name", "lang"}             # url/kind/fragile 은 UI 에 노출 안 함
+    assert set(src) == {"key", "name", "lang", "homepage"}   # 파생 homepage 노출, 원 url/kind/fragile 은 미노출
+
+
+def test_homepage_is_derived_host_not_feed_url():
+    srcs = {s["key"]: s for g in build_catalog()["categories"] for s in g["sources"]}
+    assert srcs["openai"]["homepage"] == "https://openai.com"          # RSS url(…/rss.xml) 아님 — 경로 없음
+    assert srcs["anthropic"]["homepage"] == "https://www.anthropic.com"
+
+
+def test_no_source_leaks_feed_or_xml_url():
+    for g in build_catalog()["categories"]:
+        for s in g["sources"]:
+            assert ".xml" not in s["homepage"] and "/rss" not in s["homepage"] and "/feed" not in s["homepage"]
 
 
 def test_form_constraints_present():
