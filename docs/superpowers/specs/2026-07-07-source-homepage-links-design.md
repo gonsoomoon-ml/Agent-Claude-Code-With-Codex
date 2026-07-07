@@ -1,6 +1,6 @@
 # 출처 홈페이지 링크 + Claude Blog 소스 — 설계 스펙 (2026-07-07)
 
-> 상태: 승인됨(브레인스토밍 C안) · 관련: `2026-07-04-web-profile-manage-design.md` · 배경: 사용자가 미디어 제목(예: "AI Times")만 보고는 어떤 사이트인지 모른다 → 카드에 클릭 가능한 홈페이지 링크. 겸사겸사 `claude.com/blog`를 카탈로그 소스로 추가.
+> 상태: **SHIPPED** (2026-07-07 배포·라이브 검증) · 관련: `2026-07-04-web-profile-manage-design.md` · 배경: 사용자가 미디어 제목(예: "AI Times")만 보고는 어떤 사이트인지 모른다 → 카드에 클릭 가능한 홈페이지 링크. 겸사겸사 `claude.com/blog`를 카탈로그 소스로 추가.
 
 ## Part 1 — `claude-blog` 소스 추가
 
