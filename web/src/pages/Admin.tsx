@@ -9,6 +9,8 @@ type Email = {
   status: string; message_id: string
 }
 
+type Totals = { count: number; cost_usd: number; avg_duration_ms: number }
+
 const mins = (ms: number) => `${Math.floor(ms / 60000)}m${Math.round((ms % 60000) / 1000)}s`
 
 const TH: CSSProperties = { textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-dim)', fontSize: 13 }
@@ -16,13 +18,20 @@ const TD: CSSProperties = { padding: '8px 10px', borderBottom: '1px solid var(--
 
 export default function Admin() {
   const [rows, setRows] = useState<Email[]>([])
+  const [totals, setTotals] = useState<Totals | null>(null)
   const [err, setErr] = useState('')
 
   useEffect(() => {
     if (!isAdmin()) { setErr('관리자 전용'); return }
-    authedFetch(`${import.meta.env.VITE_API_BASE}/admin/emails`)
-      .then((r) => r.json())
-      .then((d) => setRows(d.emails ?? []))
+    authedFetch('/admin/emails')
+      .then((r) => {
+        if (!r.ok) throw new Error(`admin/emails ${r.status}`)
+        return r.json()
+      })
+      .then((d) => {
+        setRows(d.emails ?? [])
+        setTotals(d.totals ?? null)
+      })
       .catch(() => setErr('불러오기 실패'))
   }, [])
 
@@ -55,6 +64,11 @@ export default function Admin() {
           ))}
         </tbody>
       </table>
+      {totals && (
+        <p style={{ marginTop: 10, fontSize: 13, color: 'var(--text-dim)' }}>
+          합계 · {totals.count}건 · ≈${totals.cost_usd.toFixed(2)} · 평균 {mins(totals.avg_duration_ms)}
+        </p>
+      )}
     </div>
   )
 }
