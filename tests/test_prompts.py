@@ -64,6 +64,7 @@ def test_to_draft_card_unknown_claim_type_defaults_arithmetic():
     # 계약 "애매하면 arithmetic"(더 엄격)과 정렬 — 미상 라벨 폴백을 entailment→arithmetic 으로 교정
     from briefing.core.authoring.author import _to_draft_card
 
-    card = _to_draft_card("s", {"headline": "h", "summary": "s", "why_it_matters": "w",
-                                "claims": [{"id": "C1", "text": "t"}]})
+    card = _to_draft_card("s", "제목", {"summary": "s", "why_it_matters": "w",
+                                       "claims": [{"id": "C1", "text": "t"}]})
     assert card.claims[0].claim_type == "arithmetic"
+    assert card.headline == "제목"   # headline = title 인자(기사 원제목), data 의 headline 무시

@@ -55,14 +55,11 @@ def _domain(url: str) -> str:
     return net[4:] if net.startswith("www.") else net
 
 
-_TITLE_MAX = 40  # 출처줄 원제목 말줄임 길이 — h2(생성 headline)와 경쟁하지 않게 짧게
-
-
 def _source_line(store: SourceStore | None, source_id: str) -> str:
-    """📰 도메인 · 발행일 · "원제목(말줄임)" · 원문 → (mono · meta색). store 없거나 미발견이면 빈 문자열.
+    """📰 도메인 · 발행일 · 원문 → (mono · meta색). store 없거나 미발견이면 빈 문자열.
 
-    원제목 = 신뢰 앵커(영수증): 독자가 클릭 전에 요약과 원문 제목을 대조할 수 있다(card-layering §3).
-    h2 병기가 아니라 메타로만 — 클릭베이트 재유입·제목 2줄 스캔 비용 차단.
+    원제목은 **h2(카드 제목)** 로 노출된다(사실층 앵커=기사 원제목) — 출처줄엔 provenance(도메인·날짜·원문 링크)만.
+    (예전엔 원제목을 출처줄에 말줄임으로 병기했으나, 제목=기사 원제목 아키텍처로 h2 로 승격 → 중복·2줄 스캔 제거.)
     """
     if store is None:
         return ""
@@ -72,9 +69,6 @@ def _source_line(store: SourceStore | None, source_id: str) -> str:
         return ""
     domain = _domain(s.url)
     date = s.fetched_at[:10] if s.fetched_at else ""
-    title = (s.title or "").strip()
-    if len(title) > _TITLE_MAX:
-        title = title[:_TITLE_MAX] + "…"
     link = (
         f'<a href="{html.escape(s.url)}" style="color:{_CORAL};text-decoration:underline">원문 →</a>'
         if s.url else ""
@@ -82,7 +76,6 @@ def _source_line(store: SourceStore | None, source_id: str) -> str:
     meta = " · ".join(p for p in (
         f"📰 {html.escape(domain)}" if domain else "",
         date,
-        f"“{html.escape(title)}”" if title else "",
         link,
     ) if p)
     return f'<p style="{_MONO};font-size:12px;color:{_META};margin:2px 0 8px">{meta}</p>'
@@ -106,7 +99,7 @@ def _trust_line(card: GatedCard) -> str:
 
 
 def _card_html(card: GatedCard, store: SourceStore | None, *, depth: str, lens: str, rank: int) -> str:
-    """카드 1개 — 헤드라인(순위) · 출처줄 · [요약 · 관점] · [점선 + 나에게 왜 중요한가(해석)] · 검증줄. depth 로 밀도."""
+    """카드 1개 — 원제목(순위·h2=기사 제목) · 출처줄 · [요약 · 관점] · [점선 + 나에게 왜 중요한가(해석)] · 검증줄. depth 로 밀도."""
     c = card.card
     rank_html = f'<span style="{_MONO};color:{_CORAL};font-weight:700">{rank:02d}</span>  ' if rank else ""
     parts = [

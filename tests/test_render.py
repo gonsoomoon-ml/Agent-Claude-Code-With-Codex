@@ -105,26 +105,27 @@ def test_source_line_has_domain_date_and_original_link(tmp_path):
     store = SourceStore(str(tmp_path / "s"))
     fs = store.freeze(url="https://www.aitimes.com/a", title="원본제목", raw_text="본문",
                       fetched_at="2026-06-27T06:00:00Z")
-    gated = GatedCard(_card(source_id=fs.source_id), (CertVerdict("C1", "VERIFIED", "ev"),), "PUBLISH", 1)
+    # 제목=기사 원제목(사실층 앵커)은 h2 로 노출 — draft_card 가 headline=source.title 세팅하는 걸 모사.
+    gated = GatedCard(_card(source_id=fs.source_id, headline="원본제목"), (CertVerdict("C1", "VERIFIED", "ev"),), "PUBLISH", 1)
     out = render_email([gated], _user(), None, store)
-    assert "aitimes.com" in out
+    assert "aitimes.com" in out               # 출처줄 = 도메인·날짜·원문 링크(provenance)
     assert 'href="https://www.aitimes.com/a"' in out
     assert "2026-06-27" in out
     assert "원문" in out
-    assert "원본제목" in out                  # 신뢰 앵커(영수증): 기사 원제목을 출처줄 메타로 노출
+    assert "원본제목" in out                  # 원제목 = h2(카드 제목)
 
 
-def test_source_line_truncates_long_original_title(tmp_path):
+def test_source_line_omits_title_now_that_it_is_the_h2(tmp_path):
+    # 아키텍처: 제목=기사 원제목이 h2 로 승격 → 출처줄엔 제목 병기·말줄임 없음(중복·2줄 스캔 제거).
     from briefing.core.stores.source_store import SourceStore
 
     store = SourceStore(str(tmp_path / "s"))
-    long_title = "아주 " * 40 + "긴 제목"     # h2 와 경쟁하지 않게 말줄임(스캔 비용 억제)
-    fs = store.freeze(url="https://x.com/a", title=long_title, raw_text="본문",
+    fs = store.freeze(url="https://x.com/a", title="원본제목XYZ", raw_text="본문",
                       fetched_at="2026-06-27T06:00:00Z")
-    gated = GatedCard(_card(source_id=fs.source_id), (CertVerdict("C1", "VERIFIED", "ev"),), "PUBLISH", 1)
+    gated = GatedCard(_card(source_id=fs.source_id, headline="다른헤드라인"), (CertVerdict("C1", "VERIFIED", "ev"),), "PUBLISH", 1)
     out = render_email([gated], _user(), None, store)
-    assert long_title not in out              # 전문 그대로는 미노출
-    assert "…" in out                          # 말줄임 표기
+    assert "원본제목XYZ" not in out            # 출처줄이 source.title 을 더는 병기하지 않음(h2=card.headline)
+    assert "다른헤드라인" in out and "x.com" in out  # h2=card.headline · 출처줄=도메인
 
 
 # ── 분야(Area) 밴드: 2개 이상일 때만 ──────────────────────
