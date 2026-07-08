@@ -16,6 +16,15 @@
   category: 뉴스·미디어
   require_ai: true   # allArticle = 종합지 피드(지역·행정 기사 섞임) → AI 관련 기사만 통과(relevance v1)
 
+- key: the-decoder
+  name: The Decoder
+  url: https://the-decoder.com/feed/
+  kind: rss
+  lang: en
+  category: 뉴스·미디어
+  # 독립 AI 전문 매체(heise medien 소속). AI-scoped(전부 AI) → require_ai 불필요.
+  # robots.txt AI 봇 허용 확인(vetting 게이트). RSS 200 · fetch_clean_rss 8건 전문 추출(광고 0). last-verified: 2026-07-08
+
 # ── AWS (Amazon) ─────────────────────────────────────────────
 - key: aws-ml
   name: AWS ML Blog
