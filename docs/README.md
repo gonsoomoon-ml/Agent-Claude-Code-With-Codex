@@ -53,4 +53,9 @@
 |---|---|
 | deliveries `2026-07-07-web-dark-theme-delivery.md` | SHIPPED·LIVE — 전 페이지 다크(웜 잉크 `#191410`) + `:root` 토큰 단일화. 결정: 토글 보류(deferred)·이메일 라이트 유지(프레이밍)·대안 뉴트럴/슬레이트 기각 |
 
+### catalog-publisher-taxonomy (소스 분류 발행처 재편 + AWS KR 블로그) — SHIPPED·LIVE (2026-07-08)
+| 문서 | 상태 |
+|---|---|
+| deliveries `2026-07-08-catalog-publisher-taxonomy-delivery.md` | SHIPPED·LIVE — 섹션을 발행처 기준으로(뉴스·미디어·AWS·Anthropic·OpenAI·Google) + AWS Korea Tech Blog(ko) 추가. API+런타임 재배포(스케줄러 ARN 불변·dry-run 보존). category=웹+이메일 공통 키 |
+
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.
