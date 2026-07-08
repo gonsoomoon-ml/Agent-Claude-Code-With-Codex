@@ -23,6 +23,7 @@ describe('구독하기', () => {
     await waitFor(() => screen.getByLabelText('AI Times'))
     fireEvent.click(screen.getByLabelText('AI Times'))
     fireEvent.click(screen.getByRole('button', { name: /구독하기/ }))
-    await waitFor(() => expect(screen.getByText(/구독 완료|매일/)).toBeInTheDocument())
+    // delivery:'active' → 모달 "구독 완료 — 매일 발송". "구독 완료"로 특정(정적 카피의 "매일"과 충돌 방지).
+    await waitFor(() => expect(screen.getByText(/구독 완료/)).toBeInTheDocument())
   })
 })

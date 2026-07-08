@@ -1,5 +1,5 @@
 // web/src/pages/Form.tsx — 미디어(MAX5)·발송시각·이메일 수집 + 체험/구독 진행 UI (v1.1c)
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { fetchCatalog, postTrial, getTrialStatus, getProfile, putProfile } from '../api'
 import { isAuthed } from '../auth/session'
 import { startLogin } from '../auth/login'
@@ -11,6 +11,16 @@ import { coralPill, ghostPill, coralDisabled } from '../theme'
 
 /** 10분 타임아웃: 3s 간격으로 최대 200회 폴링 */
 const MAX_POLL_COUNT = 200
+
+// 2단 레이아웃(체험/구독) 스타일 — 시간성이 다른 두 행동(즉시 체험 vs 예약 구독)을 구조로 분리.
+const STAGE: CSSProperties = { border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px', marginTop: 18, background: 'var(--stage)' }
+const SHEAD: CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }
+const SHEAD_H2: CSSProperties = { fontSize: 16, margin: 0 }
+const BADGE_BASE: CSSProperties = { width: 24, height: 24, borderRadius: 9999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, flexShrink: 0 }
+const BADGE_ONE: CSSProperties = { ...BADGE_BASE, background: 'linear-gradient(135deg, var(--coral-from), var(--coral-to))', color: 'var(--coral-ink)' }
+const BADGE_TWO: CSSProperties = { ...BADGE_BASE, background: 'var(--panel-2)', color: 'var(--text-dim)', border: '1px solid var(--border)' }
+const SSUB: CSSProperties = { fontSize: 12, color: 'var(--text-dim)', margin: '2px 0 14px 34px' }
+const ROWLABEL: CSSProperties = { fontSize: 14, fontWeight: 600, color: 'var(--text)', margin: '16px 0 6px' }
 
 export default function Form() {
   const [catalog, setCatalog] = useState<Catalog | null>(null)
@@ -155,104 +165,122 @@ export default function Form() {
   return (
     <div>
       <h1 style={{ fontSize: 22 }}>구독 설정</h1>
-      <h2 style={{ fontSize: 16 }}>1. 미디어 선택 <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>(최대 {maxSel}개)</span></h2>
+      <p style={{ color: 'var(--text-dim)', fontSize: 13, margin: '0 0 20px' }}>
+        먼저 매체를 고르고 → <strong>지금 바로 체험</strong>해 보세요. 마음에 들면 매일 구독을 설정하면 됩니다.
+      </p>
+
+      {/* 공통: 미디어 선택 — 체험·구독 모두 이 선택을 사용 */}
+      <h2 style={{ fontSize: 16 }}>미디어 선택 <span style={{ color: 'var(--text-dim)', fontSize: 13, fontWeight: 400 }}>(최대 {maxSel}개 · 체험·구독 공통)</span></h2>
       <SourcePicker categories={catalog.categories} max={maxSel} selected={selected} onChange={setSelected} />
 
-      <h2 style={{ fontSize: 16 }}>2. 발송 시각 (KST)</h2>
-      <div>
-        {catalog.send_hours.map((h) => {
-          const hh = String(h).padStart(2, '0')
-          return (
-            <label key={h} style={{ marginRight: 16 }}>
+      {/* ① 지금 체험 — 즉시 발송(예약 아님). 필요한 것: 매체 + 이메일 */}
+      <section style={STAGE}>
+        <div style={SHEAD}><span aria-hidden="true" style={BADGE_ONE}>▶</span><h2 style={SHEAD_H2}>지금 체험</h2></div>
+        <p style={SSUB}>선택한 매체로 <strong>지금 한 통</strong> 받아봅니다 — 예약 아님, 즉시 발송.</p>
+        {authed ? (
+          <div style={{ fontSize: 14 }}>구독 주소: <strong>{recipient || '로딩 중…'}</strong></div>
+        ) : (
+          <>
+            <div style={ROWLABEL}>이메일</div>
+            <input
+              type="email" value={email} placeholder="you@example.com"
+              onChange={(e) => setEmail(e.target.value)}
+              style={{ padding: 8, width: 300, maxWidth: '100%', fontSize: 14 }}
+            />
+          </>
+        )}
+        <div style={{ marginTop: 16 }}>
+          <button
+            type="button"
+            className="cta-coral"
+            disabled={trialDisabled}
+            onClick={handleTrial}
+            style={{ ...coralPill, ...(trialDisabled ? coralDisabled : null) }}
+          >
+            {isTrialSubmitting ? '보내는 중…' : <><span aria-hidden="true">▶</span> 체험하기</>}
+          </button>
+        </div>
+      </section>
+
+      {/* ② 매일 구독 설정 — 예약 발송(로그인 필요). 발송 시각·관점·깊이 */}
+      <section style={STAGE}>
+        <div style={SHEAD}><span aria-hidden="true" style={BADGE_TWO}>2</span><h2 style={SHEAD_H2}>매일 구독 설정</h2></div>
+        <p style={SSUB}>마음에 들면 <strong>매일 정해진 시각</strong>에 자동 발송. (로그인 필요)</p>
+
+        <div style={ROWLABEL}>발송 시각 (KST)</div>
+        <div>
+          {catalog.send_hours.map((h) => {
+            const hh = String(h).padStart(2, '0')
+            return (
+              <label key={h} style={{ marginRight: 16 }}>
+                <input
+                  type="radio"
+                  name="sendHour"
+                  aria-label={`${hh}:00 KST`}
+                  checked={sendHour === h}
+                  onChange={() => setSendHour(h)}
+                />{' '}
+                {hh}:00
+              </label>
+            )
+          })}
+        </div>
+
+        <div style={ROWLABEL}>관점 (렌즈)</div>
+        <div>
+          {catalog.lenses.map((l) => (
+            <label key={l.key} style={{ marginRight: 16 }}>
               <input
                 type="radio"
-                name="sendHour"
-                aria-label={`${hh}:00 KST`}
-                checked={sendHour === h}
-                onChange={() => setSendHour(h)}
+                name="lens"
+                aria-label={l.name}
+                checked={lens === l.key}
+                onChange={() => setLens(l.key)}
               />{' '}
-              {hh}:00
+              {l.name}
             </label>
-          )
-        })}
-      </div>
-
-      <h2 style={{ fontSize: 16 }}>3. 관점 (렌즈)</h2>
-      <div>
-        {catalog.lenses.map((l) => (
-          <label key={l.key} style={{ marginRight: 16 }}>
-            <input
-              type="radio"
-              name="lens"
-              aria-label={l.name}
-              checked={lens === l.key}
-              onChange={() => setLens(l.key)}
-            />{' '}
-            {l.name}
-          </label>
-        ))}
-      </div>
-
-      <h2 style={{ fontSize: 16 }}>4. 깊이</h2>
-      <div>
-        {catalog.depths.map((d) => (
-          <label key={d} style={{ marginRight: 16 }}>
-            <input
-              type="radio"
-              name="depth"
-              aria-label={d}
-              checked={depth === d}
-              onChange={() => setDepth(d)}
-            />{' '}
-            {d}
-          </label>
-        ))}
-      </div>
-
-      <h2 style={{ fontSize: 16 }}>5. 이메일</h2>
-      {authed ? (
-        <div style={{ padding: 8, fontSize: 14 }}>
-          구독 주소: <strong>{recipient || '로딩 중…'}</strong>
+          ))}
         </div>
-      ) : (
-        <input
-          type="email" value={email} placeholder="you@example.com"
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ padding: 8, width: 280, fontSize: 14 }}
-        />
-      )}
 
-      <div style={{ marginTop: 24, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button
-          type="button"
-          className="cta-coral"
-          disabled={trialDisabled}
-          onClick={handleTrial}
-          style={{ ...coralPill, ...(trialDisabled ? coralDisabled : null) }}
-        >
-          {isTrialSubmitting ? '보내는 중…' : <><span aria-hidden="true">▶</span> 체험하기</>}
-        </button>
-        {authed ? (
-          <button
-            type="button"
-            className="cta-ghost"
-            disabled={isSubSubmitting || !selected.length}
-            onClick={handleSubscribe}
-            style={ghostPill}
-          >
-            {isSubSubmitting ? '보내는 중…' : <>구독하기 <span aria-hidden="true">→</span></>}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="cta-ghost"
-            onClick={() => startLogin()}
-            style={ghostPill}
-          >
-            로그인 / 구독하기 <span aria-hidden="true">→</span>
-          </button>
-        )}
-      </div>
+        <div style={ROWLABEL}>깊이</div>
+        <div>
+          {catalog.depths.map((d) => (
+            <label key={d} style={{ marginRight: 16 }}>
+              <input
+                type="radio"
+                name="depth"
+                aria-label={d}
+                checked={depth === d}
+                onChange={() => setDepth(d)}
+              />{' '}
+              {d}
+            </label>
+          ))}
+        </div>
+
+        <div style={{ marginTop: 16 }}>
+          {authed ? (
+            <button
+              type="button"
+              className="cta-ghost"
+              disabled={isSubSubmitting || !selected.length}
+              onClick={handleSubscribe}
+              style={ghostPill}
+            >
+              {isSubSubmitting ? '보내는 중…' : <>구독하기 <span aria-hidden="true">→</span></>}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="cta-ghost"
+              onClick={() => startLogin()}
+              style={ghostPill}
+            >
+              로그인 / 구독하기 <span aria-hidden="true">→</span>
+            </button>
+          )}
+        </div>
+      </section>
 
       {card && (
         <ProgressModal
@@ -262,7 +290,7 @@ export default function Form() {
         />
       )}
 
-      <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8 }}>
+      <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 12 }}>
         선택: {selected.length}개 출처 · {String(sendHour).padStart(2, '0')}:00 KST · {authed ? `${recipient || '로딩 중…'}` : email || '이메일 미입력'}
       </p>
     </div>
