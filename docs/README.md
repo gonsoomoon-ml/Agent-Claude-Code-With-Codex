@@ -58,4 +58,14 @@
 |---|---|
 | deliveries `2026-07-08-catalog-publisher-taxonomy-delivery.md` | SHIPPED·LIVE — 섹션을 발행처 기준으로(뉴스·미디어·AWS·Anthropic·OpenAI·Google) + AWS Korea Tech Blog(ko) 추가. API+런타임 재배포(스케줄러 ARN 불변·dry-run 보존). category=웹+이메일 공통 키 |
 
+### web-form-two-stage (구독 폼 2단 재구성) — SHIPPED·LIVE (2026-07-08)
+| 문서 | 상태 |
+|---|---|
+| deliveries `2026-07-08-form-two-stage-delivery.md` | SHIPPED·LIVE — `/setup` 을 "① 지금 체험 / ② 매일 구독"으로 분리(예약 시각을 구독 단계로). 프론트 전용. **미해결(deferred): 깊이 full==summary(죽은 옵션) → render+런타임 별건** |
+
+### card-title-original (카드 제목 = 기사 원제목) — SHIPPED·LIVE (2026-07-08)
+| 문서 | 상태 |
+|---|---|
+| deliveries `2026-07-08-card-title-original-delivery.md` | SHIPPED·LIVE — h2=기사 원제목(source.title)·author headline 폐지(PROMPT_VERSION v2·캐시무효화)·출처줄=provenance만. real/lens 재정렬 |
+
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.
