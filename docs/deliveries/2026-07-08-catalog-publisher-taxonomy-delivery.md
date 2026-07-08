@@ -9,7 +9,7 @@
 | 섹션 | 미디어 |
 |---|---|
 | 뉴스·미디어 | AI Times |
-| Amazon (AWS) | AWS ML Blog · **AWS Korea Tech Blog** |
+| Amazon (AWS) | AWS ML Blog · **AWS Korea Tech Blog** · **AWS AI News** |
 | Anthropic | Anthropic News · Anthropic Engineering · Claude Blog |
 | OpenAI | OpenAI News |
 | Google | DeepMind · Research · The Keyword · Developers Blog |
@@ -22,6 +22,12 @@
 ## AWS Korea Tech Blog (신규 소스)
 - `https://aws.amazon.com/ko/blogs/tech/` · feed `…/feed/` · **kind rss · lang ko · category Amazon (AWS) · require_ai true**(종합 기술 블로그 — AI 관련만 통과).
 - **vetting**: curl RSS 200 `application/rss+xml` 10 items; `fetch_clean_rss` 로 6건 추출(Bedrock AgentCore·Strands Agents SDK·Agentic AI·벡터검색 등 AI 관련 다수) → 파이프라인 통과 확인. homepage 오버라이드(피드 호스트=회사 대문).
+
+## AWS AI News (신규 소스 2 — `anthropic.com/news` 격) · 커밋 `c372548`
+- `https://aws.amazon.com/blogs/aws/category/artificial-intelligence/` · feed `…/feed/` · **kind rss · lang en · category Amazon (AWS)**.
+- AWS News Blog 의 **Artificial Intelligence 카테고리** = 공식 AI 제품·서비스 발표(Bedrock·모델 출시·AgentCore·Summit). **이미 AI-scoped → require_ai 불필요**(기존 ML/KR 블로그는 종합이라 require_ai=true 였던 것과 대비). 기존 AWS ML Blog(기술 how-to)와 역할 구분 = 발표 채널.
+- vetting: curl RSS 200 `application/rss+xml` 20 items; `fetch_clean_rss` 6건(Claude Sonnet 5 on AWS·Grok 4.3 in Bedrock·Bedrock Managed KB·Web Search on AgentCore).
+- 후보 비교: News Blog AI 카테고리(채택) > generative-ai 서브카테고리(더 좁음) > ML Blog announcements(기존 aws-ml 과 중복).
 
 ## 배포 (두 표면 모두 — 소스 추가는 기능 변경이라 런타임 필수)
 - **API Lambda 재배포** → 웹 picker `/catalog`. 라이브 검증(섹션 순서·매핑·신규 소스 스크린샷).
