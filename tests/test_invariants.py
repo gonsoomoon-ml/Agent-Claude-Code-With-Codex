@@ -54,12 +54,12 @@ def test_codex_prompt_contains_only_envelope_fields():
 def test_author_parser_is_pure_and_normalizes_claim_type():
     # author 출력 파서는 순수(strands/AWS 불필요) — 노이즈에 견고 + claim_type 정규화.
     data = _parse_card_json(
-        '잡음 {부분} 앞 {"headline":"H","summary":"S","why_it_matters":"W",'
+        '잡음 {부분} 앞 {"summary":"S","why_it_matters":"W",'
         '"claims":[{"id":"C1","text":"t","claim_type":"arithmetic","importance":"core"},'
         '{"id":"C2","text":"u","claim_type":"weird"}]} 뒤 잡음'
     )
-    card = _to_draft_card("SID", data)
-    assert card.source_id == "SID" and card.headline == "H"
+    card = _to_draft_card("SID", "원제목-T", data)   # headline = title 인자(기사 원제목); author 는 제목 미생성
+    assert card.source_id == "SID" and card.headline == "원제목-T"
     assert card.claims[0].claim_type == "arithmetic" and card.claims[0].importance == "core"
     assert card.claims[1].claim_type == "arithmetic"  # 미상 값 → arithmetic (계약 '애매하면 arithmetic' — 더 엄격)
     assert card.claims[1].importance == "supporting"  # importance 누락 → 기본 supporting
