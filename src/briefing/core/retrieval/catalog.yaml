@@ -7,6 +7,24 @@
 # ⚠️ sources._load_catalog() 가 로드 시 검증 — 형식 오류면 시작 시 크래시(silent failure 금지).
 # last-verified: 2026-06-24
 
+# ── 뉴스·미디어 ──────────────────────────────────────────────
+- key: aitimes
+  name: AI Times
+  url: https://www.aitimes.com/rss/allArticle.xml
+  kind: rss
+  lang: ko
+  category: 뉴스·미디어
+  require_ai: true   # allArticle = 종합지 피드(지역·행정 기사 섞임) → AI 관련 기사만 통과(relevance v1)
+
+# ── AWS (Amazon) ─────────────────────────────────────────────
+- key: aws-ml
+  name: AWS ML Blog
+  url: https://aws.amazon.com/blogs/machine-learning/feed/
+  kind: rss
+  lang: en
+  category: Amazon (AWS)
+  homepage: https://aws.amazon.com/blogs/machine-learning/   # rss 피드 호스트(aws.amazon.com)는 회사 대문 → 실제 ML 블로그 랜딩 명시
+
 # ── Anthropic ────────────────────────────────────────────────
 - key: anthropic
   name: Anthropic News
@@ -76,21 +94,3 @@
   category: Google
   require_ai: true   # 종합 개발 블로그(Android·Chrome 등 혼재) → AI 관련만 통과(Gemini API·ADK·에이전트)
   # 피드 자동발견 없음 → 리스팅+trafilatura 전문 200. last-verified: 2026-07-06
-
-# ── AWS (Amazon) ─────────────────────────────────────────────
-- key: aws-ml
-  name: AWS ML Blog
-  url: https://aws.amazon.com/blogs/machine-learning/feed/
-  kind: rss
-  lang: en
-  category: Amazon (AWS)
-  homepage: https://aws.amazon.com/blogs/machine-learning/   # rss 피드 호스트(aws.amazon.com)는 회사 대문 → 실제 ML 블로그 랜딩 명시
-
-# ── 뉴스·미디어 ──────────────────────────────────────────────
-- key: aitimes
-  name: AI Times
-  url: https://www.aitimes.com/rss/allArticle.xml
-  kind: rss
-  lang: ko
-  category: 뉴스·미디어
-  require_ai: true   # allArticle = 종합지 피드(지역·행정 기사 섞임) → AI 관련 기사만 통과(relevance v1)
