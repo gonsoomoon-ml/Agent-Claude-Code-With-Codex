@@ -75,8 +75,8 @@ def test_build_envelope_is_four_fields_no_narration():
 
 
 def test_verify_card_is_user_blind():
-    # 불변식 #4: verify 단계는 user/lens/skill 을 안 본다
-    assert set(inspect.signature(verify_card).parameters) == {"card", "store"}
+    # 불변식 #4: verify 단계는 user/lens/skill 을 안 본다 (recorder 는 role-blind 순수 비용 sink — 예외 아님)
+    assert set(inspect.signature(verify_card).parameters) == {"card", "store", "recorder"}
 
 
 # ── claim_type 결정론 재라우팅 (card-layering §6 0단계 ⓑ) ──────────
