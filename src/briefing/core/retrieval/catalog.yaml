@@ -1,56 +1,19 @@
 # src/briefing/core/retrieval/catalog.yaml — 전역 vetted 출처 CATALOG.
 # 추가 = 이 파일 편집 + PR 리뷰(= vetting). 임의 URL 금지(큐레이션).
 # 필수: key · name · url · kind(rss|html|auto) · lang(en|ko) · category.  선택: fragile(기본 false; *진짜 차단* 출처 — 현재 없음).
-#   category = 관심 버킷(UserConfig.type 버티컬과 직교) → UI 분야 그룹핑 키. 비어있지 않음(로더 강제). catalog_categories() 가 유도.
+#   category = 발행처(publisher/brand) 그룹 → UI 섹션 + 이메일 분야 밴드 그룹핑 키. 비어있지 않음(로더 강제).
+#   ⚠️ 섹션 순서 = 이 파일의 첫 등장 순서(build_catalog 이 CATALOG 순서 보존) → 같은 발행처를 인접 배치해 순서를 통제한다.
 # kind: rss=피드 직접 / html=리스팅→trafilatura 추출 / auto=피드 자동발견 후 폴백.
 # ⚠️ sources._load_catalog() 가 로드 시 검증 — 형식 오류면 시작 시 크래시(silent failure 금지).
 # last-verified: 2026-06-24
 
-- key: aitimes
-  name: AI Times
-  url: https://www.aitimes.com/rss/allArticle.xml
-  kind: rss
-  lang: ko
-  category: AI 뉴스
-  require_ai: true   # allArticle = 종합지 피드(지역·행정 기사 섞임) → AI 관련 기사만 통과(relevance v1)
-
-- key: aws-ml
-  name: AWS ML Blog
-  url: https://aws.amazon.com/blogs/machine-learning/feed/
-  kind: rss
-  lang: en
-  category: AI·ML 연구·플랫폼
-  homepage: https://aws.amazon.com/blogs/machine-learning/   # rss 피드 호스트(aws.amazon.com)는 회사 대문 → 실제 ML 블로그 랜딩 명시
-
-- key: openai
-  name: OpenAI News
-  url: https://openai.com/news/rss.xml
-  kind: rss
-  lang: en
-  category: 프런티어 AI 랩
-  # RSS 평문 200(robots Allow:/) → fragile 아님
-
-- key: deepmind
-  name: Google DeepMind
-  url: https://deepmind.google/blog/rss.xml
-  kind: rss
-  lang: en
-  category: 프런티어 AI 랩
-
-- key: google-research
-  name: Google Research
-  url: https://research.google/blog/rss/
-  kind: rss
-  lang: en
-  category: AI·ML 연구·플랫폼
-  # ai.googleblog.com("Google AI Blog") 후신 — 기초 AI/ML 연구. 평문 200·robots Allow
-
+# ── Anthropic ────────────────────────────────────────────────
 - key: anthropic
   name: Anthropic News
   url: https://www.anthropic.com/news
   kind: html
   lang: en
-  category: 프런티어 AI 랩
+  category: Anthropic
   # /news + 기사 본문 평문 200(robots Allow:/) → fetch_generic_html(trafilatura), fragile 아님
 
 - key: anthropic-eng
@@ -58,16 +21,50 @@
   url: https://www.anthropic.com/engineering
   kind: html
   lang: en
-  category: AI·ML 연구·플랫폼
+  category: Anthropic
   # 공식 발표(anthropic/news)와 별개의 엔지니어링 블로그 — 리스팅+trafilatura 평문 200, fragile 아님.
   # 발행 빈도 낮음(월 단위) → 24h 윈도우 특성상 새 글 있는 날만 카드 기여(quiet source). last-verified: 2026-07-06
+
+- key: claude-blog
+  name: Claude Blog
+  url: https://claude.com/blog
+  kind: html
+  lang: en
+  category: Anthropic
+  # 공식 RSS 없음(표준 경로 404) → 리스팅+trafilatura 평문(anthropic 소스 동형, fragile 아님).
+  # robots Allow:/ · 제품 아닌 공개 블로그. last-verified: 2026-07-07
+
+# ── OpenAI ───────────────────────────────────────────────────
+- key: openai
+  name: OpenAI News
+  url: https://openai.com/news/rss.xml
+  kind: rss
+  lang: en
+  category: OpenAI
+  # RSS 평문 200(robots Allow:/) → fragile 아님
+
+# ── Google ───────────────────────────────────────────────────
+- key: deepmind
+  name: Google DeepMind
+  url: https://deepmind.google/blog/rss.xml
+  kind: rss
+  lang: en
+  category: Google
+
+- key: google-research
+  name: Google Research
+  url: https://research.google/blog/rss/
+  kind: rss
+  lang: en
+  category: Google
+  # ai.googleblog.com("Google AI Blog") 후신 — 기초 AI/ML 연구. 평문 200·robots Allow
 
 - key: google-ai
   name: Google AI (The Keyword)
   url: https://blog.google/technology/ai/rss/
   kind: rss
   lang: en
-  category: 프런티어 AI 랩
+  category: Google
   # Google 공식 AI 발표 채널(Gemini 대형 발표 포함) — RSS+기사 전문 평문 200. last-verified: 2026-07-06
   # ⚠️ blog.google/products/gemini 피드와 기사 중복(월간 리캡 동시 게재 확인) → 그쪽은 의도적 미채택(카드 중복 방지).
 
@@ -76,15 +73,24 @@
   url: https://developers.googleblog.com/
   kind: html
   lang: en
-  category: AI·ML 연구·플랫폼
+  category: Google
   require_ai: true   # 종합 개발 블로그(Android·Chrome 등 혼재) → AI 관련만 통과(Gemini API·ADK·에이전트)
   # 피드 자동발견 없음 → 리스팅+trafilatura 전문 200. last-verified: 2026-07-06
 
-- key: claude-blog
-  name: Claude Blog
-  url: https://claude.com/blog
-  kind: html
+# ── AWS (Amazon) ─────────────────────────────────────────────
+- key: aws-ml
+  name: AWS ML Blog
+  url: https://aws.amazon.com/blogs/machine-learning/feed/
+  kind: rss
   lang: en
-  category: AI·ML 연구·플랫폼
-  # 공식 RSS 없음(표준 경로 404) → 리스팅+trafilatura 평문(anthropic 소스 동형, fragile 아님).
-  # robots Allow:/ · 제품 아닌 공개 블로그. last-verified: 2026-07-07
+  category: Amazon (AWS)
+  homepage: https://aws.amazon.com/blogs/machine-learning/   # rss 피드 호스트(aws.amazon.com)는 회사 대문 → 실제 ML 블로그 랜딩 명시
+
+# ── 뉴스·미디어 ──────────────────────────────────────────────
+- key: aitimes
+  name: AI Times
+  url: https://www.aitimes.com/rss/allArticle.xml
+  kind: rss
+  lang: ko
+  category: 뉴스·미디어
+  require_ai: true   # allArticle = 종합지 피드(지역·행정 기사 섞임) → AI 관련 기사만 통과(relevance v1)
