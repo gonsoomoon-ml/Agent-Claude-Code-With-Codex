@@ -72,6 +72,6 @@
 | 문서 | 상태 |
 |---|---|
 | specs `2026-07-08-admin-monitoring-design` | DRAFT — PRD `prd_admin.md` Phase 1. 발송 이메일 리스트(기사수·소요시간·발송시각·실비용). 조사: ~$1.10/이메일·9~13분, per-send 감사 레코드 부재 → "계측+UI". role-blind 계측 + `webapi/admin.py` admin-gated 읽기. Deep Insight=Phase 2 북극성 |
-| plans `2026-07-08-admin-monitoring` | DRAFT — 11 태스크 TDD(UsageRecorder→author 봉투비용→gate 배선→pipeline carrier→deliver 반환→sent_log 확장→dispatch audit→admin API→IAM→React /admin). Float→Decimal·authz 추출·certify 추정은 gate.verify_card(certifier 무수정). 구현 중(T1-7 머지) |
+| plans `2026-07-08-admin-monitoring` | DRAFT — 11 태스크 TDD(UsageRecorder→author 봉투비용→gate 배선→pipeline carrier→deliver 반환→sent_log 확장→dispatch audit→admin API→IAM→React /admin). Float→Decimal·authz 추출·certify 추정은 gate.verify_card(certifier 무수정). **구현 완료(T1-10 머지·per-task+opus 최종리뷰 통과·232 py+41 web green)·배포 전이라 DRAFT** |
 
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.

@@ -50,8 +50,8 @@ decorrelation·clean-dir 격리·빌드/테스트 전반·inclusion test·언어
 ## 검증
 
 - 백엔드: `uv run pytest` · `uv run ruff check src tests`
-  (admin: `tests/test_webapi_{policy,profile_route,trial_route}.py`).
-- 프론트: `web/` 에서 `npm test`(admin: `Form.admin.test.tsx`), 빌드 `npm run build`.
+  (admin: `tests/test_webapi_{policy,profile_route,trial_route,admin_route}.py`).
+- 프론트: `web/` 에서 `npm test`(admin: `Form.admin.test.tsx`·`pages/Admin.test.tsx`·`auth/session.test.ts`), 빌드 `npm run build`.
 - 배포: `deploy_api` → `deploy_web` (순서·조건·IAM 은 [`./README.md`](./README.md)).
 
 ## 포인터 (여기서 재서술 금지)
