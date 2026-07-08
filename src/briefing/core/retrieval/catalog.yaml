@@ -25,6 +25,15 @@
   category: Amazon (AWS)
   homepage: https://aws.amazon.com/blogs/machine-learning/   # rss 피드 호스트(aws.amazon.com)는 회사 대문 → 실제 ML 블로그 랜딩 명시
 
+- key: aws-kr-tech
+  name: AWS Korea Tech Blog
+  url: https://aws.amazon.com/ko/blogs/tech/feed/
+  kind: rss
+  lang: ko
+  category: Amazon (AWS)
+  homepage: https://aws.amazon.com/ko/blogs/tech/   # 피드 호스트=회사 대문 → 실제 KR 기술 블로그("AWS 기술 블로그") 랜딩 명시
+  require_ai: true   # 종합 AWS 기술 블로그(DB·서버리스·컨테이너 등 혼재) → AI 관련만 통과. RSS 평문 200(application/rss+xml, 10 items). last-verified: 2026-07-08
+
 # ── Anthropic ────────────────────────────────────────────────
 - key: anthropic
   name: Anthropic News
