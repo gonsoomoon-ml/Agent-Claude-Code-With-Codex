@@ -12,8 +12,8 @@ decorrelation·clean-dir 격리·빌드/테스트 전반·inclusion test·언어
 
 `판별(discern) → 능력 매핑(map) → 집행(enforce)` 3분리. role 은 이 세 지점에만 존재한다.
 
-- **판별** = `app.py:_claims` 가 Cognito id-token 의 `cognito:groups` 에서 `is_admin` 계산.
-  그룹 파싱은 **반드시** `app.py:_parse_groups` 경유 — HTTP API v2 authorizer 가 배열 claim 을
+- **판별** = `authz.py:claims_from_request` 가 Cognito id-token 의 `cognito:groups` 에서 `is_admin` 계산.
+  그룹 파싱은 **반드시** `authz.py:_parse_groups` 경유 — HTTP API v2 authorizer 가 배열 claim 을
   `"[admins]"` 문자열로 평탄화하므로 `str(claim) == "admins"` 같은 직접 비교는 금지.
 - **능력 매핑** = `policy.py` **단 한 곳**. role → 능력은 여기서만 값이 된다.
   새 관리 능력은 **`policy.py` 에 함수 하나씩** 추가 (예: `max_sources(is_admin)`).
@@ -31,8 +31,8 @@ decorrelation·clean-dir 격리·빌드/테스트 전반·inclusion test·언어
 
 - role = Cognito 웹 풀 `us-east-1_ANfcEK61A` 의 `admins` 그룹. 그룹 관리는 배포 스크립트 밖 CLI
   런북(`infra/README.md`).
-- **함정:** `admin-create-user` 는 반드시 `Name=email_verified,Value=true` — 아니면 `_claims`
-  가 401('email not verified'). self-signup 은 의도적 차단.
+- **함정:** `admin-create-user` 는 반드시 `Name=email_verified,Value=true` — 아니면
+  `authz.py:claims_from_request` 가 401('email not verified'). self-signup 은 의도적 차단.
 - 그룹 변경은 **재로그인(새 토큰)** 후 반영. admin 회수는 기존 저장된 프로필을 축소하지 않음
   (다음 `PUT /profile` 에서 5 상한 재검증).
 - Cognito 풀 id / client id 는 `deploy_api.py:_ensure_http_api` 와 `web/src/auth/config.ts`
