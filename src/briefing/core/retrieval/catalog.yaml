@@ -34,6 +34,16 @@
   homepage: https://aws.amazon.com/ko/blogs/tech/   # 피드 호스트=회사 대문 → 실제 KR 기술 블로그("AWS 기술 블로그") 랜딩 명시
   require_ai: true   # 종합 AWS 기술 블로그(DB·서버리스·컨테이너 등 혼재) → AI 관련만 통과. RSS 평문 200(application/rss+xml, 10 items). last-verified: 2026-07-08
 
+- key: aws-ai-news
+  name: AWS AI News
+  url: https://aws.amazon.com/blogs/aws/category/artificial-intelligence/feed/
+  kind: rss
+  lang: en
+  category: Amazon (AWS)
+  homepage: https://aws.amazon.com/blogs/aws/category/artificial-intelligence/   # 피드 = AWS News Blog 의 AI 카테고리(사람용 랜딩)
+  # AWS 공식 AI 제품·서비스 발표 채널(News Blog "Artificial Intelligence" 카테고리) — Bedrock·모델 출시·AgentCore·Summit.
+  # 이미 AI-scoped(카테고리 필터) → require_ai 불필요. RSS 평문 200(application/rss+xml, 20 items), fetch_clean_rss 6건 추출. last-verified: 2026-07-08
+
 # ── Anthropic ────────────────────────────────────────────────
 - key: anthropic
   name: Anthropic News
