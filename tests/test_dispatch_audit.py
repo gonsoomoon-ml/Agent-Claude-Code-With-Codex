@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from briefing.scheduler.dispatch import dispatch
 
@@ -40,3 +41,21 @@ def test_dispatch_writes_audit_record_on_send(monkeypatch):
     assert r["published"] == 5 and r["duration_ms"] == 662000
     assert r["recipient"] == "u1@x.com" and r["sent_at"] == "2026-07-08T07:00:12+00:00"
     assert float(r["cost_usd"]) == 1.08     # Decimal 로 저장됨
+    assert isinstance(r["cost_usd"], Decimal)
+    assert r["quarantined"] == 0
+
+
+def test_dispatch_writes_audit_record_with_none_deliver_fn(monkeypatch):
+    import briefing.scheduler.dispatch as d
+    monkeypatch.setattr(d, "users_due_now", lambda users, now, **k: users)
+    monkeypatch.setattr(d, "run_briefing", lambda *a, **k: [_briefing("u1", 5)])
+    sent = _SentLog()
+    now = datetime(2026, 7, 8, 7, 0, 12, tzinfo=timezone.utc)
+    dispatch(None, None, ["u1"], now, deliver_fn=lambda b: None,
+             run_date="2026-07-08", sent_log=sent)
+    r = sent.records["u1"]
+    assert r["status"] == "sent"
+    assert r["message_id"] == ""
+    assert r["published"] == 5 and r["duration_ms"] == 662000
+    assert r["recipient"] == "u1@x.com"
+    assert isinstance(r["cost_usd"], Decimal)
