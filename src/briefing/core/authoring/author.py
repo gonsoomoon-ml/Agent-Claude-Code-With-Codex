@@ -114,16 +114,19 @@ def build_user_prompt(source: FrozenSource, *, today: str | None = None) -> str:
     )
 
 
-def draft_card(source: FrozenSource, user: UserConfig, settings: Settings) -> DraftCard:
+def draft_card(
+    source: FrozenSource, user: UserConfig, settings: Settings, *, recorder=None
+) -> DraftCard:
     """동결본 1건 → headless `claude -p`(base + lens + skill) → 초안 카드 + 원자적 claims.
 
     system(캐시 프리픽스, static) = build_system_prompt(lens, skill) + user(동적) = build_user_prompt(source).
     ★ certifier 는 lens·skill 을 절대 안 본다(불변식 #4). source 는 user turn → 브레이스 안전.
+    `recorder`(옵션) — `_run_author` 로 그대로 전달(비용 기록).
     """
     system_prompt = build_system_prompt(
         lens_guidance=resolve_lens(user.lens).guidance, skill_md=user.skill_md
     )
-    text = _run_author(system_prompt, build_user_prompt(source), settings)
+    text = _run_author(system_prompt, build_user_prompt(source), settings, recorder=recorder)
     return _to_draft_card(source.source_id, source.title, _parse_card_json(text))
 
 
@@ -134,16 +137,20 @@ def revise_claims(
     *,
     prior: DraftCard,
     failed_ids: tuple[str, ...],
+    recorder=None,
 ) -> DraftCard:
     """Maker-Checker 재도출 — 실패한 claim(`failed_ids`)만 source 에서 다시 도출 (gate 가 호출).
 
     ★ decorrelation 보존: 피드백 = `failed_ids`(*어떤* claim 이 실패했는지)만 — certifier 의 *이유/정답* 은 안 줌.
     author 는 자기 이전 claims + 동결본을 다시 보고 실패분만 재도출; 통과 claim 은 유지(thrashing 방지).
+    `recorder`(옵션) — `_run_author` 로 그대로 전달(비용 기록).
     """
     system_prompt = build_system_prompt(
         lens_guidance=resolve_lens(user.lens).guidance, skill_md=user.skill_md
     )
-    text = _run_author(system_prompt, _build_revise_prompt(source, prior, failed_ids), settings)
+    text = _run_author(
+        system_prompt, _build_revise_prompt(source, prior, failed_ids), settings, recorder=recorder
+    )
     return _to_draft_card(source.source_id, source.title, _parse_card_json(text))
 
 
@@ -189,14 +196,22 @@ def build_interp_user_prompt(
 
 
 def draft_interpretation(
-    source: FrozenSource, verified_claims: tuple[Claim, ...], user: UserConfig, settings: Settings
+    source: FrozenSource,
+    verified_claims: tuple[Claim, ...],
+    user: UserConfig,
+    settings: Settings,
+    *,
+    recorder=None,
 ) -> Interpretation:
     """검증된 사실층 위에 lens 관점 why 한 단락 생성 — 같은 headless `claude -p`, 짧은 출력.
 
     루프 없음(Maker-Checker 는 사실층 소유) — 가드(결정론 lint)와 실패 처분(폴백)은 gate.interpret_card 가 소유.
+    `recorder`(옵션) — `_run_author` 로 그대로 전달(비용 기록).
     """
     system_prompt = build_interp_system_prompt(lens_guidance=resolve_lens(user.lens).guidance)
-    text = _run_author(system_prompt, build_interp_user_prompt(source, verified_claims), settings)
+    text = _run_author(
+        system_prompt, build_interp_user_prompt(source, verified_claims), settings, recorder=recorder
+    )
     return _parse_interp(text)
 
 
@@ -213,12 +228,17 @@ def _parse_interp(text: str) -> Interpretation:
 
 # ───────────────────────── headless `claude -p` 호출 (Claude Code, clean dir, Bedrock env) ─────────────────────────
 
-def _run_author(system_prompt: str, user_prompt: str, settings: Settings) -> str:
+def _run_author(
+    system_prompt: str, user_prompt: str, settings: Settings, *, recorder=None
+) -> str:
     """headless `claude -p`(Claude Code) on Bedrock → 최종 답변 텍스트.
 
     **clean dir 에서 실행**(repo CLAUDE.md/AGENTS.md 미로드) + `--system-prompt`(build_system_prompt 가 *유일* 통제,
     Claude Code 기본 프롬프트 대체) + Bedrock env 주입(`bedrock_author_env`). 모델 = ANTHROPIC_MODEL(env).
     certifier(`codex exec`)와 대칭 — 둘 다 별도 프로세스 + clean dir + stdin 닫음.
+
+    `recorder`(옵션, 기본 None) — 주어지면 봉투의 정확한 total_cost_usd 를 기록(`UsageRecorder`).
+    role/권한을 모르는 순수 비용 sink — 이 함수는 recorder 가 *무엇을 위한 것인지* 모른다(신뢰 경계).
     """
     _debug.dprint(
         "author → claude -p",
@@ -249,6 +269,8 @@ def _run_author(system_prompt: str, user_prompt: str, settings: Settings) -> str
                   f"rc={proc.returncode} · {int((time.monotonic() - t0) * 1000)}ms · stdout={len(proc.stdout)}c", "dim")
     if proc.returncode != 0:
         raise RuntimeError(f"claude -p rc={proc.returncode}: {proc.stderr.strip()[:200]}")
+    if recorder is not None:
+        recorder.add(_extract_claude_cost(proc.stdout))
     return _extract_claude_result(proc.stdout)
 
 
@@ -261,6 +283,19 @@ def _extract_claude_result(stdout: str) -> str:
     if isinstance(obj, dict) and "result" in obj:
         return str(obj["result"])
     return stdout
+
+
+def _extract_claude_cost(stdout: str) -> float:
+    """`claude -p --output-format json` 봉투의 total_cost_usd(정확한 실비용). 봉투 아니면 0.0."""
+    try:
+        obj = json.loads(stdout)
+    except (ValueError, TypeError):
+        return 0.0
+    if isinstance(obj, dict):
+        v = obj.get("total_cost_usd")
+        if isinstance(v, (int, float)):
+            return float(v)
+    return 0.0
 
 
 def _build_revise_prompt(
