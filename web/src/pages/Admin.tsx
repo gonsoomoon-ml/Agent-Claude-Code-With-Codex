@@ -1,7 +1,8 @@
 // web/src/pages/Admin.tsx — 관리자 발송 모니터링 대시보드(/admin).
 // 신뢰 경계: 여기서의 isAdmin() 게이팅은 UX 편의(노출 제어)일 뿐 — 실제 집행은 backend require_admin(403).
 import { useEffect, useState, type CSSProperties } from 'react'
-import { isAdmin, authedFetch } from '../auth/session'
+import { isAdmin, isAuthed, authedFetch } from '../auth/session'
+import { startLogin } from '../auth/login'
 
 type Email = {
   user_id: string; recipient: string; run_date: string; sent_at: string
@@ -22,7 +23,12 @@ export default function Admin() {
   const [err, setErr] = useState('')
 
   useEffect(() => {
-    if (!isAdmin()) { setErr('관리자 전용'); return }
+    if (!isAuthed()) {                                  // 토큰 없음(직접 로드/새로고침) → 로그인 시작
+      sessionStorage.setItem('post_login', '/admin')    // 로그인 후 여기로 복귀(CallbackRedirect)
+      startLogin()
+      return
+    }
+    if (!isAdmin()) { setErr('관리자 전용'); return }    // 로그인은 됐으나 admins 그룹 아님
     authedFetch('/admin/emails')
       .then((r) => {
         if (!r.ok) throw new Error(`admin/emails ${r.status}`)
