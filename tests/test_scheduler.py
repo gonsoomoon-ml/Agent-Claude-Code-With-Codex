@@ -181,7 +181,7 @@ def test_dispatch_dedups_already_sent(tmp_path):
         def already_sent(self, uid, rd):
             return (uid, rd) in self.marks
 
-        def mark_sent(self, uid, rd):
+        def mark_sent(self, uid, rd, *, record=None):
             self.marks.add((uid, rd))
 
     store = SourceStore(str(tmp_path / "store"))

@@ -38,6 +38,9 @@ class DynamoSentLog:
     def already_sent(self, user_id: str, run_date: str) -> bool:
         return "Item" in self._t.get_item(Key={"user_id": user_id, "run_date": run_date})
 
-    def mark_sent(self, user_id: str, run_date: str) -> None:
-        # 키 단위 멱등(같은 (user,date) 덮어씀). already_sent 게이트가 앞단에서 순차 재실행을 막음.
-        self._t.put_item(Item={"user_id": user_id, "run_date": run_date})
+    def mark_sent(self, user_id: str, run_date: str, *, record: dict | None = None) -> None:
+        # 키 단위 멱등(같은 (user,date) 덮어씀). record 있으면 audit 필드 병합(하위호환: 없으면 기존 dedup 불리언).
+        item = {"user_id": user_id, "run_date": run_date}
+        if record:
+            item.update(record)
+        self._t.put_item(Item=item)

@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 import briefing.webapi.app as appmod
+import briefing.webapi.authz as authzmod
 from briefing.webapi.app import app
 
 client = TestClient(app)
@@ -81,7 +82,7 @@ def test_post_trial_six_sources_rejected_even_with_admin_claims(monkeypatch):
     deps = _fake_deps()
     monkeypatch.setattr(appmod, "_trial_deps", lambda: deps)
     ev = {"requestContext": {"authorizer": {"jwt": {"claims": {"cognito:groups": ["admins"]}}}}}
-    monkeypatch.setattr(appmod, "_event_from_request", lambda req: ev)
+    monkeypatch.setattr(authzmod, "_event_from_request", lambda req: ev)
     r = client.post("/trial", json={"email": "u@x.com",
                                      "sources": ["a", "b", "c", "d", "e", "f"]})
     assert r.status_code == 400

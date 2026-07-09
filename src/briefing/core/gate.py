@@ -17,12 +17,14 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, replace
+from functools import partial
 from typing import Literal
 
 from . import _debug
 from .config import Settings, UserConfig
 from .authoring import author
 from .authoring.author import Claim, DraftCard, Interpretation
+from .stores.usage import EST_CERTIFY_USD_PER_ENTAILMENT
 from .verification.certifier import _NUM_RE, CertVerdict, Envelope, certify
 from .stores.source_store import FrozenSource, SourceStore
 
@@ -62,8 +64,12 @@ def _build_envelope(source: FrozenSource, claim: Claim) -> Envelope:
     )
 
 
-def verify_card(card: DraftCard, store: SourceStore) -> tuple[CertVerdict, ...]:
-    """카드의 각 claim 을 certifier 로 독립 검증 (gate 가 호출, **user-blind**). per-claim verdicts 반환."""
+def verify_card(card: DraftCard, store: SourceStore, *, recorder=None) -> tuple[CertVerdict, ...]:
+    """카드의 각 claim 을 certifier 로 독립 검증 (gate 가 호출, **user-blind**). per-claim verdicts 반환.
+
+    `recorder`(옵션) — entailment claim 1건당 `EST_CERTIFY_USD_PER_ENTAILMENT` 추정치를 기록(certifier 무수정 —
+    certifier 는 자기 비용을 모름·envelope-only 불변식 보존; 추정은 gate 가 claim_type 개수로 계산).
+    """
     source = store.get_source(card.source_id)
     # TODO(fail-closed): certify 실패(codex 오류·타임아웃)는 *보수적으로* — DEMOTED/BLOCKED, **절대 VERIFIED 아님**.
     #   per-claim try/except 로 격리(한 claim 실패가 전체 run 을 죽이지 않게). 구현 시 추가.
@@ -75,6 +81,9 @@ def verify_card(card: DraftCard, store: SourceStore) -> tuple[CertVerdict, ...]:
         _debug.dprint(f"certifier ⊢ {c.id}", f"{v.verdict} ({v.model}) — {v.evidence}",
                       "red" if v.verdict == "BLOCKED" else "yellow")
         verdicts.append(v)
+    if recorder is not None:
+        n_entail = sum(1 for c in card.claims if c.claim_type == "entailment")
+        recorder.add(n_entail * EST_CERTIFY_USD_PER_ENTAILMENT)
     return tuple(verdicts)
 
 
@@ -93,6 +102,7 @@ def produce_card(
     draft_fn=None,
     revise_fn=None,
     verify_fn=None,
+    recorder=None,
 ) -> GatedCard:
     """★ Maker-Checker 루프 (author↔certifier) — **decorrelation 보존형**.
 
@@ -100,12 +110,14 @@ def produce_card(
     캡(max_attempts) 소진 시 **QUARANTINE**(BLOCKED 남음 → 자동 발행 금지, 사람 검토).
     *피드백에 certifier 추론·정답을 안 줌* → 라운드 간에도 'teaching to the test'(상관) 회피.
     (draft_fn/revise_fn/verify_fn = 의존성 주입 — 테스트용; 기본은 author·verify_card.)
+    `recorder`(옵션) — 기본 DI 경로(draft_fn/revise_fn/verify_fn 미주입 시)에만 partial 바인딩되어
+    author 실비용 + certify 추정치를 누적(주입된 fake 는 3-인자 그대로 — recorder 무관).
     """
     # DI seam — None 이면 실제 구현으로 배선. 테스트는 fake 주입(결정론), 미래엔 Strands-graph-backed 로
     # *주입만 교체* → gate 결정 로직 무변경. verify_fn 만 store 클로저(certify 는 envelope 만 보므로 store 미전달).
-    draft_fn = draft_fn or author.draft_card  # 기본 = headless Claude Code(`claude -p`) 작성자
-    revise_fn = revise_fn or author.revise_claims  # 기본 = 같은 `claude -p`(실패 claim 만 재도출)
-    verify_fn = verify_fn or (lambda c: verify_card(c, store))  # 기본 = codex certifier(per claim)
+    draft_fn = draft_fn or partial(author.draft_card, recorder=recorder)  # 기본 = headless Claude Code(`claude -p`) 작성자
+    revise_fn = revise_fn or partial(author.revise_claims, recorder=recorder)  # 기본 = 같은 `claude -p`(실패 claim 만 재도출)
+    verify_fn = verify_fn or (lambda c: verify_card(c, store, recorder=recorder))  # 기본 = codex certifier(per claim)
 
     card = reroute_claim_types(draft_fn(source, user, settings))  # 재라우팅 = 검증 경로를 코드가 결정
     _debug.dprint("gate ← author", f"draft: {len(card.claims)} claims · source={card.source_id[:12]}")
@@ -190,6 +202,7 @@ def interpret_card(
     settings: Settings,
     *,
     interp_fn=None,
+    recorder=None,
 ) -> GatedCard:
     """검증된 사실층 위에 lens 해석(why)만 교체 — 가드 통과 시에만. 실패는 **해석만 강등**(층별 격리).
 
@@ -197,10 +210,11 @@ def interpret_card(
     - interp 실패(예외)·lint 실패 → 사실층(일반 lens) why 그대로 반환 — 카드·브리핑은 무붕괴
       (2026-07-02 인시던트의 격리 교훈을 카드→층 단위로 하강).
     - verdicts·decision·summary·claims 는 불변 — 해석층은 검증 결과를 절대 못 건드린다.
+    `recorder`(옵션) — 기본 DI 경로(interp_fn 미주입 시)에만 partial 바인딩(주입된 fake 는 recorder 무관).
     """
     if fact.decision == "QUARANTINE":
         return fact
-    interp_fn = interp_fn or author.draft_interpretation  # 기본 = 같은 headless `claude -p`(짧은 출력)
+    interp_fn = interp_fn or partial(author.draft_interpretation, recorder=recorder)  # 기본 = 같은 headless `claude -p`(짧은 출력)
     try:
         interp = interp_fn(source, verified_claims(fact), user, settings)
     except Exception as e:  # noqa: BLE001 — 층별 격리: 해석 실패가 검증된 카드를 죽이면 안 됨

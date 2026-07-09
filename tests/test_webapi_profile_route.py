@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 import briefing.webapi.app as appmod
+import briefing.webapi.authz as authzmod
 from briefing.webapi.app import app
 
 
@@ -33,7 +34,7 @@ def _put(monkeypatch, claims, body):
     monkeypatch.setattr(appmod, "_profile_deps", lambda: deps)
     # scope 에 aws.event 주입: TestClient 의 transport 가 scope 를 만들므로 미들웨어/의존성에서 읽도록 헤더 우회
     ev = {"requestContext": {"authorizer": {"jwt": {"claims": claims}}}}
-    monkeypatch.setattr(appmod, "_event_from_request", lambda req: ev)   # app.py 가 이 헬퍼로 event 취득
+    monkeypatch.setattr(authzmod, "_event_from_request", lambda req: ev)   # authz.py 가 이 헬퍼로 event 취득
     r = TestClient(app).put("/profile", json=body)
     return r, deps
 
@@ -86,7 +87,7 @@ def _event_with_groups(groups):
 
 
 def test_parse_groups_accepts_list_and_flattened_string():
-    from briefing.webapi.app import _parse_groups
+    from briefing.webapi.authz import _parse_groups
     assert _parse_groups(["admins"]) == {"admins"}
     assert _parse_groups("[admins]") == {"admins"}
     assert _parse_groups("[admins ops]") == {"admins", "ops"}
@@ -95,7 +96,7 @@ def test_parse_groups_accepts_list_and_flattened_string():
 
 def test_get_profile_max_sources_default_5(monkeypatch):
     monkeypatch.setattr(appmod, "_profile_deps", _deps)
-    monkeypatch.setattr(appmod, "_event_from_request", lambda req: _event_with_groups(None))
+    monkeypatch.setattr(authzmod, "_event_from_request", lambda req: _event_with_groups(None))
     r = TestClient(app).get("/profile")
     assert r.status_code == 200 and r.json()["max_sources"] == 5
 
@@ -103,14 +104,14 @@ def test_get_profile_max_sources_default_5(monkeypatch):
 def test_get_profile_admin_gets_catalog_size(monkeypatch):
     from briefing.core.retrieval.sources import CATALOG
     monkeypatch.setattr(appmod, "_profile_deps", _deps)
-    monkeypatch.setattr(appmod, "_event_from_request", lambda req: _event_with_groups("[admins]"))
+    monkeypatch.setattr(authzmod, "_event_from_request", lambda req: _event_with_groups("[admins]"))
     r = TestClient(app).get("/profile")
     assert r.json()["max_sources"] == len(CATALOG)
 
 
 def test_put_profile_six_sources_rejected_for_general(monkeypatch):
     monkeypatch.setattr(appmod, "_profile_deps", _deps6)
-    monkeypatch.setattr(appmod, "_event_from_request", lambda req: _event_with_groups(None))
+    monkeypatch.setattr(authzmod, "_event_from_request", lambda req: _event_with_groups(None))
     r = TestClient(app).put("/profile", json={"sources": ["a", "b", "c", "d", "e", "f"], "send_hour": 7,
                                               "lens": "general", "depth": "summary"})
     assert r.status_code == 400
@@ -118,7 +119,7 @@ def test_put_profile_six_sources_rejected_for_general(monkeypatch):
 
 def test_put_profile_six_sources_accepted_for_admin(monkeypatch):
     monkeypatch.setattr(appmod, "_profile_deps", _deps6)
-    monkeypatch.setattr(appmod, "_event_from_request", lambda req: _event_with_groups(["admins"]))
+    monkeypatch.setattr(authzmod, "_event_from_request", lambda req: _event_with_groups(["admins"]))
     r = TestClient(app).put("/profile", json={"sources": ["a", "b", "c", "d", "e", "f"], "send_hour": 7,
                                               "lens": "general", "depth": "summary"})
     assert r.status_code == 200

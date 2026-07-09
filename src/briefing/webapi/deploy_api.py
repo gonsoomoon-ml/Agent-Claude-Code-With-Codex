@@ -60,7 +60,11 @@ def _ensure_role(iam) -> str:
              "Resource": "arn:aws:dynamodb:*:*:table/briefing-trials"},
             {"Sid": "UsersTable", "Effect": "Allow",
              "Action": ["dynamodb:GetItem", "dynamodb:UpdateItem"],
-             "Resource": "arn:aws:dynamodb:*:*:table/briefing-users"}]}))
+             "Resource": "arn:aws:dynamodb:*:*:table/briefing-users"},
+            # admin 모니터링 읽기 전용 — GET /admin/emails 가 sent-log 를 Scan
+            {"Sid": "SentLogTableRead", "Effect": "Allow",
+             "Action": ["dynamodb:Scan", "dynamodb:GetItem", "dynamodb:Query"],
+             "Resource": "arn:aws:dynamodb:*:*:table/briefing-sent-log"}]}))
     print("   inline policy 추가: BriefingTrial")
     return iam.get_role(RoleName=LAMBDA_ROLE)["Role"]["Arn"]
 

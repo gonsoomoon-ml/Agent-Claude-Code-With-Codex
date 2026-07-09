@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from ..core.pipeline import run_briefing
@@ -34,8 +35,9 @@ def dispatch(
 ) -> list[str]:
     """due 사용자에게 검증 브리핑을 발송. 발송한 user_id 목록 반환.
 
-    sent_log(옵션): `already_sent(user_id, run_date)->bool` · `mark_sent(user_id, run_date)` —
-    None 이면 dedup 없음(v1 stateless). run_date 미지정 시 now_utc 의 UTC 날짜.
+    sent_log(옵션): `already_sent(user_id, run_date)->bool` · `mark_sent(user_id, run_date, *, record=)` —
+    실 발송 시 record 에 audit 필드(sent_at·recipient·published·quarantined·duration_ms·cost_usd·status·
+    message_id) 를 채워 넘긴다. sent_log=None 이면 dedup/audit 없음(v1 stateless). run_date 미지정 시 now_utc 의 UTC 날짜.
     """
     due = users_due_now(users, now_utc, granularity_h=granularity_h)
     if not due:
@@ -50,8 +52,19 @@ def dispatch(
             continue
         if sent_log is not None and sent_log.already_sent(b.user_id, rd):
             continue                                                # 중복 발송 방지
-        deliver_fn(b)                                               # 비가역: SES 발송
+        resp = deliver_fn(b)                                        # 비가역: SES 발송(응답=MessageId)
         if sent_log is not None:
-            sent_log.mark_sent(b.user_id, rd)
+            record = {
+                "sent_at": now_utc.isoformat(),
+                "recipient": b.recipient,
+                "published": b.published,
+                "quarantined": b.quarantined,
+                "duration_ms": b.duration_ms,
+                # DynamoDB 는 float 거부 → Decimal(str()). 읽을 때 admin.py 가 float() 환원.
+                "cost_usd": Decimal(str(round(b.cost_usd, 6))),
+                "status": "sent",
+                "message_id": (resp or {}).get("MessageId", ""),
+            }
+            sent_log.mark_sent(b.user_id, rd, record=record)
         delivered.append(b.user_id)
     return delivered

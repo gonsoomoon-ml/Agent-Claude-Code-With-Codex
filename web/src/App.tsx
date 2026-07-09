@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { handleCallback } from './auth/callback'
 import Landing from './pages/Landing'
 import Form from './pages/Form'
+import Admin from './pages/Admin'
 
 export default function App() {
   useEffect(() => {
@@ -16,6 +17,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/setup" element={<Form />} />
+          <Route path="/admin" element={<Admin />} />
         </Routes>
       </div>
     </BrowserRouter>
