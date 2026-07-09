@@ -12,9 +12,11 @@ export default function CallbackRedirect() {
     handleCallback()
       .then(() => {
         const dest = sessionStorage.getItem('post_login')
-        if (dest) {
+        if (dest) {                                       // 로그인 전 가려던 곳으로 복귀
           sessionStorage.removeItem('post_login')
           navigate(dest, { replace: true })
+        } else if (location.search.includes('code=')) {  // ?code 만 정리(react-router 로)
+          navigate(location.pathname, { replace: true })
         }
       })
       .catch((e) => console.error('OAuth callback failed:', e))

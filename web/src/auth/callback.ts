@@ -21,5 +21,7 @@ export async function handleCallback(): Promise<void> {
   const t = await r.json()
   storeTokens(t.id_token)
   sessionStorage.removeItem('pkce_state'); sessionStorage.removeItem('pkce_verifier')
-  history.replaceState({}, '', location.pathname)   // ?code 제거
+  // ★ ?code 정리는 여기서 raw history.replaceState 로 하지 않는다 — 그것은 react-router 의
+  //   history state({usr,key,idx})를 지워(desync) 직후 navigate 를 깨뜨린다. URL 정리는
+  //   CallbackRedirect 의 navigate 가 담당(react-router 가 history 를 올바로 관리).
 }
