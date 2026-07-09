@@ -177,7 +177,9 @@ def _ensure_http_api(api, lam, region, acct, lambda_arn) -> str:
             JwtConfiguration={"Issuer": ISSUER, "Audience": AUD})["AuthorizerId"]
         print(f"   JWT authorizer: 생성 (id={authz_id})")
     routes2 = {r["RouteKey"]: r["RouteId"] for r in api.get_routes(ApiId=api_id)["Items"]}
-    for rk in ("GET /profile", "PUT /profile"):       # ★ OPTIONS /profile 는 선언 안 함(preflight→$default)
+    # ★ 인증 필요 라우트는 명시 선언 + JWT authorizer 부착해야 Lambda 가 claims 를 받는다.
+    #   $default(catch-all)엔 authorizer 가 없어 /admin/emails 를 여기 안 넣으면 claims 부재 → 401.
+    for rk in ("GET /profile", "PUT /profile", "GET /admin/emails"):  # OPTIONS 는 $default→CORSMiddleware
         if rk in routes2:
             api.update_route(ApiId=api_id, RouteId=routes2[rk], Target=f"integrations/{integ_id}",
                              AuthorizationType="JWT", AuthorizerId=authz_id)
