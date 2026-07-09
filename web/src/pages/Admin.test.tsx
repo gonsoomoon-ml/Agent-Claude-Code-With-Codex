@@ -46,6 +46,17 @@ describe('Admin dashboard', () => {
     expect(startLogin).not.toHaveBeenCalled()
   })
 
+  it('일부 필드 누락 행이어도 크래시 없이 렌더한다(방어)', async () => {
+    vi.mocked(isAuthed).mockReturnValue(true)
+    vi.mocked(isAdmin).mockReturnValue(true)
+    vi.mocked(authedFetch).mockResolvedValueOnce({ ok: true, json: async () => ({
+      emails: [{ user_id: 'u2', recipient: 'b@x.com', run_date: '2026-07-09',
+        sent_at: '2026-07-09T07:00Z', status: 'sent' }],   // published/duration_ms/cost_usd 누락
+      totals: { count: 1 } }) } as unknown as Response)
+    render(<Admin />)
+    expect(await screen.findByText('b@x.com')).toBeInTheDocument()   // toFixed 크래시 없이 렌더
+  })
+
   it('미로그인 시 로그인을 시작하고 복귀 경로(/admin)를 저장한다', async () => {
     vi.mocked(isAuthed).mockReturnValue(false)
     render(<Admin />)

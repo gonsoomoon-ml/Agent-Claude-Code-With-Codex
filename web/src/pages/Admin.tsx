@@ -62,17 +62,17 @@ export default function Admin() {
             <tr key={`${e.user_id}-${e.run_date}`}>
               <td style={TD}>{e.recipient}</td>
               <td style={TD}>{e.sent_at}</td>
-              <td style={TD}>{e.published}</td>
-              <td style={TD}>{mins(e.duration_ms)}</td>
-              <td style={TD}>≈${e.cost_usd.toFixed(2)}</td>
-              <td style={TD}>{e.status}</td>
+              <td style={TD}>{e.published ?? 0}</td>
+              <td style={TD}>{mins(e.duration_ms ?? 0)}</td>
+              <td style={TD}>≈${(e.cost_usd ?? 0).toFixed(2)}</td>
+              <td style={TD}>{e.status ?? ''}</td>
             </tr>
           ))}
         </tbody>
       </table>
       {totals && (
         <p style={{ marginTop: 10, fontSize: 13, color: 'var(--text-dim)' }}>
-          합계 · {totals.count}건 · ≈${totals.cost_usd.toFixed(2)} · 평균 {mins(totals.avg_duration_ms)}
+          합계 · {totals.count}건 · ≈${(totals.cost_usd ?? 0).toFixed(2)} · 평균 {mins(totals.avg_duration_ms ?? 0)}
         </p>
       )}
     </div>

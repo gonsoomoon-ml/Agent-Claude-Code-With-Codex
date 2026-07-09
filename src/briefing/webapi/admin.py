@@ -40,7 +40,8 @@ def list_emails(req: Request, date: str | None = None, limit: int = 200) -> dict
     if date:
         from boto3.dynamodb.conditions import Attr
         kw["FilterExpression"] = Attr("run_date").eq(date)
-    items = [_to_json(i) for i in table.scan(**kw).get("Items", [])]
+    # 계측 이전 dedup-only 행({user_id,run_date})은 audit 필드가 없다 → 제외(대시보드=계측 발송만).
+    items = [_to_json(i) for i in table.scan(**kw).get("Items", []) if "sent_at" in i]
     items.sort(key=lambda x: x.get("sent_at", ""), reverse=True)
     items = items[:limit]
     total_cost = round(sum(float(i.get("cost_usd", 0)) for i in items), 4)
