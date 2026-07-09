@@ -14,22 +14,28 @@ beforeEach(() => {
 })
 
 describe('CallbackRedirect', () => {
-  it('post_login 이 있으면 그 경로로 client-side 이동하고 값을 지운다', async () => {
+  it('콜백(?code)이면 post_login 경로로 이동하고 값을 지운다', async () => {
+    history.replaceState({}, '', '/?code=C&state=S')
     sessionStorage.setItem('post_login', '/admin')
     render(<CallbackRedirect />)
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/admin', { replace: true }))
     expect(sessionStorage.getItem('post_login')).toBeNull()
   })
 
-  it('post_login 없고 ?code 도 없으면 이동하지 않는다', async () => {
-    render(<CallbackRedirect />)
-    await waitFor(() => expect(handleCallback).toHaveBeenCalled())
-    expect(navigate).not.toHaveBeenCalled()
-  })
-
-  it('post_login 없지만 ?code 가 있으면 현재 경로로 정리 이동(?code 제거)', async () => {
-    history.replaceState({}, '', '/?code=abc&state=xyz')
+  it('콜백(?code)이지만 post_login 이 없으면 현재 경로로 정리 이동(?code 제거)', async () => {
+    history.replaceState({}, '', '/?code=C&state=S')
     render(<CallbackRedirect />)
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/', { replace: true }))
+  })
+
+  // ★ 레이스 회귀: 콜백이 아닌 일반 로드(?code 없음)에서는 post_login 을 건드리면 안 된다.
+  //   (그렇지 않으면 /admin 로드 시 Admin 이 심은 post_login 을 리다이렉트 전에 지워버린다.)
+  it('콜백이 아니면(?code 없음) handleCallback·navigate 를 호출하지 않고 post_login 을 보존한다', async () => {
+    sessionStorage.setItem('post_login', '/admin')
+    render(<CallbackRedirect />)
+    await new Promise((r) => setTimeout(r))   // effect + microtask 소진
+    expect(handleCallback).not.toHaveBeenCalled()
+    expect(navigate).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem('post_login')).toBe('/admin')
   })
 })
