@@ -86,6 +86,20 @@ def test_run_briefing_isolates_failing_card(tmp_path):
     assert len(out[0].cards) == 1                  # 죽은 카드는 브리핑에서 빠진다
 
 
+def test_run_briefing_threads_relevance_fn_to_curate(tmp_path):
+    """run_briefing 이 relevance_fn 을 curate 로 넘긴다 → require_ai 소스의 판정을 LLM-as-Judge 로 대체."""
+    store = SourceStore(str(tmp_path / "store"))
+    out = run_briefing(
+        SimpleNamespace(), store, [_user("u", ["aitimes"])], window_hours=0,
+        fetch_article_fn=_fetch_distinct,                       # "AI" 포함 → 키워드로는 통과할 기사
+        relevance_fn=lambda _t, _x: False,                      # 판정자가 전부 컷
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "H", "S", "W",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert out[0].published == 0 and len(out[0].cards) == 0     # 판정자가 컷 → 카드 0(키워드였다면 통과했을 것)
+
+
 def test_run_briefing_groups_by_area_and_dates_header(tmp_path):
     store = SourceStore(str(tmp_path / "store"))
     users = [_user("alice", ["aitimes", "openai"])]   # 뉴스·미디어 + OpenAI = 2개 분야(발행처 기준)

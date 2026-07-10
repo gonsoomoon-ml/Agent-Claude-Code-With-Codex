@@ -29,6 +29,8 @@ class Settings:
     region: str
     author_model_id: str       # author(claude -p)에게 ANTHROPIC_MODEL 로 넘기는 모델 id
     supervisor_model_id: str   # Strands supervisor 오케스트레이터 모델(미설정 시 author 와 동일) — 역할별로 다르게 라우팅 가능
+    relevance_model_id: str    # relevance judge(require_ai 사전 필터) = Haiku. 사전 필터라 decorrelation 무관.
+    relevance_llm_enabled: bool # 켜면 curate 가 Haiku LLM-as-Judge(키워드 폴백); 끄면 키워드만(로컬/테스트 기본 off)
     # certifier 모델은 codex 쪽(~/.codex/config.toml)이 소유한다 — 여기서 설정하지 않고 provenance 만 기록.
     ses_sender: str            # 공유 발신 주소(수신자는 사용자별)
     backend: str           # "local"(기본) | "dynamo" — source/cache/ledger 세 store 를 한꺼번에 고른다
@@ -59,6 +61,10 @@ def load_settings() -> Settings:
         region=g("AWS_REGION", "us-east-1"),
         author_model_id=author_model_id,
         supervisor_model_id=g("SUPERVISOR_MODEL_ID", author_model_id),  # 따로 설정 안 하면 author 모델을 그대로 쓴다
+        # ★ 전체 inference-profile id 필수 — bare 'global.anthropic.claude-haiku-4-5' 는 Bedrock 이
+        #   ValidationException(Converse·invoke_model 공통 — 둘 다 live 검증 2026-07-10).
+        relevance_model_id=g("RELEVANCE_MODEL_ID", "global.anthropic.claude-haiku-4-5-20251001-v1:0"),
+        relevance_llm_enabled=g("RELEVANCE_LLM_ENABLED", "").strip().lower() in ("1", "true", "yes", "on"),
         ses_sender=g("SES_SENDER", ""),
         backend=g("BACKEND", "local"),
         source_store_path=g("SOURCE_STORE_PATH", "./.data/source_store"),

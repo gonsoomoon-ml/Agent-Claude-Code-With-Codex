@@ -52,6 +52,7 @@ def run_briefing(
     *,
     window_hours: int = 24,
     fetch_article_fn: FetchArticleFn | None = None,
+    relevance_fn=None,
     draft_fn=None,
     revise_fn=None,
     verify_fn=None,
@@ -67,7 +68,8 @@ def run_briefing(
     run 내 메모(사실층=출처당 1회, 해석층=(출처,lens)당 1회)는 캐시 유무와 무관하게 보장 — 비용 O(기사)+O(기사×lens).
     """
     fetch_targets = src.fetch_set(u.sources for u in users)  # 모든 사용자 선택의 합집합 1회
-    by_key = curate(store, fetch_targets, window_hours=window_hours, fetch_article_fn=fetch_article_fn)
+    by_key = curate(store, fetch_targets, window_hours=window_hours,
+                    fetch_article_fn=fetch_article_fn, relevance_fn=relevance_fn)
 
     out: list[UserBriefing] = []
     rec = recorder if recorder is not None else UsageRecorder()

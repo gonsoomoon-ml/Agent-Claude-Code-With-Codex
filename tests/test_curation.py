@@ -35,6 +35,41 @@ def test_curate_without_require_ai_keeps_all(tmp_path):
     assert len(by_key["aitimes"]) == 2   # 필터 off(기본) → 둘 다 (byte-identical)
 
 
+def test_curate_uses_injected_relevance_fn(tmp_path):
+    """relevance_fn seam 주입 시 키워드 대신 그 판정을 쓴다(LLM-as-Judge 배선)."""
+    store = SourceStore(str(tmp_path))
+
+    def fetch(_source, _w):
+        return [
+            FetchedArticle("aitimes", "u1", "딥시크 오픈소스 공개", "AI 모델", "2026-06-29T00:00:00Z"),  # 키워드=keep
+            FetchedArticle("aitimes", "u2", "여수세계섬박람회 점검", "지역 행사", "2026-06-29T00:00:00Z"),  # 키워드=drop
+        ]
+
+    # 키워드를 뒤집는 판정자: '여수'만 keep. curate 가 키워드가 아니라 이 함수를 쓴다는 증명.
+    def only_yeosu(title, _text):
+        return "여수" in title
+
+    by_key = curate(store, [_src("aitimes", require_ai=True)], fetch_article_fn=fetch,
+                    relevance_fn=only_yeosu)
+    kept = by_key.get("aitimes", [])
+    assert len(kept) == 1 and "여수" in kept[0].title    # 딥시크 컷·여수 통과 = seam 사용됨
+
+
+def test_curate_relevance_fn_not_called_for_non_require_ai(tmp_path):
+    """require_ai=False 소스엔 relevance_fn 미호출(호출되면 예외로 실패)."""
+    store = SourceStore(str(tmp_path))
+
+    def fetch(_source, _w):
+        return [FetchedArticle("plain", "u", "제목", "본문", "2026-06-29T00:00:00Z")]
+
+    def boom(_t, _x):
+        raise AssertionError("require_ai=False 소스엔 relevance_fn 호출 금지")
+
+    by_key = curate(store, [_src("plain", require_ai=False)], fetch_article_fn=fetch,
+                    relevance_fn=boom)
+    assert len(by_key["plain"]) == 1
+
+
 def test_curate_skips_failing_source_and_continues(tmp_path, capsys):
     store = SourceStore(str(tmp_path))
     good, bad = _src("good"), _src("bad", fragile=True)

@@ -56,10 +56,11 @@ RelevanceFn = Callable[[str, str], bool]
 - 파싱: 응답 대문자에 `YES`면 True, `NO`면 False, 그 외(빈/모호) → `keyword_relevance` 폴백.
 - 옵션(호출 파라미터): `max_tokens≈8`, `temperature=0`(Haiku 4.5는 sampling 허용), thinking off(기본).
 
-### 5.2 Bedrock 호출 (core/retrieval/relevance_bedrock.py — boto3만)
+### 5.2 Bedrock 호출 (core/retrieval/relevance_bedrock.py — boto3만) — **Converse API (리뷰 결정 2026-07-10)**
 
 - `make_bedrock_relevance(settings) -> RelevanceFn`: lazy `boto3.client("bedrock-runtime", region_name=settings.region)`를 클로저에 담아 `llm_relevance`를 부분 적용해 돌려준다.
-- 본문 = Anthropic Messages API(Bedrock) JSON: `{"anthropic_version":"bedrock-2023-05-31","max_tokens":8,"temperature":0,"system":...,"messages":[{"role":"user","content":...}]}`; `invoke_model(modelId=settings.relevance_model_id, body=...)` → `json.loads(resp["body"].read())["content"][0]["text"]`.
+- 호출 = **Converse(모델 중립 API)** — `client.converse(modelId=…, system=[{"text":…}], messages=[{"role":"user","content":[{"text":…}]}], inferenceConfig={"maxTokens":8,"temperature":0})` → `resp["output"]["message"]["content"][0]["text"]`.
+- **왜 invoke_model 이 아니라 Converse(리뷰 토론):** judge 는 사전 필터라 모델 계약이 "YES/NO 분류"뿐 → 중립 API 가 설계 의도와 일치. 모델 교체(더 싼 judge 실험) = `RELEVANCE_MODEL_ID` env 만. IAM 은 `bedrock:InvokeModel` 이 Converse 도 커버(동일 액션). ↔ author/certifier 는 모델 행동이 계약의 일부라 네이티브 하니스 유지. bare id 함정은 Converse 에서도 동일(ValidationException — live 검증).
 - **모든 예외**(throttle/timeout/파스) 삼켜서 `keyword_relevance`로 폴백 + `_debug.warn("relevance llm", ...)`. author 카드-격리 인시던트 교훈대로 한 소스/한 기사 실패가 전체를 죽이면 안 됨.
 
 ### 5.3 curate seam (core/retrieval/curation.py)
@@ -75,12 +76,14 @@ RelevanceFn = Callable[[str, str], bool]
 ### 5.5 config (core/config.py)
 
 - `Settings`에 추가:
-  - `relevance_model_id: str` — 기본 `global.anthropic.claude-haiku-4-5`(author의 `global.anthropic.claude-sonnet-4-6` 컨벤션 미러; 정확한 inference-profile id는 배포 시 확인).
+  - `relevance_model_id: str` — 기본 `global.anthropic.claude-haiku-4-5-20251001-v1:0`(★ **전체 inference-profile id 필수** — bare `global.anthropic.claude-haiku-4-5` 는 `invoke_model` ValidationException; live 검증됨).
   - `relevance_llm_enabled: bool` — env `RELEVANCE_LLM_ENABLED`(기본 **off**). deploy_runtime가 런타임 env에 `"1"` 주입(= `CLAUDE_CODE_USE_BEDROCK` 패턴). 로컬/테스트는 off → 키워드.
 
-### 5.6 데이터센터 정리(hygiene)
+### 5.6 데이터센터 정리(hygiene) + 키워드 동결 (리뷰 결정 2026-07-10)
 
 키워드 필터가 이제 **폴백**이므로, 폴백도 깨끗하게: `_KO_KEYWORDS`에서 `데이터센터` 제거(입증된 오탐원, Oracle 재현으로 부수 피해 0 확인). `반도체`는 유지(AI 칩 문맥 신호로 aitimes에 유용) — LLM이 주 판정자라 리스크 낮음.
+
+**동결(리뷰에서 "제거 vs 유지" 토론 후 확정):** 키워드 필터는 완전 제거하지 않는다 — 3개 역할(① Bedrock 장애 폴백 ② 테스트/로컬 AWS-free 결정론 기본값 ③ env 유실 안전망)이 남는다. 제거 대안(fail-open=장애일 Oracle 버그 재발·비용 낭비 / fail-closed=require_ai 3개 소스 통째 소실 + curate 루프 내 예외라 전체 브리핑 붕괴 위험)보다 폴백 유지가 우월. 폴백의 요구 덕목은 정밀도가 아니라 recall(실측 8/8)이므로 **리스트는 동결 — 향후 정밀도 튜닝 금지**(오탐 교정은 Haiku 프롬프트의 몫).
 
 ## 6. 배선 (production)
 

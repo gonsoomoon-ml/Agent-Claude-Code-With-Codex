@@ -13,7 +13,7 @@ from collections.abc import Callable, Sequence
 from .. import _debug
 from . import sources as src
 from ..stores.source_store import FrozenSource, SourceStore
-from .relevance import is_ai_relevant
+from .relevance import RelevanceFn, is_ai_relevant
 from .sources import FetchedArticle, Source
 
 FetchArticleFn = Callable[[Source, int], Sequence[FetchedArticle]]
@@ -34,6 +34,7 @@ def curate(
     *,
     window_hours: int = 24,
     fetch_article_fn: FetchArticleFn | None = None,
+    relevance_fn: RelevanceFn | None = None,
 ) -> dict[str, list[FrozenSource]]:
     """fetch_targets(출처 union) → 권위 페치 → content-addressed 동결 → {source_key: [FrozenSource]}.
 
@@ -41,6 +42,7 @@ def curate(
     사용자·출처 간 dedup. 반환을 source_key 로 그룹화 → 호출자가 per-user 선택으로 필터.
     """
     fetch = fetch_article_fn or _default_fetch
+    is_relevant = relevance_fn or is_ai_relevant  # 미주입 = 결정론 키워드(테스트·로컬 무변경); production = Haiku
     by_key: dict[str, list[FrozenSource]] = {}
     seen: set[str] = set()
     for source in fetch_targets:
@@ -52,8 +54,8 @@ def curate(
             continue
         dropped = 0
         for art in articles:
-            # require_ai 소스(종합지 피드): AI 무관 기사를 요약·검증 *전* 컷 → 비용 절감(relevance v1, recall 우선)
-            if source.require_ai and not is_ai_relevant(art.title, art.raw_text):
+            # require_ai 소스(종합지 피드): AI 무관 기사를 요약·검증 *전* 컷 → 비용 절감(주=Haiku 판정, 폴백=키워드)
+            if source.require_ai and not is_relevant(art.title, art.raw_text):
                 dropped += 1
                 continue
             fs = store.freeze(

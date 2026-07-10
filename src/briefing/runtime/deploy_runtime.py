@@ -58,6 +58,8 @@ def runtime_env(settings: Settings) -> dict[str, str]:
         "AWS_DEFAULT_REGION": settings.region,
         "AUTHOR_MODEL_ID": settings.author_model_id,
         "SUPERVISOR_MODEL_ID": settings.supervisor_model_id,
+        "RELEVANCE_MODEL_ID": settings.relevance_model_id,
+        "RELEVANCE_LLM_ENABLED": "1",   # require_ai 사전 필터 = Haiku LLM-as-Judge(키워드 폴백). IAM=기존 InvokeModel 로 충분.
         "SES_SENDER": settings.ses_sender,
         # ★ ③ DB: 클라우드는 dynamo backend(영속 — microVM ephemeral FS 를 넘어 source/cache/ledger 공유).
         #   테이블명 default 가 CFN(briefing-*)과 일치하므로 그 외 env 불필요. region=settings.region(us-east-1) 일치 필수.
