@@ -14,22 +14,29 @@ from .. import _debug
 from . import sources as src
 from ..stores.source_store import FrozenSource, SourceStore
 from .relevance import RelevanceFn, is_ai_relevant
+from .selection import SelectFn, latest_k
 from .sources import FetchedArticle, Source
 
 FetchArticleFn = Callable[[Source, int], Sequence[FetchedArticle]]
+
+_DEFAULT_MAX_ITEMS = 5   # 글로벌 소스당 캡(fetchers 기본과 일치) — 브리핑 편중/비용 상한
+_SELECT_POOL = 12        # select=llm 소스의 후보 풀 — 캡 안에서 판정자가 고르려면 캡보다 넓게 페치(일 8~9건 소스 커버)
 
 
 def _default_fetch(source: Source, window_hours: int) -> Sequence[FetchedArticle]:
     """source.kind/fragile 로 디스패치: fragile→fetch_fragile(미구현·진짜 차단), html/auto→제너릭(trafilatura), rss→clean RSS.
 
-    소스별 window_hours 오버라이드(>0) 우선 — html(date-only) 소스의 late-post 유실 보정(W≥U+P).
+    소스별 오버라이드 우선: window_hours(late-post 보정, W≥U+P) · max_items(캡).
+    select=llm 소스는 캡 대신 후보 풀(_SELECT_POOL)로 페치 — 최종 캡은 curate 의 선별 단계가 적용.
     """
     win = source.window_hours or window_hours
+    cap = source.max_items or _DEFAULT_MAX_ITEMS
+    pool = _SELECT_POOL if source.select == "llm" else cap
     if source.fragile:
         return src.fetch_fragile(source)
     if source.kind in ("html", "auto"):
-        return src.fetch_generic_html(source, window_hours=win)
-    return src.fetch_clean_rss(source, window_hours=win)
+        return src.fetch_generic_html(source, window_hours=win, max_items=pool)
+    return src.fetch_clean_rss(source, window_hours=win, max_items=pool)
 
 
 def curate(
@@ -39,6 +46,7 @@ def curate(
     window_hours: int = 24,
     fetch_article_fn: FetchArticleFn | None = None,
     relevance_fn: RelevanceFn | None = None,
+    select_fn: SelectFn | None = None,
 ) -> dict[str, list[FrozenSource]]:
     """fetch_targets(출처 union) → 권위 페치 → content-addressed 동결 → {source_key: [FrozenSource]}.
 
@@ -56,12 +64,28 @@ def curate(
             # source-level graceful degradation: skip 후 계속. non-silent — warn(항상 stderr→CloudWatch).
             _debug.warn("curate skip", f"{source.key}: {type(err).__name__}: {err}")
             continue
+        # ① require_ai 필터(종합지 피드): AI 무관 기사를 요약·검증 *전* 컷 → 비용 절감(주=Haiku 판정, 폴백=키워드)
         dropped = 0
+        kept: list[FetchedArticle] = []
         for art in articles:
-            # require_ai 소스(종합지 피드): AI 무관 기사를 요약·검증 *전* 컷 → 비용 절감(주=Haiku 판정, 폴백=키워드)
             if source.require_ai and not is_relevant(art.title, art.raw_text):
                 dropped += 1
                 continue
+            kept.append(art)
+        if dropped:  # non-silent — 무엇이/몇 건 빠졌나 기록(silent truncation 금지)
+            _debug.dprint("curate filter", f"{source.key}: AI 무관 {dropped}건 제외(require_ai)", "yellow")
+        # ② 캡/선별: 캡 초과분은 select=llm 이면 판정자(select_fn)가, 아니면 최신순(latest_k=현행)으로 K건.
+        #    주입 fetch 가 캡 초과를 반환해도 여기서 방어적으로 상한 적용(무음 잘림 금지 — 탈락 제목 dprint).
+        cap = source.max_items or _DEFAULT_MAX_ITEMS
+        if len(kept) > cap:
+            chooser = select_fn if (source.select == "llm" and select_fn is not None) else latest_k
+            chosen = chooser(kept, cap)
+            cut = [a.title for a in kept if a not in chosen]
+            _debug.dprint("curate select",
+                          f"{source.key}: {len(kept)}→{cap}건({source.select or 'latest'} 선별) — "
+                          f"제외: {' | '.join(t[:28] for t in cut)}", "yellow")
+            kept = list(chosen)
+        for art in kept:
             fs = store.freeze(
                 url=art.url, title=art.title, raw_text=art.raw_text,
                 fetched_at=art.published_at, media=source.name,  # 발행 매체 = catalog 정본명(예 "AI Times")
@@ -70,6 +94,4 @@ def curate(
                 continue
             seen.add(fs.source_id)
             by_key.setdefault(source.key, []).append(fs)
-        if dropped:  # non-silent — 무엇이/몇 건 빠졌나 기록(silent truncation 금지)
-            _debug.dprint("curate filter", f"{source.key}: AI 무관 {dropped}건 제외(require_ai)", "yellow")
     return by_key

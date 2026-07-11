@@ -92,6 +92,19 @@
   category: OpenAI
   # RSS 평문 200(robots Allow:/) → fragile 아님
 
+# ── 커뮤니티 ──────────────────────────────────────────────────
+- key: pytorch-kr-news
+  name: PyTorch Korea 읽을거리
+  url: https://discuss.pytorch.kr/c/news/14.rss
+  kind: rss
+  lang: ko
+  category: 커뮤니티
+  homepage: https://discuss.pytorch.kr/c/news/14   # rss 는 피드 URL — 사람용 랜딩 명시
+  max_items: 3       # 평일 6~9건/일 자동 큐레이션(:30 정각 발행) — 브리핑 편중/비용 상한
+  select: llm        # 최신순 잘림 = 고정 시간대 사각지대(실측) → Haiku pick-3(폴백=최신순)
+  # Discourse news(읽을거리&정보공유) 카테고리 스코프 — qna/lounge 원천 제외. 분초 timestamp → window 24h 그대로.
+  # 2차 큐레이션(커뮤니티 요약) — certifier 는 포럼 글 기준 검증. robots 일반 허용·전문 3~8k자. last-verified: 2026-07-11
+
 # ── Google ───────────────────────────────────────────────────
 - key: deepmind
   name: Google DeepMind

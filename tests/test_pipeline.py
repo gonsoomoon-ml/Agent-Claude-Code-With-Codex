@@ -100,6 +100,23 @@ def test_run_briefing_threads_relevance_fn_to_curate(tmp_path):
     assert out[0].published == 0 and len(out[0].cards) == 0     # 판정자가 컷 → 카드 0(키워드였다면 통과했을 것)
 
 
+def test_run_briefing_threads_select_fn_to_curate(tmp_path):
+    """run_briefing 이 select_fn 을 curate 로 넘긴다(시그니처+통과) — 선별 *행동*은 test_curation 이 검증.
+
+    pytorch-kr(캡 3·select=llm)는 실 카탈로그 소스라 여기선 캡 없는 소스로 통과만 확인:
+    select_fn 인자가 TypeError 없이 수용되고 기존 발행이 그대로 동작해야 한다.
+    """
+    store = SourceStore(str(tmp_path / "store"))
+    out = run_briefing(
+        SimpleNamespace(), store, [_user("u", ["aws-ml"])], window_hours=0,
+        fetch_article_fn=_fetch, select_fn=lambda cands, k: list(cands)[:k],
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "H", "S", "W",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert out[0].published == 1
+
+
 def test_run_briefing_groups_by_area_and_dates_header(tmp_path):
     store = SourceStore(str(tmp_path / "store"))
     users = [_user("alice", ["aitimes", "openai"])]   # 뉴스·미디어 + OpenAI = 2개 분야(발행처 기준)

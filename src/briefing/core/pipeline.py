@@ -54,6 +54,7 @@ def run_briefing(
     window_hours: int = 24,
     fetch_article_fn: FetchArticleFn | None = None,
     relevance_fn=None,
+    select_fn=None,
     draft_fn=None,
     revise_fn=None,
     verify_fn=None,
@@ -70,7 +71,7 @@ def run_briefing(
     """
     fetch_targets = src.fetch_set(u.sources for u in users)  # 모든 사용자 선택의 합집합 1회
     by_key = curate(store, fetch_targets, window_hours=window_hours,
-                    fetch_article_fn=fetch_article_fn, relevance_fn=relevance_fn)
+                    fetch_article_fn=fetch_article_fn, relevance_fn=relevance_fn, select_fn=select_fn)
 
     out: list[UserBriefing] = []
     rec = recorder if recorder is not None else UsageRecorder()

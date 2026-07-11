@@ -122,6 +122,38 @@ def test_make_bedrock_relevance_falls_back_on_client_error(monkeypatch, capsys):
     assert "WARN" in capsys.readouterr().err
 
 
+def test_make_bedrock_select_builds_request_and_picks(monkeypatch):
+    """top-K 선별도 같은 Haiku·Converse 배관 — 번호 목록 프롬프트, 인덱스 JSON 파싱."""
+    from briefing.core.retrieval import relevance_bedrock as rb
+    from briefing.core.retrieval.sources import FetchedArticle
+
+    fake = _FakeBedrock("[2, 1]")
+    monkeypatch.setattr(rb, "_client", lambda region: fake)
+    chooser = rb.make_bedrock_select(_min_settings())
+
+    arts = [FetchedArticle("s", f"u{i}", f"제목{i}", f"본문{i}", "") for i in range(1, 5)]
+    picked = chooser(arts, 2)
+    assert [a.title for a in picked] == ["제목2", "제목1"]
+    call = fake.calls[0]
+    assert call["inferenceConfig"]["maxTokens"] >= 32            # 인덱스 JSON — YES/NO(8)보다 여유
+    assert "1. 제목1" in call["messages"][0]["content"][0]["text"]   # 번호 목록
+
+
+def test_make_bedrock_select_falls_back_to_latest_on_error(monkeypatch, capsys):
+    from briefing.core.retrieval import relevance_bedrock as rb
+    from briefing.core.retrieval.sources import FetchedArticle
+
+    class _Boom:
+        def converse(self, **_):
+            raise RuntimeError("throttled")
+
+    monkeypatch.setattr(rb, "_client", lambda region: _Boom())
+    chooser = rb.make_bedrock_select(_min_settings())
+    arts = [FetchedArticle("s", f"u{i}", f"제목{i}", f"본문{i}", "") for i in range(1, 5)]
+    assert chooser(arts, 2) == arts[:2]                          # 폴백 = 최신순(latest_k)
+    assert "WARN" in capsys.readouterr().err
+
+
 def _min_settings(region="us-east-1", relevance_model_id="global.anthropic.claude-haiku-4-5-20251001-v1:0"):
     from briefing.core.config import Settings
     return Settings(

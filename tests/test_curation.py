@@ -1,4 +1,6 @@
 """curation — 출처별 fetch 실패는 skip+기록(non-silent) 후 나머지 계속 (source-level graceful degradation)."""
+import dataclasses
+
 from briefing.core.retrieval.curation import curate
 from briefing.core.stores.source_store import SourceStore
 from briefing.core.retrieval.sources import FetchedArticle, Source
@@ -92,6 +94,51 @@ def test_default_fetch_uses_source_window_override(monkeypatch):
     curation._default_fetch(html48, 24)        # 오버라이드 → 48
     curation._default_fetch(rss_default, 24)   # 미지정(0) → 글로벌 24
     assert seen == {"html": 48, "rss": 24}
+
+
+def test_default_fetch_pool_widens_for_llm_select(monkeypatch):
+    """select=llm 소스는 후보 풀(12)로 페치 — 캡 안에서 판정자가 고를 수 있게. 그 외는 캡 그대로."""
+    from briefing.core.retrieval import curation
+
+    seen = {}
+
+    def fake_rss(source, *, window_hours, max_items=5, **_kw):
+        seen[source.key] = max_items
+        return []
+
+    monkeypatch.setattr(curation.src, "fetch_clean_rss", fake_rss)
+    curation._default_fetch(Source(key="sel", name="S", url="u", kind="rss", lang="ko",
+                                   max_items=3, select="llm"), 24)
+    curation._default_fetch(Source(key="cap", name="C", url="u", kind="rss", lang="ko",
+                                   max_items=3), 24)
+    curation._default_fetch(Source(key="plain", name="P", url="u", kind="rss", lang="ko"), 24)
+    assert seen == {"sel": 12, "cap": 3, "plain": 5}
+
+
+def test_curate_applies_injected_select_fn(tmp_path):
+    """캡 초과 시 select_fn(LLM 판정자 자리)이 고른 기사만 freeze — 최신순 잘림 대체."""
+    store = SourceStore(str(tmp_path))
+    arts = [FetchedArticle("s", f"u{i}", f"제목{i}", f"본문{i}", "2026-06-29T00:00:00Z") for i in range(4)]
+
+    def pick_last_two(cands, k):
+        return list(cands)[-k:]   # 최신순과 정반대를 골라 seam 사용을 증명
+
+    src_sel = _src("s")
+    src_sel = dataclasses.replace(src_sel, max_items=2, select="llm")
+    by_key = curate(store, [src_sel], fetch_article_fn=lambda *_: arts, select_fn=pick_last_two)
+    titles = [fs.title for fs in by_key["s"]]
+    assert titles == ["제목2", "제목3"]   # latest(제목0·1)가 아니라 판정자 선택
+
+
+def test_curate_caps_with_latest_when_no_select(tmp_path, capsys, monkeypatch):
+    """select 미지정 소스가 캡 초과로 들어오면 최신순 잘림(현행 동작) + non-silent dprint."""
+    monkeypatch.setenv("DEBUG", "1")   # dprint 는 DEBUG 게이트 — 관측 검증용
+    store = SourceStore(str(tmp_path))
+    arts = [FetchedArticle("s", f"u{i}", f"제목{i}", f"본문{i}", "2026-06-29T00:00:00Z") for i in range(4)]
+    src_cap = dataclasses.replace(_src("s"), max_items=2)
+    by_key = curate(store, [src_cap], fetch_article_fn=lambda *_: arts)
+    assert [fs.title for fs in by_key["s"]] == ["제목0", "제목1"]   # 최신순 첫 K
+    assert "선별" in capsys.readouterr().err                        # 잘림이 이제 관측됨
 
 
 def test_curate_skips_failing_source_and_continues(tmp_path, capsys):

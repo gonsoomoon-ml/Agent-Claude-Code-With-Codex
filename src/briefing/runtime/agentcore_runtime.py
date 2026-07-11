@@ -135,9 +135,10 @@ async def briefing_entrypoint(payload, context):
         if settings.gateway_enabled:   # ① 승격: retrieval 을 Gateway MCP 로(opt-in; off 면 직접 — 현 기본)
             from ..core.retrieval.gateway_client import gateway_fetch_factory
             fns["fetch_article_fn"] = gateway_fetch_factory(settings)
-        if settings.relevance_llm_enabled:   # require_ai 사전 필터를 Haiku LLM-as-Judge 로(키워드 폴백)
-            from ..core.retrieval.relevance_bedrock import make_bedrock_relevance
-            fns["relevance_fn"] = make_bedrock_relevance(settings)
+        if settings.relevance_llm_enabled:   # curate-stage Haiku 사전 필터 2종(같은 플래그): 관련성 + top-K 선별
+            from ..core.retrieval.relevance_bedrock import make_bedrock_relevance, make_bedrock_select
+            fns["relevance_fn"] = make_bedrock_relevance(settings)   # require_ai 소스(키워드 폴백)
+            fns["select_fn"] = make_bedrock_select(settings)         # select=llm 소스(최신순 폴백)
 
     # ★ 테스트 모드(smoke/harness)는 card_cache/ledger 우회 — 캐시-hit 으로 harness 의 진짜 CLI 실행이 가려지는 것
     #   + production 원장(③) 오염 방지. store 는 content-addressed 라 그대로 사용(무해).

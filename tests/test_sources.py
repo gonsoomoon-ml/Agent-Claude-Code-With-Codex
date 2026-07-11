@@ -29,6 +29,14 @@ def test_catalog_loaded_from_yaml():
     assert "google-dev" in catalog_keys()      # Google Developers Blog — Gemini API·에이전트 dev
 
 
+def test_catalog_max_items_and_select():
+    """pytorch-kr-news = 고볼륨(일 6~9건) 커뮤니티 큐레이션 → 캡 3 + LLM 선별. 나머지 소스는 기본(0="")."""
+    by_key = {s.key: s for s in CATALOG}
+    p = by_key["pytorch-kr-news"]
+    assert p.max_items == 3 and p.select == "llm" and p.lang == "ko"
+    assert by_key["aitimes"].max_items == 0 and by_key["aitimes"].select == ""   # 기존 소스 무변경
+
+
 def test_catalog_window_hours_default_and_html_override():
     """html(date-only 메타데이터) 소스는 window 48h(W≥U+P) — RSS(분 단위 timestamp)는 0(=글로벌 24h)."""
     by_key = {s.key: s for s in CATALOG}
@@ -64,6 +72,8 @@ def _yaml(text: str) -> Path:
     "[]",  # 빈
     "- {key: x, name: X, url: u, kind: rss, lang: en, category: C, window_hours: -1}",   # 음수 윈도우
     "- {key: x, name: X, url: u, kind: rss, lang: en, category: C, window_hours: 48h}",  # 비정수 윈도우
+    "- {key: x, name: X, url: u, kind: rss, lang: en, category: C, max_items: -3}",      # 음수 캡
+    "- {key: x, name: X, url: u, kind: rss, lang: en, category: C, select: rank}",       # 미지원 select
 ])
 def test_catalog_validation_rejects(bad):
     with pytest.raises(ValueError):

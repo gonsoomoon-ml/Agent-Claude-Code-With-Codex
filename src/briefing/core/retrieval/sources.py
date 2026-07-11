@@ -34,6 +34,8 @@ class Source:
     require_ai: bool = False  # True = 종합지 피드 → curate 가 AI 관련 기사만 통과(relevance.is_ai_relevant). 기본 off=전부 통과
     homepage: str = ""     # 선택: 사람이 볼 정식 랜딩 URL 오버라이드. 빈값이면 파생(html=url, rss=호스트) — RSS 피드 호스트가 회사 대문일 때(aws-ml) 지정
     window_hours: int = 0  # 소스별 수집 윈도우 오버라이드(0=글로벌 기본). html(date-only 메타데이터) 소스는 48 — W≥U(24h)+P(24h), late-post(오후 PT 발행) 유실 보정
+    max_items: int = 0     # 소스별 캡 오버라이드(0=글로벌 기본 5). 고볼륨 소스의 브리핑 편중/비용 상한
+    select: str = ""       # 캡 초과 시 선별 방식: ""|"latest"(최신순 잘림=현행) | "llm"(Haiku pick-K — curate 가 select_fn 주입 시)
 
 
 _KINDS = frozenset({"rss", "html", "auto"})
@@ -65,6 +67,12 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
         w = e.get("window_hours", 0)
         if not isinstance(w, int) or isinstance(w, bool) or w < 0:  # bool 은 int 서브클래스 — 명시 거부
             raise ValueError(f"catalog[{i}] '{e['key']}': window_hours 는 0 이상 정수 (got {w!r})")
+        mi = e.get("max_items", 0)
+        if not isinstance(mi, int) or isinstance(mi, bool) or mi < 0:
+            raise ValueError(f"catalog[{i}] '{e['key']}': max_items 는 0 이상 정수 (got {mi!r})")
+        sel = e.get("select", "")
+        if sel not in ("", "latest", "llm"):
+            raise ValueError(f"catalog[{i}] '{e['key']}': select 는 ''|'latest'|'llm' (got {sel!r})")
         out.append(
             Source(
                 key=e["key"],
@@ -77,6 +85,8 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
                 require_ai=bool(e.get("require_ai", False)),
                 homepage=e.get("homepage", ""),
                 window_hours=w,
+                max_items=mi,
+                select=sel,
             )
         )
     return tuple(out)

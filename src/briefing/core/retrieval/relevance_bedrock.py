@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from ..config import Settings
 from .relevance import RelevanceFn, llm_relevance
+from .selection import SelectFn, llm_select
 
 
 def _client(region: str):
@@ -38,3 +39,23 @@ def make_bedrock_relevance(settings: Settings) -> RelevanceFn:
         return resp["output"]["message"]["content"][0]["text"]
 
     return lambda title, text: llm_relevance(title, text, invoke=_invoke)
+
+
+def make_bedrock_select(settings: Settings) -> SelectFn:
+    """settings → (candidates,k)->선택 판정자. 같은 Haiku·Converse 배관 — maxTokens 만 인덱스 JSON 용으로 여유.
+
+    converse/파싱 실패는 llm_select 안에서 최신순(latest_k)으로 폴백(non-silent) — 여기선 조립만.
+    """
+    client = _client(settings.region)
+    model_id = settings.relevance_model_id
+
+    def _invoke(system: str, user: str) -> str:
+        resp = client.converse(
+            modelId=model_id,
+            system=[{"text": system}],
+            messages=[{"role": "user", "content": [{"text": user}]}],
+            inferenceConfig={"maxTokens": 64, "temperature": 0},
+        )
+        return resp["output"]["message"]["content"][0]["text"]
+
+    return lambda articles, k: llm_select(articles, k, invoke=_invoke)
