@@ -116,6 +116,60 @@ def test_run_briefing_groups_by_area_and_dates_header(tmp_path):
     assert "6월 29일" in email                                   # run_date → 헤더 날짜
 
 
+# ── cross-day 발행 dedup (late-post window 겹침에서 "사용자당 기사 1회" — ledger 조회) ──
+
+
+def _dedup_kw(published_verdict="VERIFIED"):
+    """dedup 테스트 공용 kwargs — 결정론 draft/verify(+revise) fake."""
+    return dict(
+        window_hours=0, fetch_article_fn=_fetch,
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "H", "S", "W",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        revise_fn=lambda *_a, **_k: DraftCard("sid", "H", "S", "W",
+                                              (Claim("C1", "ok", "entailment", "core"),)),
+        verify_fn=lambda c: (CertVerdict("C1", published_verdict, "ev"),),
+    )
+
+
+def test_run_briefing_dedups_previously_published(tmp_path):
+    """전날 PUBLISH 된 기사는 다음날 run 에서 제외 — 48h 겹침 윈도우의 '정확히 1회' 보장."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store = SourceStore(str(tmp_path / "store"))
+    ledger = LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    d1 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-07-10", **_dedup_kw())
+    assert d1[0].published == 1                              # D1: 발행 + ledger 기록
+    d2 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-07-11", **_dedup_kw())
+    assert d2[0].published == 0 and len(d2[0].cards) == 0    # D2: 같은 기사 재수집돼도 제외
+
+
+def test_run_briefing_same_day_rerun_not_deduped(tmp_path):
+    """같은 run_date 재실행(강제 재발송 런북)은 dedup 에 안 걸린다 — strictly-earlier 비교."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store = SourceStore(str(tmp_path / "store"))
+    ledger = LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    r1 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-07-10", **_dedup_kw())
+    r2 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-07-10", **_dedup_kw())
+    assert r1[0].published == 1 and r2[0].published == 1     # 멱등 재실행 보존
+
+
+def test_run_briefing_quarantined_retries_next_day(tmp_path):
+    """전날 QUARANTINE(사용자 미수신) 기사는 다음날 재도전 — PUBLISH 만 dedup."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store = SourceStore(str(tmp_path / "store"))
+    ledger = LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    d1 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-07-10",
+                      **_dedup_kw(published_verdict="BLOCKED"))   # core BLOCKED → QUARANTINE
+    assert d1[0].quarantined == 1 and d1[0].published == 0
+    d2 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-07-11", **_dedup_kw())
+    assert d2[0].published == 1                              # 격리됐던 기사는 다음날 재도전 성공
+
+
 # ── 2층화: 사실층 공유 + lens 해석층 (card-layering §5) ─────────────────
 
 

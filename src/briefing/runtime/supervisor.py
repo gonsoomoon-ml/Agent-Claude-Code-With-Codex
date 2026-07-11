@@ -40,6 +40,7 @@ def curate_sources(window_hours: int = 24) -> str:
     keys = _CTX.get("source_keys") or list(user.sources)
 
     def _fetch_fn(source, win):
+        win = source.window_hours or win  # 소스별 오버라이드(late-post 보정) — curation._default_fetch 와 동형
         if source.fragile:
             return src.fetch_fragile(source)
         return src.fetch_clean_rss(source, window_hours=win, max_items=max_items)

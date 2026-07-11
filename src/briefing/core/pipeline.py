@@ -12,6 +12,7 @@ from __future__ import annotations
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import date, timedelta
 
 from . import _debug, render
 from .retrieval import sources as src
@@ -81,11 +82,27 @@ def run_briefing(
         t0 = time.monotonic()
         # (frozen, category) 쌍 — category 는 출처 카탈로그 Source.category (분야 그룹 키)
         fs_cat = [(fs, s.category) for s in src.resolve_sources(u.sources) for fs in by_key.get(s.key, [])]
+        # ★ cross-day 발행 dedup — 소스별 window(>24h, late-post 보정)가 만든 런 겹침에서 "사용자당 기사 1회"를
+        #   ledger 조회로 명시 보장(윈도우 산술의 암묵 보장 → 명시 불변식). 의미론 3결정:
+        #   PUBLISH 만(QUARANTINE 은 재도전 — 사용자 미수신) · strictly-earlier(같은 날 재실행=멱등 재발송 런북 보존)
+        #   · run_date 빈값이면 off(순서 비교 불가한 ad-hoc 경로는 현행 유지).
+        prior_published: set[str] = set()
+        if ledger is not None and run_date:
+            try:
+                since = (date.fromisoformat(run_date) - timedelta(days=7)).isoformat()  # 겹침 최대 48h ≪ 7d
+            except ValueError:
+                since = ""  # 형식 밖 run_date — 전체 조회(per-user 볼륨 작음)
+            prior_published = {r["source_id"] for r in ledger.query(u.id, since_date=since)
+                               if r.get("decision") == "PUBLISH" and r.get("run_date", "") < run_date}
         # ★ 카드별 격리(비협상): 한 카드의 author/certify 실패(TimeoutExpired·throttle rc≠0·네트워크)가
         #   *브리핑 전체*를 무너뜨리지 않게 각 카드를 개별 try 로 감싼다 — 실패 카드만 드롭하고 나머지는 발행.
         #   (fs↔category 를 카드와 *묶어서* 유지 → 카드 드롭 시 positional zip 오정렬 방지.)
         produced: list[tuple[GatedCard, str]] = []
+        deduped = 0
         for fs, cat in fs_cat:
+            if fs.source_id in prior_published:
+                deduped += 1
+                continue
             try:
                 g = _process(fs, u, settings, store, card_cache, ledger, run_date,
                              draft_fn, revise_fn, verify_fn, interp_fn, fact_memo, interp_memo,
@@ -94,6 +111,8 @@ def run_briefing(
                 _debug.warn("pipeline card", f"{u.id}/{fs.source_id}: {type(e).__name__}: {e}")
                 continue            # silent drop 아님 — 위 warn 로 관측 가능(빈-발송 알림은 별도 계층)
             produced.append((g, cat))
+        if deduped:  # non-silent — 무엇이/몇 건 빠졌나 기록(curate filter 와 동형)
+            _debug.dprint("pipeline dedup", f"{u.id}: 이전 발행 {deduped}건 제외(ledger)", "yellow")
         cards = tuple(g for g, _ in produced)
         # render 는 *카드의* source_id 로 분야를 찾는다(실 author 는 fs.source_id 복사) → 카드 기준으로 매핑
         source_categories = {g.card.source_id: cat for g, cat in produced}

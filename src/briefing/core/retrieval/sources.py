@@ -33,6 +33,7 @@ class Source:
     category: str = ""     # 관심 버킷(type 직교). catalog 필수(로더가 빈값 거부); UI 분야 그룹핑 키. 기본 ""=임시 Source()용
     require_ai: bool = False  # True = 종합지 피드 → curate 가 AI 관련 기사만 통과(relevance.is_ai_relevant). 기본 off=전부 통과
     homepage: str = ""     # 선택: 사람이 볼 정식 랜딩 URL 오버라이드. 빈값이면 파생(html=url, rss=호스트) — RSS 피드 호스트가 회사 대문일 때(aws-ml) 지정
+    window_hours: int = 0  # 소스별 수집 윈도우 오버라이드(0=글로벌 기본). html(date-only 메타데이터) 소스는 48 — W≥U(24h)+P(24h), late-post(오후 PT 발행) 유실 보정
 
 
 _KINDS = frozenset({"rss", "html", "auto"})
@@ -61,6 +62,9 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
         if e["key"] in seen:
             raise ValueError(f"catalog[{i}]: 중복 key '{e['key']}'")
         seen.add(e["key"])
+        w = e.get("window_hours", 0)
+        if not isinstance(w, int) or isinstance(w, bool) or w < 0:  # bool 은 int 서브클래스 — 명시 거부
+            raise ValueError(f"catalog[{i}] '{e['key']}': window_hours 는 0 이상 정수 (got {w!r})")
         out.append(
             Source(
                 key=e["key"],
@@ -72,6 +76,7 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
                 category=e["category"],
                 require_ai=bool(e.get("require_ai", False)),
                 homepage=e.get("homepage", ""),
+                window_hours=w,
             )
         )
     return tuple(out)

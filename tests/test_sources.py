@@ -29,6 +29,15 @@ def test_catalog_loaded_from_yaml():
     assert "google-dev" in catalog_keys()      # Google Developers Blog — Gemini API·에이전트 dev
 
 
+def test_catalog_window_hours_default_and_html_override():
+    """html(date-only 메타데이터) 소스는 window 48h(W≥U+P) — RSS(분 단위 timestamp)는 0(=글로벌 24h)."""
+    by_key = {s.key: s for s in CATALOG}
+    assert by_key["aitimes"].window_hours == 0            # RSS — 현행 24h 그대로
+    assert by_key["aws-kr-tech"].window_hours == 0        # RSS — 현행 24h 그대로
+    for k in ("anthropic", "anthropic-eng", "claude-blog", "google-dev"):
+        assert by_key[k].window_hours == 48               # late-post(오후 PT 발행) 보정
+
+
 def test_resolve_sources_empty_is_all():
     assert resolve_sources([]) == list(CATALOG)
 
@@ -53,6 +62,8 @@ def _yaml(text: str) -> Path:
     "- {key: x, name: X, url: u, kind: rss, lang: en}\n- {key: x, name: Y, url: v, kind: rss, lang: en}",  # 중복 key
     "- {name: X, url: u, kind: rss, lang: en}",  # 필수 key 누락
     "[]",  # 빈
+    "- {key: x, name: X, url: u, kind: rss, lang: en, category: C, window_hours: -1}",   # 음수 윈도우
+    "- {key: x, name: X, url: u, kind: rss, lang: en, category: C, window_hours: 48h}",  # 비정수 윈도우
 ])
 def test_catalog_validation_rejects(bad):
     with pytest.raises(ValueError):

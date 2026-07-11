@@ -60,6 +60,7 @@
   kind: html
   lang: en
   category: Anthropic
+  window_hours: 48   # date-only 메타데이터(W≥U+P) — 오후 PT 발행 글 유실 보정(2026-07-11 reflect-with-claude 등 4건 실증). dedup=ledger
   # /news + 기사 본문 평문 200(robots Allow:/) → fetch_generic_html(trafilatura), fragile 아님
 
 - key: anthropic-eng
@@ -68,6 +69,7 @@
   kind: html
   lang: en
   category: Anthropic
+  window_hours: 48   # date-only 메타데이터 — late-post 보정(anthropic 과 동일)
   # 공식 발표(anthropic/news)와 별개의 엔지니어링 블로그 — 리스팅+trafilatura 평문 200, fragile 아님.
   # 발행 빈도 낮음(월 단위) → 24h 윈도우 특성상 새 글 있는 날만 카드 기여(quiet source). last-verified: 2026-07-06
 
@@ -77,6 +79,7 @@
   kind: html
   lang: en
   category: Anthropic
+  window_hours: 48   # date-only 메타데이터 — late-post 보정(claude-model-and-effort 유실 실증)
   # 공식 RSS 없음(표준 경로 404) → 리스팅+trafilatura 평문(anthropic 소스 동형, fragile 아님).
   # robots Allow:/ · 제품 아닌 공개 블로그. last-verified: 2026-07-07
 
@@ -121,4 +124,5 @@
   lang: en
   category: Google
   require_ai: true   # 종합 개발 블로그(Android·Chrome 등 혼재) → AI 관련만 통과(Gemini API·ADK·에이전트)
+  window_hours: 48   # date-only 메타데이터(리스팅+trafilatura) — late-post 보정
   # 피드 자동발견 없음 → 리스팅+trafilatura 전문 200. last-verified: 2026-07-06

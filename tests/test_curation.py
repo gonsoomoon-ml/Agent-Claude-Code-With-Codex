@@ -70,6 +70,30 @@ def test_curate_relevance_fn_not_called_for_non_require_ai(tmp_path):
     assert len(by_key["plain"]) == 1
 
 
+def test_default_fetch_uses_source_window_override(monkeypatch):
+    """window_hours 오버라이드 소스는 글로벌 윈도우 대신 자기 값으로 fetch(late-post 보정 W≥U+P)."""
+    from briefing.core.retrieval import curation
+
+    seen = {}
+
+    def fake_html(source, *, window_hours, **_kw):
+        seen["html"] = window_hours
+        return []
+
+    def fake_rss(source, *, window_hours, **_kw):
+        seen["rss"] = window_hours
+        return []
+
+    monkeypatch.setattr(curation.src, "fetch_generic_html", fake_html)
+    monkeypatch.setattr(curation.src, "fetch_clean_rss", fake_rss)
+
+    html48 = Source(key="a", name="A", url="u", kind="html", lang="en", window_hours=48)
+    rss_default = Source(key="b", name="B", url="u", kind="rss", lang="en")
+    curation._default_fetch(html48, 24)        # 오버라이드 → 48
+    curation._default_fetch(rss_default, 24)   # 미지정(0) → 글로벌 24
+    assert seen == {"html": 48, "rss": 24}
+
+
 def test_curate_skips_failing_source_and_continues(tmp_path, capsys):
     store = SourceStore(str(tmp_path))
     good, bad = _src("good"), _src("bad", fragile=True)
