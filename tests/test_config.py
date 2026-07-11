@@ -65,3 +65,26 @@ def test_list_users_dynamo_backend(monkeypatch):
     monkeypatch.setattr("briefing.core.stores.dynamo.user_store_from_settings",
                         lambda _s: SimpleNamespace(list_users=lambda: ["a", "b"]))
     assert list_users(s) == ["a", "b"]
+
+
+# ── .env.example 카탈로그 불변식 (발견 가능성 — Deep Insight .env.example 패턴 + drift 방지 테스트) ──
+
+
+def test_env_example_documents_all_settings_keys():
+    """config.py 가 읽는 모든 env 키는 .env.example 에 등장해야 한다(카탈로그 = 발견 가능성).
+
+    기본값의 단일 소유자는 코드(config.py) — .env.example 은 주석 처리된 카탈로그일 뿐(.env 로
+    복사하는 순간 동결됨을 헤더가 경고). 새 설정 키 추가 시 카탈로그 누락을 여기서 잡는다.
+    """
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    config_src = (root / "src" / "briefing" / "core" / "config.py").read_text(encoding="utf-8")
+    config_keys = set(re.findall(r'g\("([A-Z_0-9]+)"', config_src))
+    assert len(config_keys) >= 20, "config.py 파싱 실패 의심(g(\"KEY\") 키가 너무 적음)"
+
+    documented = set(re.findall(
+        r"^#?\s*([A-Z_0-9]+)=", (root / ".env.example").read_text(encoding="utf-8"), re.M))
+    missing = config_keys - documented
+    assert not missing, f".env.example 에 누락된 설정 키(카탈로그 갱신 필요): {sorted(missing)}"
