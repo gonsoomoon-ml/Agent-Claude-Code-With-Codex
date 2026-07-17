@@ -20,8 +20,10 @@ from __future__ import annotations
 import json
 import statistics
 import sys
+from pathlib import Path
 
-from scripts.ab_prompt import _SCRATCH, _sample
+sys.path.insert(0, str(Path(__file__).parent))  # scripts/ 는 패키지가 아니다 — 형제 모듈 직접 로드
+from ab_prompt import _SCRATCH, _sample  # noqa: E402
 
 _LABELS = "ABCDEF"
 
