@@ -46,10 +46,15 @@ _EN_CARD = {
     "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18,
     "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
     "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
-    # 배수 동사/부사 — 영어는 'tripled', 한국어는 '3배로 늘었다'(실측 위양성).
-    "twice": 2, "double": 2, "doubled": 2, "triple": 3, "tripled": 3,
-    "quadruple": 4, "quadrupled": 4, "quintupled": 5,
 }
+# 배수 동사/부사 — 영어 'tripled' ↔ 한국어 '3배로 늘었다'(실측 위양성). _EN_CARD 와 분리한다:
+# 이 어휘들은 관용구에서 배수를 뜻하지 않는데('double-digit growth'=두 자릿수, 'doubled down'=
+# 강화했다) 기수 테이블에 섞으면 원문에 없는 2·3 을 창조해 '2배 성장' 같은 거짓 claim 을 통과시킨다.
+# 그래서 **명확히 배수인 형태만** + 뒤에 배수 아닌 명사가 오면 배제(_RE_MULT).
+_EN_MULT = {"twice": 2, "doubled": 2, "tripled": 3, "quadrupled": 4, "quintupled": 5}
+_MULT_ALT = "|".join(sorted(_EN_MULT, key=len, reverse=True))
+# 'doubled down'·'double-digit' 류 관용구 제외. 'doubled' 뒤에 down/up/digit 이 오면 배수가 아니다.
+_RE_MULT = re.compile(rf"\b({_MULT_ALT})\b(?!\s*(?:down|up|digit))", re.I)
 # 서수 — 수량과 *다른 네임스페이스*. 'third-party'↔'제3자' 동치는 인정하되 수량 3 은 못 만든다.
 _EN_ORD = {
     "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6,
@@ -77,6 +82,11 @@ _RE_PERCENT = re.compile(rf"({_NUM})\s*(?:%p|%|percentage points?|percent|퍼센
 _RE_FRAC_KO = re.compile(rf"({_NUM})\s*분의\s*({_NUM})")
 _RE_FRAC_KO_IN = re.compile(rf"({_NUM})\s*개\s*중\s*({_NUM})\s*개")
 # 'a third'(=1/3) — 영어는 분자 1 을 관사로 쓴다. 없으면 'third' 가 서수로 새어 위양성이 된다(실측).
+# 분수 × 스케일 결합 — 'half a million'(=5e5) · 'a quarter of a million'(=2.5e5) · 'two-thirds of
+# a billion'. 분수 규칙보다 **먼저** 먹어야 한다: 아니면 'half' 가 분수로, 남은 'a million' 이
+# 통짜 1e6 으로 잡혀 **원문에 없는 1e6 을 창조**하고 '100만 달러' 거짓 claim 이 통과한다(실증).
+_RE_FRAC_SCALE = re.compile(
+    rf"\b(?:(a|{_CARD_ALT}|{_NUM})[\s-]+)?({_DENOM_ALT})\s+(?:of\s+)?(?:a|an|one)\s+({_SCALE_ALT})s?\b", re.I)
 _RE_FRAC_EN = re.compile(rf"\b(a|{_CARD_ALT}|{_NUM})[\s-]+({_DENOM_ALT})\b", re.I)
 _RE_FRAC_EN_IN = re.compile(rf"\b({_CARD_ALT}|{_NUM})\s+in\s+({_CARD_ALT}|{_NUM})\b", re.I)
 # 어휘화된 숫자 — 수량 주장이 아니라 고정 표현의 일부('1인당' = per capita; 원문엔 대응 수사가 없다).
@@ -161,7 +171,12 @@ def scan(text: str) -> Nums:
     # ① 퍼센트 — 원문 수치에서 *파생*됐을 수 있어 별도 정책(누락 시 BLOCK 아니라 DEMOTED).
     consume(_RE_PERCENT, lambda m: percents.add(_val(m.group(1))))
 
-    # ② 분수 — 맨숫자보다 먼저. 'two-thirds'를 {2,3}으로 흘리면 순서 반전 오류를 놓친다.
+    # ② 분수 × 스케일 — 'half a million'=5e5. 분수·스케일 규칙 **둘 다보다 먼저**(위 패턴 주석 참조).
+    consume(_RE_FRAC_SCALE, lambda m: values.add(
+        (_num_or_word(m.group(1)) if m.group(1) else 1.0)
+        / _EN_DENOM[m.group(2).lower()] * _EN_SCALE[m.group(3).lower()]))
+
+    # ③ 분수 — 맨숫자보다 먼저. 'two-thirds'를 {2,3}으로 흘리면 순서 반전 오류를 놓친다.
     consume(_RE_FRAC_KO, lambda m: values.add(_val(m.group(2)) / _val(m.group(1))))
     consume(_RE_FRAC_KO_IN, lambda m: values.add(_val(m.group(2)) / _val(m.group(1))))
     consume(_RE_FRAC_EN, lambda m: values.add(_num_or_word(m.group(1)) / _EN_DENOM[m.group(2).lower()]))
@@ -198,7 +213,10 @@ def scan(text: str) -> Nums:
         * _EN_SCALE[m.group(3).lower()]))
     consume(_RE_EN_SUFFIX, lambda m: values.add(_val(m.group(1)) * _EN_SUFFIX[m.group(2).lower()]))
 
-    # ⑧ 남은 기수 단어. ⑦ 뒤라야 'one million' 의 'one' 이 1 로 새지 않는다.
+    # ⑧ 배수 동사('tripled'=3배) — 관용구(doubled down·double-digit)는 _RE_MULT 가 배제.
+    consume(_RE_MULT, lambda m: values.add(float(_EN_MULT[m.group(1).lower()])))
+
+    # ⑨ 남은 기수 단어. 스케일 구 뒤라야 'one million' 의 'one' 이 1 로 새지 않는다.
     consume(_RE_EN_CARD, lambda m: values.add(float(_EN_CARD[m.group(1).lower()])))
 
     # ⑨ 남은 맨숫자.

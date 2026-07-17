@@ -153,6 +153,38 @@ def test_catches_real_hallucination_invented_duration() -> None:
     assert _certify_arithmetic("C1", Envelope(src, claim, "arithmetic", "{}")).verdict == "BLOCKED"
 
 
+# ── 적대적 검증에서 발견된 거짓 VERIFIED (2026-07-17 — 실제로 뚫렸던 것들) ───────
+#
+# 아래 셋은 *내가 그날 추가한 규칙*(관사 a=1 · 배수 동사)이 만든 구멍이다. 공격 에이전트가 찾았고
+# 실행으로 재현됐다. 교훈: **동치를 넓히는 규칙은 값을 창조할 수 있다** — 이게 이 모듈에서 가장
+# 위험한 실패 방식이다(위양성은 아플 뿐이지만 거짓 VERIFIED 는 신뢰를 깬다).
+
+@pytest.mark.parametrize(("claim", "source", "why"), [
+    ("스타트업은 100만 달러를 유치했다", "The startup raised half a million dollars.",
+     "half a million = 5e5. 'half'를 분수로 먹고 'a million'을 통짜 1e6 으로 먹으면 원문에 없는 1e6 창조"),
+    ("약 100만 명이 가입했다", "About a quarter of a million users signed up.",
+     "a quarter of a million = 2.5e5 — 같은 창조 경로"),
+    ("이 회사는 2배 성장했다", "The company saw double-digit growth this quarter.",
+     "double-digit = 두 자릿수이지 2배가 아니다 — 배수 어휘가 관용구에서 값 2 를 창조"),
+    ("오픈AI는 전략을 2배로 늘렸다", "OpenAI doubled down on its enterprise strategy.",
+     "doubled down = 강화했다 — 배수 아님"),
+])
+def test_scale_composition_does_not_invent_values(claim: str, source: str, why: str) -> None:
+    v = _certify_arithmetic("C1", Envelope(source, claim, "arithmetic", "{}"))
+    assert v.verdict == "BLOCKED", f"거짓 VERIFIED: {why}"
+
+
+@pytest.mark.parametrize(("claim", "source"), [
+    ("스타트업은 50만 달러를 유치했다", "The startup raised half a million dollars."),
+    ("약 25만 명이 가입했다", "About a quarter of a million users signed up."),
+    ("내부 사용량이 3배로 늘었다", "When the team plugged it into Devin, internal usage tripled."),
+])
+def test_scale_composition_still_verifies_true_claims(claim: str, source: str) -> None:
+    """구멍을 막으면서 정상 동치까지 죽이면 안 된다(위 테스트의 대조군)."""
+    v = _certify_arithmetic("C1", Envelope(source, claim, "arithmetic", "{}"))
+    assert v.verdict == "VERIFIED", v.evidence
+
+
 # ── 알려진 잔여 위양성 (값 대조로는 못 고침 — 문서화해 둔다) ─────────────────────
 #
 # 둘 다 "원문에 그 숫자가 *수사로* 없지만 근거는 텍스트에 있다"는 종류라, 결정론 산술이 아니라
