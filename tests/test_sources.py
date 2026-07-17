@@ -214,8 +214,6 @@ def test_strip_boilerplate_keeps_plain_article():
 def test_extract_article_drops_stub(capsys):
     """HTML 경로도 같은 게이트 — 쿠키월/스켈레톤에서 부스러기만 추출된 경우."""
     from briefing.core.retrieval import sources as s
-    stub = s._extract_article("<html>x</html>", "https://x/a", "anthropic")
-    assert stub is None or True  # _extract_body 실패 시 None (아래가 본 검사)
     orig = s._extract_body
     try:
         s._extract_body = lambda _h: ("T", "Enable JavaScript and cookies to continue", "")

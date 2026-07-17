@@ -205,6 +205,33 @@ def test_scale_composition_still_verifies_true_claims(claim: str, source: str) -
     assert v.verdict == "VERIFIED", v.evidence
 
 
+@pytest.mark.parametrize("text", ["0분의 5 확률", "0개 중 3개", "one in 0 cases", "0분의 0"])
+def test_zero_denominator_does_not_raise(text: str) -> None:
+    """★ scan() 은 certifier 안에서 돈다 — 여기서 예외가 나면 그 카드를 통째로 잃는다.
+
+    2026-07-02 인시던트(한 카드의 예외가 브리핑 전체를 붕괴)와 같은 계열. author 오타 하나면 충분하다.
+    """
+    numeric.scan(text)  # 예외 없이 끝나면 통과(분모 0 은 값을 만들지 않는다)
+
+
+def test_idiomatic_one_is_not_a_quantity() -> None:
+    """'one of the co-chairs'(여럿 중 하나)의 one 은 수량 주장이 아니다.
+
+    값 1 로 수확하면 기사에 널린 관용구가 claim 의 '1명'·'1개'를 무상으로 인증한다.
+    """
+    assert not numeric.contains(1.0, numeric.scan("Andreessen is one of the co-chairs.").values)
+    v = _certify_arithmetic("C1", Envelope(
+        "Andreessen is one of the co-chairs.", "안드레센은 1명의 공동의장이다", "arithmetic", "{}"))
+    assert v.verdict == "BLOCKED"
+
+
+def test_idiomatic_one_does_not_break_counted_phrase() -> None:
+    """'one of three co-chairs' 의 3 은 그대로 잡혀야 한다(위 규칙의 대조군)."""
+    v = _certify_arithmetic("C1", Envelope(
+        "Andreessen is one of three co-chairs.", "안드레센은 3인의 공동의장 중 한 명이다", "arithmetic", "{}"))
+    assert v.verdict == "VERIFIED"
+
+
 # ── 알려진 잔여 위양성 (값 대조로는 못 고침 — 문서화해 둔다) ─────────────────────
 #
 # 둘 다 "원문에 그 숫자가 *수사로* 없지만 근거는 텍스트에 있다"는 종류라, 결정론 산술이 아니라

@@ -119,6 +119,10 @@ _RE_EN_SCALE = re.compile(rf"\b(?:({_NUM})|(a|{_CARD_ALT}))[\s-]+({_SCALE_ALT})s
 # 뒤 경계를 `\b` 로 쓰면 안 된다 — 한글은 단어문자라 '27B를'(조사 결합)에서 경계가 안 생겨
 # 접미사를 놓치고 맨숫자 27 로 새어나간다(회귀셋 FP10). 라틴 문자/숫자만 아니면 경계로 본다.
 _RE_EN_SUFFIX = re.compile(rf"\b({_NUM})\s*([BMK])(?![A-Za-z0-9])")
+# 관용구의 'one' 은 수량 주장이 아니다 — 'one of the co-chairs'(여럿 중 하나)·'one of its'.
+# 이걸 값 1 로 수확하면 원문에 널린 관용구가 claim 의 '1명'·'1개'를 무상으로 인증한다(리뷰 지적).
+# 'one of three co-chairs' 처럼 뒤에 수가 있으면 그 수는 별도로 잡히므로 손실 없음.
+_RE_IDIOM_ONE = re.compile(r"\bone of (?:the|its|his|her|their|our)\b", re.I)
 _RE_EN_CARD = re.compile(rf"\b({_CARD_ALT})\b", re.I)
 _RE_PLAIN = re.compile(_NUM)
 
@@ -151,6 +155,16 @@ def _mask(text: str, start: int, end: int) -> str:
     return text[:start] + " " * (end - start) + text[end:]
 
 
+def _ratio(numer: float, denom: float) -> float | None:
+    """분수 값. 분모 0 이면 None(값 없음) — **예외를 던지면 안 된다.**
+
+    이 모듈은 certifier 안에서 돈다. 여기서 ZeroDivisionError 가 나면 그 카드가 통째로 죽는다
+    (2026-07-02 인시던트: 한 카드의 예외가 브리핑 전체를 무너뜨렸다 — 지금은 카드별 격리가
+    있지만 여전히 카드 1장을 잃는다). '0분의 5' 같은 입력은 드물지만 author 오타 하나면 충분하다.
+    """
+    return None if denom == 0 else numer / denom
+
+
 def scan(text: str) -> Nums:
     """텍스트 → 값 집합. 큰 표현부터 소비하며 마스킹한다 — **순서가 곧 정확성**이다."""
     values: set[float] = set()
@@ -172,17 +186,23 @@ def scan(text: str) -> Nums:
     consume(_RE_PERCENT, lambda m: percents.add(_val(m.group(1))))
 
     # ② 분수 × 스케일 — 'half a million'=5e5. 분수·스케일 규칙 **둘 다보다 먼저**(위 패턴 주석 참조).
+    #    분모는 _EN_DENOM(상수)이라 0 이 될 수 없다 — 분모 0 위험은 아래 ③(원문 숫자가 분모)에 있다.
     consume(_RE_FRAC_SCALE, lambda m: values.add(
         (_num_or_word(m.group(1)) if m.group(1) else 1.0)
         / _EN_DENOM[m.group(2).lower()] * _EN_SCALE[m.group(3).lower()]))
 
     # ③ 분수 — 맨숫자보다 먼저. 'two-thirds'를 {2,3}으로 흘리면 순서 반전 오류를 놓친다.
-    consume(_RE_FRAC_KO, lambda m: values.add(_val(m.group(2)) / _val(m.group(1))))
-    consume(_RE_FRAC_KO_IN, lambda m: values.add(_val(m.group(2)) / _val(m.group(1))))
-    consume(_RE_FRAC_EN, lambda m: values.add(_num_or_word(m.group(1)) / _EN_DENOM[m.group(2).lower()]))
-    consume(_RE_FRAC_EN_IN, lambda m: values.add(_num_or_word(m.group(1)) / _num_or_word(m.group(2))))
+    #    분모 0 은 값을 만들지 않는다(_ratio → None). 소비는 하므로 뒤 패턴이 재해석하지 않는다.
+    def _add_ratio(numer: float, denom: float) -> None:
+        r = _ratio(numer, denom)
+        if r is not None:
+            values.add(r)
+    consume(_RE_FRAC_KO, lambda m: _add_ratio(_val(m.group(2)), _val(m.group(1))))
+    consume(_RE_FRAC_KO_IN, lambda m: _add_ratio(_val(m.group(2)), _val(m.group(1))))
+    consume(_RE_FRAC_EN, lambda m: _add_ratio(_num_or_word(m.group(1)), _EN_DENOM[m.group(2).lower()]))
+    consume(_RE_FRAC_EN_IN, lambda m: _add_ratio(_num_or_word(m.group(1)), _num_or_word(m.group(2))))
 
-    # ③ 어휘화된 숫자 — 값으로 세지 않고 버린다.
+    # ④ 어휘화된 숫자 — 값으로 세지 않고 버린다.
     consume(_RE_LEXICAL, lambda m: None)
 
     # ④ 월 — 별도 네임스페이스. ISO 날짜는 연/월/일을 제자리에.
@@ -215,6 +235,9 @@ def scan(text: str) -> Nums:
 
     # ⑧ 배수 동사('tripled'=3배) — 관용구(doubled down·double-digit)는 _RE_MULT 가 배제.
     consume(_RE_MULT, lambda m: values.add(float(_EN_MULT[m.group(1).lower()])))
+
+    # ⑧-b 관용구의 'one' 소비(값 없음) — 기수 스캔 전이라야 1 로 새지 않는다.
+    consume(_RE_IDIOM_ONE, lambda m: None)
 
     # ⑨ 남은 기수 단어. 스케일 구 뒤라야 'one million' 의 'one' 이 1 로 새지 않는다.
     consume(_RE_EN_CARD, lambda m: values.add(float(_EN_CARD[m.group(1).lower()])))
