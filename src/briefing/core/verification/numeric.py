@@ -108,11 +108,26 @@ _RE_KO_GROUP = re.compile(rf"({_NUM})\s*({'|'.join(_KO_SUB)})?\s*({'|'.join(_KO_
 # 만 단위 뒤에 붙는 천/백/십 자리 — '16만 5천'(=165,000). 이 꼬리를 못 읽으면 {160000, 5} 로 흩어져
 # 원문 '165,000' 과 영영 안 맞는다(실측 위양성).
 _RE_KO_TAIL = re.compile(rf"\s*({_NUM})\s*({'|'.join(_KO_SUB)}){_KO_BOUND}")
+# 만/억/조 **없이** 쓰이는 보조배수 — '5천 명'(=5,000)·'3백 명'(=300). _RE_KO_GROUP 은 만/억/조를
+# 필수로 요구해 이걸 놓쳤고, 그러면 뒤의 맨숫자 스캔이 '5' 만 주워 **1000배 축소된 값**이 된다
+# → 원문의 무관한 맨숫자 5 가 '5천 명' claim 을 인증한다(적대 검증에서 실증). _RE_KO_GROUP 뒤에 적용.
+_RE_KO_SUB_ONLY = re.compile(rf"({_NUM})\s*({'|'.join(_KO_SUB)}){_KO_BOUND}")
 # 등위 생략(coordination ellipsis) — 'Orca was trained at 0.8 and 4 billion parameters' 는
 # 0.8**billion** 과 4billion 을 뜻한다. 이걸 못 읽으면 claim '0.8B' 가 원문 맨숫자 0.8 과 어긋나
 # 위양성이 된다(실측). 반드시 _RE_EN_SCALE 보다 먼저 소비.
+#
+# ★ **앞에 제품명이 오면 등위가 아니다** — 'Gemini 3.5 and 4.8 billion parameters' 의 3.5 는
+# 버전 번호라 3.5e9 를 만들면 원문에 없는 값을 **창조**한다(적대 검증에서 실증). 제품명 뒤의 수는
+# 스케일을 공유하지 않는다. 앞 문맥 검사는 아래 _RE_PROPER_BEFORE.
 _RE_EN_SCALE_PAIR = re.compile(
     rf"\b({_NUM})\s*(?:and|or|to|~|–|-)\s*({_NUM})\s+({_SCALE_ALT})s?\b", re.I)
+# 등위 판정: 앞 낱말이 대문자로 시작(= 제품·모델명)이면 등위 생략이 아니라 버전 번호다.
+# (가변폭이라 정규식 lookbehind 로는 못 쓴다 — scan() 의 _pair 가 매치 앞 문맥에 적용한다.)
+_RE_PROPER_BEFORE = re.compile(r"\b[A-Z][A-Za-z0-9.\-]*\s*$")
+# TODO(v-next): 제품 버전 네임스페이스 — 'Claude Opus 4.8' 의 4.8 은 수량이 아니라 **식별자**인데
+# 지금은 values 에 들어가 claim '4.8배 빠르다'를 인증한다(적대 검증에서 실증, 미해결).
+# months·ordinals 처럼 별도 집합으로 빼야 한다. 휴리스틱('대문자 제품명 뒤 소수점 수')은 오탐
+# 위험이 있어 eval set 케이스를 먼저 만들고 착수할 것.
 # 'a' 를 분자 1 로 받는다 — 'a trillion parameters'(→1조)·'A million lines'(→100만). 관사 뒤가
 # 스케일 단어일 때로 한정되므로 흔한 'a' 오독 위험 없음.
 _RE_EN_SCALE = re.compile(rf"\b(?:({_NUM})|(a|{_CARD_ALT}))[\s-]+({_SCALE_ALT})s?\b", re.I)
@@ -221,10 +236,18 @@ def scan(text: str) -> Nums:
     # ⑥ 한국어 만/억/조 — 체이닝('4억 6,600만' = 4.66e8)까지 한 값으로.
     work = _scan_ko_groups(work, values)
 
+    # ⑥-b 만/억/조 없는 보조배수('5천 명'=5,000) — ⑥ 뒤라야 '5천만'의 천을 다시 읽지 않는다.
+    consume(_RE_KO_SUB_ONLY, lambda m: values.add(_val(m.group(1)) * _KO_SUB[m.group(2)]))
+
     # ⑦ 등위 생략 스케일 — '0.8 and 4 billion' = {8e8, 4e9}. 반드시 단일 스케일 구보다 먼저.
+    #    단 앞이 제품명이면(= 'Gemini 3.5 and 4.8 billion') 첫 수는 버전이라 스케일을 공유하지 않는다.
     def _pair(m: re.Match[str]) -> None:
         scale = _EN_SCALE[m.group(3).lower()]
-        values.update({_val(m.group(1)) * scale, _val(m.group(2)) * scale})
+        values.add(_val(m.group(2)) * scale)          # 뒤 수는 항상 스케일과 결합
+        if not _RE_PROPER_BEFORE.search(work[:m.start()]):
+            values.add(_val(m.group(1)) * scale)      # 등위일 때만 앞 수도 결합
+        else:
+            values.add(_val(m.group(1)))              # 버전 번호 — 그대로 둔다
     consume(_RE_EN_SCALE_PAIR, _pair)
 
     # ⑧ 영어 스케일 구 — 'one million' 을 통째로 1e6 으로 소비(SY02 방어의 핵심).
