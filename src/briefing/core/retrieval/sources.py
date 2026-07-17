@@ -268,14 +268,31 @@ def _article_links(listing_html: str, listing_url: str) -> list[str]:
     return out
 
 
+# 본문 끝에 붙는 매체 부트플레이트(구독 권유·저자 소개) — 기사가 아니므로 동결 원문에서 뺀다.
+# **왜 검증에 중요한가:** 동결본은 certifier 가 claim 을 재도출하는 유일한 근거다. 부트플레이트의
+# 숫자가 거기 섞이면 **본문에 없는 수치의 알리바이**가 된다 — the-decoder 의 "AI Radar frontier
+# report **six times a year**" 는 35/35(100%) 기사에 붙어 매번 값 6 을 원문 집합에 넣었고,
+# 그러면 "6개 조직과 협력" 류의 근거 없는 claim 이 통과한다(적대 검증에서 실증).
+# relevance._FOOTER_RE(aitimes 푸터의 'AI' 가 관련성 필터를 무력화)와 같은 계열의 문제.
+# 마커 앞이 본문이므로 마커부터 끝까지 자른다. 소스별 코드 0(매체 무관 패턴만).
+_BOILER_RE = re.compile(
+    r"(?is)\n\s*(?:AI News Without the Hype|Subscribe to THE DECODER|About the authors?)\b.*",
+)
+
+
+def _strip_boilerplate(text: str) -> str:
+    """본문 끝 부트플레이트 제거. 자른 뒤가 기사 길이인지는 호출자(_is_stub)가 판단한다."""
+    return _BOILER_RE.sub("", text).strip()
+
+
 def _extract_body(html_text: str) -> tuple[str, str, str]:
-    """trafilatura 로 임의 HTML → (title, 본문(상한 적용), date). 실패 시 ("","",""). RSS 전문·HTML 공용."""
+    """trafilatura 로 임의 HTML → (title, 본문(부트플레이트 제거 + 상한), date). 실패 시 ("","",""). RSS 전문·HTML 공용."""
     import trafilatura
     doc = trafilatura.bare_extraction(html_text, with_metadata=True)
     if doc is None:
         return ("", "", "")
     title = (getattr(doc, "title", "") or "").strip()
-    body = _excerpt((getattr(doc, "text", "") or "").strip())
+    body = _excerpt(_strip_boilerplate((getattr(doc, "text", "") or "").strip()))
     date = (getattr(doc, "date", "") or "").strip()
     return (title, body, date)
 

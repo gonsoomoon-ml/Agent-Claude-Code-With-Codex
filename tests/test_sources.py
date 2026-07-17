@@ -187,6 +187,30 @@ def test_fetch_feed_drops_teaser_fallback(capsys, monkeypatch):
     assert "본문 미확보" in capsys.readouterr().err     # non-silent
 
 
+def test_strip_boilerplate_removes_subscription_block():
+    """★ 부트플레이트의 숫자는 **본문에 없는 수치의 알리바이**가 된다.
+
+    the-decoder 의 "AI Radar frontier report **six times a year"** 는 35/35(100%) 기사에 붙어
+    매번 값 6 을 동결 원문에 넣었다 — certifier 는 동결본만 보므로 "6개 조직" 류 근거 없는
+    claim 이 통과한다(적대 검증에서 실증). 동결본은 기사여야 한다.
+    """
+    from briefing.core.retrieval.sources import _strip_boilerplate
+    body = "Google is renaming NotebookLM to Gemini Notebook. About 30 million people use the tool."
+    raw = (body + "\nAI News Without the Hype – Curated by Humans\n"
+           'Subscribe to THE DECODER for ad-free reading, a weekly AI newsletter, our exclusive '
+           '"AI Radar" frontier report six times a year, full archive access.\nSubscribe now')
+    cleaned = _strip_boilerplate(raw)
+    assert cleaned == body
+    assert "six times a year" not in cleaned      # 값 6 의 알리바이 제거
+    assert "30 million" in cleaned                # 본문 사실은 보존
+
+
+def test_strip_boilerplate_keeps_plain_article():
+    """마커가 없으면 아무것도 자르지 않는다(과잉 절단 방지)."""
+    from briefing.core.retrieval.sources import _strip_boilerplate
+    assert _strip_boilerplate(_ARTICLE) == _ARTICLE.strip()
+
+
 def test_extract_article_drops_stub(capsys):
     """HTML 경로도 같은 게이트 — 쿠키월/스켈레톤에서 부스러기만 추출된 경우."""
     from briefing.core.retrieval import sources as s
