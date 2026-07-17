@@ -72,15 +72,29 @@ def test_author_system_pins_stance_preservation():
     assert "동사의 세기를 바꾸지 마라" in s
 
 
-def test_author_system_has_no_length_target_but_bounds_both_ends():
-    """길이 '목표'는 없다(실측: corr(길이,커버리지)=+0.47 — 조이면 대표성이 나빠진다).
+def test_author_system_budget_forces_selection():
+    """분량 = **예산**이며 선택 규칙에 묶여 있다. 지워지면 요약이 기사 축약본이 된다.
 
-    대신 양 극단만 막는다: 과압축(리드 베끼기) ↔ 분량 채우기(추측).
+    A/B 실측(2026-07-17, lead bias 최악 4건): 예산 없는 v3 는 앵커 최심을 0.162→0.888 로 고쳤지만
+    요약이 317→**1,149자**(10문장)로 폭증하고 author 가 2배 느려져 4건 중 1건이 240s 타임아웃 =
+    프로덕션이면 카드 유실. **예산이 없으면 "무엇을 버릴지 고르는 일"이라는 규칙이 공허해진다.**
+    (문헌: 문장 수 지시 준수율 84~99% vs 문자 수 7% → 단위는 문장.)
     """
     s = _fact_layer_prompt()
-    assert "목표 길이는 없다" in s
-    assert "짧은 요약이 부풀린 요약보다 낫다" in s          # 부풀리기 금지(하한 아님)
-    assert "무언가를 빠뜨린 것이다" in s                   # 과압축 금지
+    assert "3~5문장" in s
+    assert "예산" in s and "무게로 골라 버려라" in s        # 예산 ↔ 선택 규칙 결합
+    assert "짧은 요약이 부풀린 요약보다 낫다" in s          # 분량 채우기 금지(예산은 목표가 아니다)
+
+
+def test_author_system_length_rules_do_not_contradict():
+    """예산(문장 수)과 형식(문장 길이)이 서로 싸우면 안 된다.
+
+    v3.1 초안이 실제로 그랬다: 형식은 '150자 넘으면 두 문장으로 나눈다', 예산은 '쪼개지 말고
+    사실을 버려라' — 같은 프롬프트 안의 모순. 문장을 쪼개면 예산을 먹으므로 둘은 실제로 충돌한다.
+    """
+    s = _fact_layer_prompt()
+    assert "문장을 쪼개지 말고" not in s                    # 형식의 분할 규칙과 충돌하던 문구
+    assert "사실을 하나 더 버려라" in s                     # 해소된 형태: 분할이 아니라 폐기
 
 
 def test_fact_layer_prompt_has_no_qualitative_length_word():
@@ -118,7 +132,7 @@ def test_prompt_version_matches_contract():
     """PROMPT_VERSION 은 fact_card_key 성분 — 계약을 바꾸고 안 올리면 구 카드가 새 것인 척 서빙된다."""
     from briefing.core.authoring.author import PROMPT_VERSION
 
-    assert PROMPT_VERSION == "represent-v3"
+    assert PROMPT_VERSION == "represent-v3.1"
 
 
 # ── 해석층 프롬프트·파서 (card-layering §5) ─────────────────────────
