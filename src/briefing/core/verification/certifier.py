@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from .. import _debug
+from . import numeric
 
 Verdict = Literal["VERIFIED", "DEMOTED", "BLOCKED"]
 
@@ -68,30 +69,49 @@ def certify(claim_id: str, envelope: Envelope) -> CertVerdict:
 # ───────────────────────── 산술: 결정론 재도출 (LLM 아님, byte-stable) ─────────────────────────
 
 def _numbers(text: str) -> set[str]:
-    """숫자 토큰을 정규화(콤마 제거)해 집합으로. '417,166,008'→'417166008', '45%'→'45%'."""
+    """숫자 토큰을 정규화(콤마 제거)해 집합으로. '417,166,008'→'417166008', '45%'→'45%'.
+
+    ★ *라우팅*용 표층 스캔(gate.reroute_claim_types·_interp_lint 와 공유) — 검증 대조는
+    `numeric.scan`(값 기반)이 한다. 이 둘을 섞지 말 것: 여기서 '8' 이 안 보인다고 BLOCK 하면
+    영어 원문의 'eight' 를 놓친다(= 2026-07-17 이전의 위양성 100%).
+    """
     return {m.group().replace(",", "") for m in _NUM_RE.finditer(text)}
 
 
 def _certify_arithmetic(claim_id: str, envelope: Envelope) -> CertVerdict:
-    """source 에서 숫자를 재추출해 claim 의 숫자와 대조 (byte-stable, 다른 모델 불필요).
+    """source 에서 수치를 재추출해 claim 의 수치와 **값으로** 대조 (byte-stable, 다른 모델 불필요).
+
+    ★ **문자열이 아니라 값을 비교한다** — 원문은 영어("eight months"·"four trillion"·"October"),
+    claim 은 한국어("8개월"·"4조"·"10월")라 표층 대조는 원리적으로 실패한다(2026-07-17 실측:
+    BLOCKED 243/243 전부 이 위양성). 정규화·자릿수 보존은 `numeric.scan` 이 담당.
 
     정책(fail-closed, *절대 거짓 VERIFIED 금지*):
-      - claim 의 모든 숫자가 source 에 *그대로* 있음 → VERIFIED.
-      - 절대수(예: 100, 417166008)가 source 에 없음 → **BLOCKED**(날조 가능성 — 자동 발행 금지).
+      - claim 의 모든 수치가 source 에 (값으로) 있음 → VERIFIED.
+      - 수량·월·서수가 source 에 없음 → **BLOCKED**(날조 가능성 — 자동 발행 금지).
       - 퍼센트만 없음 → **DEMOTED**(원문 수치에서 *파생*됐을 수 있음 — '(미확인)' 라벨로 남김).
-    한계(v1): 공식 재계산(45% = 417M/926M)은 안 함 — 토큰 *존재* 대조까지. (formula 재계산은 후속.)
+    한계(v1): 공식 재계산(45% = 417M/926M)은 안 함 — 값 *존재* 대조까지. (formula 재계산은 후속.)
     """
-    claim_nums = _numbers(envelope.claim_text)
-    if not claim_nums:
+    claim = numeric.scan(envelope.claim_text)
+    if claim.empty():
         return CertVerdict(claim_id, "DEMOTED", "검증할 숫자 토큰이 claim 에 없음", "deterministic")
-    src_nums = _numbers(envelope.source_excerpt)
-    missing = [n for n in claim_nums if n not in src_nums]
-    if not missing:
-        return CertVerdict(claim_id, "VERIFIED", "claim 의 모든 숫자가 원문에 존재", "deterministic")
-    missing_abs = [n for n in missing if not n.endswith("%")]
-    if missing_abs:
-        return CertVerdict(claim_id, "BLOCKED", f"원문에 없는 절대수: {sorted(missing_abs)}", "deterministic")
-    return CertVerdict(claim_id, "DEMOTED", f"원문에 없는 퍼센트(파생 추정): {sorted(missing)}", "deterministic")
+    src = numeric.scan(envelope.source_excerpt)
+    # 네임스페이스별로 대조 — 월 7('July')이 수량 7 을 정당화하면 안 된다(numeric 불변식).
+    missing_val = sorted(v for v in claim.values if not numeric.contains(v, src.values))
+    missing_mon = sorted(m for m in claim.months if m not in src.months)
+    # 서수는 원문의 서수 *또는 맨숫자* 로 정당화된다 — 한국어 '제109조'(법조문)를 영어 원문은
+    # 'Article 109' 로 쓴다(실측). 반대 방향(수량을 서수로 정당화)은 금지 — 아래 missing_val 참조.
+    missing_ord = sorted(o for o in claim.ordinals
+                         if o not in src.ordinals and not numeric.contains(float(o), src.values))
+    missing_pct = sorted(p for p in claim.percents if not numeric.contains(p, src.percents))
+    if not (missing_val or missing_mon or missing_ord or missing_pct):
+        return CertVerdict(claim_id, "VERIFIED", "claim 의 모든 수치가 원문에 존재(값 대조)", "deterministic")
+    if missing_val or missing_mon or missing_ord:
+        detail = ", ".join(
+            f"{label}={vals}" for label, vals in
+            (("수량", missing_val), ("월", missing_mon), ("서수", missing_ord)) if vals
+        )
+        return CertVerdict(claim_id, "BLOCKED", f"원문에 없는 수치: {detail}", "deterministic")
+    return CertVerdict(claim_id, "DEMOTED", f"원문에 없는 퍼센트(파생 추정): {missing_pct}", "deterministic")
 
 
 # ───────────────────────── 함의: codex exec (다른 계열, clean dir, envelope-only) ─────────────────────────
