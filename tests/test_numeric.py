@@ -64,6 +64,26 @@ def test_ordinal_does_not_leak_into_quantities() -> None:
     assert not numeric.contains(3.0, src.values)
 
 
+def test_small_ordinal_not_justified_by_quantity() -> None:
+    """적대 검증에서 실증: 원문 수량 3('three co-chairs')이 없는 서수 3('제3자 감사')을 인증했다.
+
+    서수↔수량 완화는 법조문('제109조' ↔ 'Article 109')용이므로 큰 수로만 제한한다.
+    """
+    v = _certify_arithmetic("C1", Envelope(
+        "Andreessen is one of three co-chairs of a working group.", "제3자 감사가 수행됐다.",
+        "arithmetic", "{}"))
+    assert v.verdict == "BLOCKED"
+
+
+@pytest.mark.parametrize(("claim", "source"), [
+    ("국가미디어협약 제109조를 위반했다고 인정했다.", "The rulings found violations of Article 109 of the treaty."),
+    ("여러 제3자 사이트의 자료를 결합했다.", "combined from third-party sites rather than redistributed material."),
+])
+def test_ordinal_equivalence_still_holds(claim: str, source: str) -> None:
+    """구멍을 막으면서 원래 살리려던 동치(법조문·서수↔서수)까지 죽이면 안 된다."""
+    assert _certify_arithmetic("C1", Envelope(source, claim, "arithmetic", "{}")).verdict == "VERIFIED"
+
+
 def test_scale_phrase_is_consumed_whole() -> None:
     """'one million' = 1e6 하나. {1, 100, ...} 로 흩어지면 '100개' 날조가 통과한다(eval SY02)."""
     vals = _v("896 experts and one million tokens")

@@ -35,6 +35,9 @@ _CODEX_TIMEOUT_S = 120
 # 숫자 토큰(천단위 콤마·소수·퍼센트 허용) — 산술 결정론 재도출용.
 _NUM_RE = re.compile(r"\d[\d,]*(?:\.\d+)?%?")
 
+# 서수를 원문의 *맨숫자* 로 정당화해 주는 하한 — 아래 _certify_arithmetic 참조.
+_ORD_NUMERIC_MIN = 10
+
 
 @dataclass(frozen=True)
 class Envelope:
@@ -98,10 +101,14 @@ def _certify_arithmetic(claim_id: str, envelope: Envelope) -> CertVerdict:
     # 네임스페이스별로 대조 — 월 7('July')이 수량 7 을 정당화하면 안 된다(numeric 불변식).
     missing_val = sorted(v for v in claim.values if not numeric.contains(v, src.values))
     missing_mon = sorted(m for m in claim.months if m not in src.months)
-    # 서수는 원문의 서수 *또는 맨숫자* 로 정당화된다 — 한국어 '제109조'(법조문)를 영어 원문은
-    # 'Article 109' 로 쓴다(실측). 반대 방향(수량을 서수로 정당화)은 금지 — 아래 missing_val 참조.
+    # 서수는 원문의 서수로 정당화된다. 예외: **큰 수(≥_ORD_NUMERIC_MIN)** 는 원문의 맨숫자도 인정 —
+    # 한국어 '제109조'(법조문)·'제3차'류를 영어 원문은 'Article 109' 로 쓴다(실측).
+    # ★ 작은 서수까지 수량으로 정당화하면 원문의 흔한 수사가 없는 서수를 인증한다:
+    #   'one of three co-chairs'(수량 3)가 '제3자 감사'(서수 3)를 VERIFIED 로 만든다(적대 검증에서 실증).
+    #   법조문 번호는 실질적으로 두 자리 이상이라 이 하한이 동치는 지키고 누수는 막는다.
     missing_ord = sorted(o for o in claim.ordinals
-                         if o not in src.ordinals and not numeric.contains(float(o), src.values))
+                         if o not in src.ordinals
+                         and not (o >= _ORD_NUMERIC_MIN and numeric.contains(float(o), src.values)))
     missing_pct = sorted(p for p in claim.percents if not numeric.contains(p, src.percents))
     if not (missing_val or missing_mon or missing_ord or missing_pct):
         return CertVerdict(claim_id, "VERIFIED", "claim 의 모든 수치가 원문에 존재(값 대조)", "deterministic")
