@@ -130,3 +130,45 @@ def test_may_lowercase_is_not_month() -> None:
 def test_lexical_digits_are_not_quantities() -> None:
     """'1인당'(per capita)의 1 은 수량 주장이 아니다 — 원문엔 대응 수사가 없다."""
     assert _v("캐나다인의 1인당 사용률은 4배 이상") == {4.0}
+
+
+# ── 값 대조가 잡아내는 진짜 환각 (2026-07-17 프로덕션 재생에서 발견) ──────────────
+#
+# 정규화 도입 *덕분에* 드러난 것들이다: 그 전엔 BLOCKED 243건이 전부 표기 잡음이라
+# 진짜 오류가 그 안에 묻혀 구분되지 않았다. 이제 BLOCK 은 신호다.
+
+def test_catches_real_hallucination_miscounted_list() -> None:
+    """실제 프로덕션 claim: 원문 'five reasoning levels' 인데 author 가 '7가지'라고 셌다."""
+    src = ("OpenAI employee Vaibhav Srivastav explains when each of GPT-5.6 Sol's five "
+           'reasoning levels fits. "Light" and "Low" are for quick, clear-cut tasks.')
+    claim = "기사 본문은 GPT-5.6 Sol의 추론 레벨로 Light, Low, Medium, High, xhigh, Max, Ultra 총 7가지를 명시한다."
+    assert _certify_arithmetic("C1", Envelope(src, claim, "arithmetic", "{}")).verdict == "BLOCKED"
+
+
+def test_catches_real_hallucination_invented_duration() -> None:
+    """실제 프로덕션 claim: 원문 'ran for four hours' 인데 author 가 '2시간 30분'을 만들어냈다."""
+    src = ("After about an hour of back-and-forth questions, Claude Fable 5 ran on its own for "
+           "four hours and returned 90% to 95% of what they needed.")
+    claim = "프로덕트 매니저가 Claude Fable 5를 투입한 지 약 2시간 30분 후, 필요로 하는 것의 약 90%가 만들어졌다."
+    assert _certify_arithmetic("C1", Envelope(src, claim, "arithmetic", "{}")).verdict == "BLOCKED"
+
+
+# ── 알려진 잔여 위양성 (값 대조로는 못 고침 — 문서화해 둔다) ─────────────────────
+#
+# 둘 다 "원문에 그 숫자가 *수사로* 없지만 근거는 텍스트에 있다"는 종류라, 결정론 산술이 아니라
+# 함의 판정(codex)의 영역이다. 결정론 코드로 이걸 통과시키려면 '원문에 없는 수를 만들어도 된다'는
+# 규칙이 필요한데 그건 위 두 테스트(진짜 환각)를 동시에 통과시킨다 = 거짓 VERIFIED.
+# **의도적으로 BLOCK 을 유지한다**(fail-closed). 빈도: 프로덕션 1,326건 중 4건(0.3%).
+
+def test_known_false_positive_prose_enumeration() -> None:
+    """산문 열거 카운트 — 원문이 항목을 나열만 하고 개수를 안 쓴 경우. 세는 건 산술이 아니다."""
+    src = "The case lifecycle has states: Ready, In Progress, Successful, Failed, Pending Resolution."
+    claim = "케이스 생명주기 상태는 Ready, In Progress, Successful, Failed, Pending Resolution의 5가지로 구성된다."
+    assert _certify_arithmetic("C1", Envelope(src, claim, "arithmetic", "{}")).verdict == "BLOCKED"
+
+
+def test_known_false_positive_article_less_year() -> None:
+    """'In the past year' → '지난 1년' — 영어는 관사 없이 기간을 쓰고 한국어는 1 을 명시한다."""
+    src = "In the past year, you've created millions of videos in Google Vids."
+    claim = "지난 1년 동안 사용자들은 Google Vids에서 수백만 개의 영상을 제작했다."
+    assert _certify_arithmetic("C1", Envelope(src, claim, "arithmetic", "{}")).verdict == "BLOCKED"
