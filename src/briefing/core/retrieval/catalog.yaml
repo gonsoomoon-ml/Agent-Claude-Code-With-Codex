@@ -84,13 +84,21 @@
   # robots Allow:/ · 제품 아닌 공개 블로그. last-verified: 2026-07-07
 
 # ── OpenAI ───────────────────────────────────────────────────
-- key: openai
-  name: OpenAI News
-  url: https://openai.com/news/rss.xml
-  kind: rss
-  lang: en
-  category: OpenAI
-  # RSS 평문 200(robots Allow:/) → fragile 아님
+# ⚠️ 2026-07-17 비활성화(주석 처리) — **본문 수집 불가**. 피드(rss.xml)는 200 이지만 기사 본문 URL 이
+#    Cloudflare 로 **UA 무관 403**("Enable JavaScript and cookies to continue") → 전문 추출 실패 →
+#    피드 요약(=SEO 메타설명 139~176자)만 남는다. 실측: source-store 의 openai 8/8(100%)이 이 스텁이었고
+#    6장이 발행됐다("Learn how OpenAI is making ChatGPT safer for teens…" 가 카드의 전부).
+#    author 는 받은 것을 정확히 요약했고 certifier 도 정확히 통과시켰다 — 검증이 못 막는 실패라
+#    MIN_SOURCE_CHARS 게이트(sources.py)를 신설했고, 그 결과 이 소스는 라이브 19건 전부 컷 = 채택 0건.
+#    robots.txt 는 `Allow: /` 이나 서버가 실제로 막는다 → **우회 금지**(_http_get: 접근통제 우회 없음).
+#    되살리려면: ① OpenAI 가 봇 차단을 풀거나 ② 전문을 싣는 대체 피드 확보 ③ fragile+Browser Tool(v1.5).
+#    그때까지 두면 게이트가 매일 19건을 warn 하며 조용히 0건을 반환한다(무해하지만 무의미).
+# - key: openai
+#   name: OpenAI News
+#   url: https://openai.com/news/rss.xml
+#   kind: rss
+#   lang: en
+#   category: OpenAI
 
 # ── Google ───────────────────────────────────────────────────
 - key: deepmind

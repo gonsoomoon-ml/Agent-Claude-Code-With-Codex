@@ -34,8 +34,8 @@ def test_load_gonsoo_user():
 
 def test_user_from_fields_builds_from_dict():
     # 양 backend 공통 빌더 — DDB 항목(id 없음, user_id 별도) + skill_md.
-    u = _user_from_fields("u1", {"recipient": "a@b", "sources": ["openai"], "send_hour": 8, "lens": "engineer"}, "SKILL")
-    assert u.id == "u1" and u.recipient == "a@b" and u.sources == ("openai",)
+    u = _user_from_fields("u1", {"recipient": "a@b", "sources": ["claude-blog"], "send_hour": 8, "lens": "engineer"}, "SKILL")
+    assert u.id == "u1" and u.recipient == "a@b" and u.sources == ("claude-blog",)
     assert u.send_hour == 8 and u.lens == "engineer" and u.skill_md == "SKILL"
 
 

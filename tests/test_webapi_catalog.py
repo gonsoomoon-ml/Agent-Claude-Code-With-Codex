@@ -23,7 +23,7 @@ def test_each_source_exposes_expected_fields():
 def test_homepage_rss_uses_hostname():
     # RSS 출처: url 이 XML 피드라 호스트명으로 파생(경로 없음)
     srcs = {s["key"]: s for g in build_catalog()["categories"] for s in g["sources"]}
-    assert srcs["openai"]["homepage"] == "https://openai.com"          # openai.com/news/rss.xml → root
+    assert srcs["aitimes"]["homepage"] == "https://www.aitimes.com"    # aitimes.com/rss/allArticle.xml → root
 
 
 def test_homepage_html_uses_source_url():

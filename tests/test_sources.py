@@ -51,11 +51,11 @@ def test_resolve_sources_empty_is_all():
 
 
 def test_resolve_sources_subset_and_unknown_dropped():
-    assert [s.key for s in resolve_sources(["openai", "badkey"])] == ["openai"]
+    assert [s.key for s in resolve_sources(["claude-blog", "badkey"])] == ["claude-blog"]
 
 
 def test_fetch_set_union_and_empty_is_all():
-    assert {s.key for s in fetch_set([["openai"], ["aitimes", "openai"]])} == {"openai", "aitimes"}
+    assert {s.key for s in fetch_set([["claude-blog"], ["aitimes", "claude-blog"]])} == {"claude-blog", "aitimes"}
     assert {s.key for s in fetch_set([[]])} == set(catalog_keys())  # 빈 선택 = 전체
 
 
@@ -88,6 +88,12 @@ _ARTICLE_HTML = (
     '<time datetime="2026-05-28">May 28, 2026</time>'
     "<p>We are upgrading Claude Opus to a new version. It builds on Opus 4.7 with improvements across benchmarks.</p>"
     "<p>It is available today for the same price and is a more effective collaborator on agentic tasks.</p>"
+    # ↓ 본문을 기사 길이로 채운다 — MIN_SOURCE_CHARS 게이트(티저 컷)를 넘겨야 정상 경로가 테스트된다.
+    "<p>The model shows gains on agentic coding, long-context reasoning, and tool use, and it keeps the "
+    "same latency envelope as the prior version so existing deployments need no change. Developers can "
+    "opt in through the same model identifier family, and evaluations covering retrieval, planning, and "
+    "multi-step execution show consistent improvement over the previous generation across our internal "
+    "and public benchmark suites.</p>"
     "</article></body></html>"
 )
 
@@ -140,20 +146,58 @@ def test_fetch_generic_html_with_feed(monkeypatch):
     assert len(arts) == 1
 
 
+_ARTICLE = "기사 본문. " * 120   # 기사 길이(≥MIN_SOURCE_CHARS) 합성본
+
+
 def test_fetch_feed_full_text(monkeypatch):
     from briefing.core.retrieval import sources as s
     entry = {"title": "T", "link": "https://x/a", "summary": "짧은 피드 요약", "published_parsed": None}
     monkeypatch.setattr("feedparser.parse", lambda _u: types.SimpleNamespace(entries=[entry]))
     monkeypatch.setattr(s, "_http_get", lambda _u: "<html>full</html>")
-    monkeypatch.setattr(s, "_extract_body", lambda _h: ("T", "전문 본문 긴 내용", "2026-06-27"))
+    monkeypatch.setattr(s, "_extract_body", lambda _h: ("T", _ARTICLE, "2026-06-27"))
     arts = _fetch_feed("https://feed", "openai", window_hours=0)
-    assert len(arts) == 1 and arts[0].raw_text == "전문 본문 긴 내용"   # 피드 요약 아닌 *전문*
+    assert len(arts) == 1 and arts[0].raw_text == _ARTICLE   # 피드 요약 아닌 *전문*
 
 
-def test_fetch_feed_full_text_fallback(monkeypatch):
+def test_fetch_feed_falls_back_to_feed_when_it_carries_full_text(monkeypatch):
+    """전문 fetch 실패 → 피드 요약 폴백. 단 폴백이 *기사 길이*일 때만(전문을 싣는 피드)."""
     from briefing.core.retrieval import sources as s
-    entry = {"title": "T", "link": "https://x/a", "summary": "피드 요약 폴백", "published_parsed": None}
+    entry = {"title": "T", "link": "https://x/a", "summary": _ARTICLE, "published_parsed": None}
     monkeypatch.setattr("feedparser.parse", lambda _u: types.SimpleNamespace(entries=[entry]))
-    monkeypatch.setattr(s, "_http_get", lambda _u: "")               # 전문 fetch 실패 → 피드 요약 폴백
+    monkeypatch.setattr(s, "_http_get", lambda _u: "")
     arts = _fetch_feed("https://feed", "openai", window_hours=0)
-    assert arts[0].raw_text == "피드 요약 폴백"
+    assert arts[0].raw_text.startswith("기사 본문.")
+
+
+def test_fetch_feed_drops_teaser_fallback(capsys, monkeypatch):
+    """★ 회귀: openai.com 이 봇 차단(403) → 전문 실패 → SEO 메타설명 144자가 동결 원문이 됐다.
+
+    author 는 그 한 문장을 정확히 요약했고 certifier 도 정확히 통과시켰다(8/8 이 이렇게 만들어져 7장 발행).
+    검증이 못 막는 실패 = 페치가 막아야 한다. 무음 금지(warn) — 소스가 통째로 죽으면 여기서만 보인다.
+    """
+    from briefing.core.retrieval import sources as s
+    entry = {"title": "Why teens deserve access to safe AI", "link": "https://openai.com/index/x",
+             "summary": "Learn how OpenAI is making ChatGPT safer for teens with age-appropriate "
+                        "protections, learning tools, parental controls, and expert partnerships.",
+             "published_parsed": None}
+    monkeypatch.setattr("feedparser.parse", lambda _u: types.SimpleNamespace(entries=[entry]))
+    monkeypatch.setattr(s, "_http_get", lambda _u: "")   # 403 → 전문 미확보
+    arts = _fetch_feed("https://feed", "openai", window_hours=0)
+    assert arts == []
+    assert "본문 미확보" in capsys.readouterr().err     # non-silent
+
+
+def test_extract_article_drops_stub(capsys):
+    """HTML 경로도 같은 게이트 — 쿠키월/스켈레톤에서 부스러기만 추출된 경우."""
+    from briefing.core.retrieval import sources as s
+    stub = s._extract_article("<html>x</html>", "https://x/a", "anthropic")
+    assert stub is None or True  # _extract_body 실패 시 None (아래가 본 검사)
+    orig = s._extract_body
+    try:
+        s._extract_body = lambda _h: ("T", "Enable JavaScript and cookies to continue", "")
+        assert s._extract_article("<html/>", "https://x/a", "anthropic") is None
+        assert "본문 미확보" in capsys.readouterr().err
+        s._extract_body = lambda _h: ("T", _ARTICLE, "")
+        assert s._extract_article("<html/>", "https://x/a", "anthropic") is not None
+    finally:
+        s._extract_body = orig
