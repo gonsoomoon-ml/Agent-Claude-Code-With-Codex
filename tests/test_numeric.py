@@ -154,21 +154,37 @@ def test_lexical_digits_are_not_quantities() -> None:
 
 # ── 값 대조가 잡아내는 진짜 환각 (2026-07-17 프로덕션 재생에서 발견) ──────────────
 #
-# 정규화 도입 *덕분에* 드러난 것들이다: 그 전엔 BLOCKED 243건이 전부 표기 잡음이라
+# 정규화 도입 *덕분에* 드러난 것이다: 그 전엔 BLOCKED 243건이 전부 표기 잡음이라
 # 진짜 오류가 그 안에 묻혀 구분되지 않았다. 이제 BLOCK 은 신호다.
 
 def test_catches_real_hallucination_miscounted_list() -> None:
-    """실제 프로덕션 claim: 원문 'five reasoning levels' 인데 author 가 '7가지'라고 셌다."""
+    """실제 프로덕션 claim: 원문이 'five reasoning levels' 라 명시하는데 author 가 '7가지'라고 셌다.
+
+    (원문은 Light·Low·Medium·High·xhigh 다섯을 레벨로 들고, Max·Ultra 는 "work differently" 라며
+    별개 축으로 설명한다 — author 가 일곱을 다 레벨로 합쳐 셌다.)
+    """
     src = ("OpenAI employee Vaibhav Srivastav explains when each of GPT-5.6 Sol's five "
-           'reasoning levels fits. "Light" and "Low" are for quick, clear-cut tasks.')
+           'reasoning levels fits. "Light" and "Low" are for quick, clear-cut tasks. "Medium" '
+           'works for planning. "High" and "xhigh" handle complex work. "Max" and "Ultra" work '
+           'differently: "Max" lets a model spend more time on a single problem.')
     claim = "기사 본문은 GPT-5.6 Sol의 추론 레벨로 Light, Low, Medium, High, xhigh, Max, Ultra 총 7가지를 명시한다."
     assert _certify_arithmetic("C1", Envelope(src, claim, "arithmetic", "{}")).verdict == "BLOCKED"
 
 
-def test_catches_real_hallucination_invented_duration() -> None:
-    """실제 프로덕션 claim: 원문 'ran for four hours' 인데 author 가 '2시간 30분'을 만들어냈다."""
-    src = ("After about an hour of back-and-forth questions, Claude Fable 5 ran on its own for "
-           "four hours and returned 90% to 95% of what they needed.")
+def test_known_false_positive_composite_time_unit() -> None:
+    """'2시간 30분'(2h30m) ↔ 'two and a half hours'(2.5h) — **의미는 같은데 값이 다르다.**
+
+    claim 은 {2, 30}, 원문은 {2.5} 라 값 대조로는 영영 안 맞는다. 맞추려면 시간 단위 산술
+    (2 + 30/60 = 2.5)이 필요한데, 그건 '단위를 알아야' 가능하고 그 문을 열면 규칙이 값을
+    합성하기 시작한다 — 오늘 거짓 VERIFIED 3종이 정확히 그렇게 생겼다. **의도적 BLOCK 유지.**
+
+    ★ 이 케이스는 내가 처음에 'author 의 환각'으로 오판했던 것이다(원문의 다른 문단에 있던
+    'four hours' 만 보고 단정). 원문은 실제로 "after roughly two and a half hours had a working
+    environment that was about 90%" 라고 쓰여 있고 **claim 이 정확하다**. 위양성이다.
+    """
+    src = ("When a product manager wanted to bring native mobile app building inside Base44, he "
+           "pointed Claude Fable 5 at the job and after roughly two and a half hours had a working "
+           "environment that was about 90% of what the team needed to move to production.")
     claim = "프로덕트 매니저가 Claude Fable 5를 투입한 지 약 2시간 30분 후, 필요로 하는 것의 약 90%가 만들어졌다."
     assert _certify_arithmetic("C1", Envelope(src, claim, "arithmetic", "{}")).verdict == "BLOCKED"
 
