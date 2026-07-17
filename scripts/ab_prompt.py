@@ -25,7 +25,6 @@ from pathlib import Path
 import boto3
 
 from briefing.core.authoring.author import (
-    _OUTPUT_CONTRACT,
     _parse_card_json,
     _run_author,
     build_user_prompt,
@@ -66,11 +65,36 @@ def _sentences(t: str) -> int:
     return len([s for s in re.split(r"(?<=[.?!다])\s+", t.strip()) if len(s) > 5])
 
 
+# v2 시절의 _OUTPUT_CONTRACT(f08b741 이전) — summary·why 계약 줄이 없던 버전.
+_V2_OUTPUT_CONTRACT = (
+    "## 출력 형식 (JSON only)\n"
+    "다음 JSON object *하나*만 출력하라(코드펜스·여는 설명 금지):\n"
+    '{"summary": "...", "why_it_matters": "...", '
+    '"claims": [{"id": "C1", "text": "...", "claim_type": "arithmetic|entailment", '
+    '"importance": "core|supporting"}]}\n'
+    "제목(headline)은 만들지 마라 — 카드 제목은 기사 원제목을 그대로 쓴다(사실층 앵커, 재프레이밍 금지).\n"
+    "claims 는 원자적(독립 검증 단위). 숫자/날짜/% 포함이면 claim_type=arithmetic, 그 외 entailment. 애매하면 arithmetic.\n"
+    "importance: summary 또는 why_it_matters 를 직접 뒷받침하면 core, 그 외 supporting."
+)
+
+
 def _v2_system() -> str:
-    """v2 baseline system prompt — git 이력에서 뽑아둔 원본으로 재조립(현행 코드와 동형)."""
+    """v2 baseline system prompt — git 이력의 원본 3조각으로 재조립(당시 build_system_prompt 와 동형)."""
     base = (_SCRATCH / "v2_author_system.md").read_text(encoding="utf-8")
     lens = '균형 잡힌 일반 독자 관점. 핵심 사실과 "왜 중요한가"를 간결히.'
-    return "\n\n".join([base.strip(), "## 요약 관점(lens)\n" + lens, _OUTPUT_CONTRACT])
+    return "\n\n".join([base.strip(), "## 요약 관점(lens)\n" + lens, _V2_OUTPUT_CONTRACT])
+
+
+def _v2_user(fs: FrozenSource, today: str) -> str:
+    """v2 시절의 user turn — **절단 플래그도, '본문 전체에서 고른다'도 없다.**
+
+    ★ 이걸 빼먹고 현행 build_user_prompt 를 두 팔에 같이 쓰면 baseline 이 v3 의 핵심 지시를
+    받아버려 A/B 가 무효가 된다(실제로 첫 실행에서 그렇게 오염됐다 — v2 팔이 최심 0.93).
+    """
+    return (
+        f"오늘 날짜: {today} (상대 날짜는 이 기준; 원문에 없는 날짜 생성 금지).\n\n"
+        f"다음 동결 원문을 요약하고 원자적 claims 를 추출하라:\n\n{fs.text}"
+    )
 
 
 def _v3_system() -> str:
@@ -124,9 +148,14 @@ def _sample(n: int) -> list[tuple[FrozenSource, float, float]]:
 def main() -> None:
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 6
     settings = load_settings()
-    arms = {"v2(baseline)": _v2_system(), "v3(represent)": _v3_system()}
+    # 팔 = (system, user_fn) **쌍**. user turn 도 팔마다 달라야 한다 — v3 의 '본문 전체에서 고른다'가
+    # 거기 있으므로, 공용 build_user_prompt 를 쓰면 baseline 이 v3 지시를 받아 A/B 가 무효가 된다.
+    arms = {
+        "v2(baseline)": (_v2_system(), _v2_user),
+        "v3(represent)": (_v3_system(), lambda fs, today: build_user_prompt(fs, today=today)),
+    }
     say(f"표본 {n}건 · author={settings.author_model_id}")
-    say(f"프롬프트 길이: v2={len(arms['v2(baseline)'])}자 · v3={len(arms['v3(represent)'])}자\n")
+    say(f"프롬프트 길이(system): v2={len(arms['v2(baseline)'][0])}자 · v3={len(arms['v3(represent)'][0])}자\n")
 
     path = _SCRATCH / "ab_result.json"
     out: list[dict] = []
@@ -136,10 +165,10 @@ def main() -> None:
         say(f"[{i}/{len(sample)}] {fs.title[:58]}  (원문 {len(fs.text)}자)")
         say(f"      프로덕션 실적: 요약 최심 {old_sd:.2f} vs claims 최심 {old_cd:.2f}")
         rec = {"title": fs.title, "src_len": len(fs.text), "prod_sd": old_sd, "prod_cd": old_cd}
-        for arm, system in arms.items():
+        for arm, (system, user_fn) in arms.items():
             t0 = time.monotonic()
             try:
-                text = _run_author(system, build_user_prompt(fs, today="2026-07-17"), settings)
+                text = _run_author(system, user_fn(fs, "2026-07-17"), settings)
                 card = _parse_card_json(text)
             except Exception as err:            # 한 팔 실패가 전체를 죽이면 안 됨
                 say(f"      {arm}: 실패 {type(err).__name__}: {err}")
