@@ -6,7 +6,8 @@
 - key: general
   name: 일반(General)
   guidance: |
-    균형 잡힌 일반 독자 관점. 핵심 사실과 "왜 중요한가"를 간결히.
+    균형 잡힌 일반 독자 관점. 특정 직군 어휘 없이.
+    (분량·구조·커버리지는 base 요약 계약이 정한다 — lens 는 강조·어휘만.)
 
 - key: researcher
   name: 연구자(Researcher)
