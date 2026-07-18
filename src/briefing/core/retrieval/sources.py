@@ -21,6 +21,8 @@ from urllib.parse import urljoin, urlparse
 
 import yaml
 
+from .. import _debug
+
 
 @dataclass(frozen=True)
 class Source:
@@ -148,12 +150,14 @@ def _fetch_feed(
 
     full_text 면 entry.link 를 따라가 trafilatura 로 *전문*(상한) 추출 — 실패 시 피드 요약 폴백.
     published_parsed(UTC)는 calendar.timegm 으로 epoch 화. title·본문 모두 있어야 채택.
+    ★ 폴백 결과가 기사 길이에 못 미치면(= 티저) 채택하지 않는다 — `_is_stub` 참조.
     """
     import feedparser  # lazy — feedparser 미설치 환경에서도 sources 모듈 import 가능
 
     feed = feedparser.parse(feed_url)
     now = time.time()
     out: list[FetchedArticle] = []
+    stubs: list[str] = []
     for entry in feed.entries:
         if len(out) >= max_items:
             break
@@ -167,19 +171,28 @@ def _fetch_feed(
         title = (entry.get("title") or "").strip()
         link = (entry.get("link") or "").strip()
         text = ""
-        if full_text and link:  # 전문 추적(상한). 실패 시 아래 피드 요약 폴백.
+        if full_text and link:  # 전문 추적(상한). 실패·부실 시 아래 피드 요약 폴백.
             page = _http_get(link)
             if page:
                 _t, body, _d = _extract_body(page)
                 text = body
-        if not text:
+        if len(text) < MIN_SOURCE_CHARS:
+            # 전문 미확보 → 피드 요약 폴백. 피드가 전문을 싣는 경우도 있으므로 *더 긴 쪽*을 쓴다.
             raw = entry.get("summary") or ""
             if not raw and entry.get("content"):
                 raw = entry["content"][0].get("value", "")
-            text = _excerpt(_clean_text(raw))
-        if not (title and text):
+            fallback = _excerpt(_clean_text(raw))
+            if len(fallback) > len(text):
+                text = fallback
+        if not title:
+            continue
+        if _is_stub(text):  # 기사가 아니라 티저/메타설명 → 카드 자격 없음(아래 게이트 사유 참조)
+            stubs.append(f"{title[:34]}({len(text)}자)")
             continue
         out.append(FetchedArticle(source_key, link, title, text, published))
+    if stubs:  # non-silent — 소스가 통째로 스텁이면(예: 봇 차단) 여기서만 보인다
+        _debug.warn("fetch stub", f"{source_key}: 본문 미확보 {len(stubs)}건 제외"
+                                  f"(<{MIN_SOURCE_CHARS}자) — {' | '.join(stubs)}")
     return out
 
 
@@ -190,6 +203,29 @@ def fetch_clean_rss(source: Source, *, window_hours: int = 24, max_items: int = 
 
 # ── 제너릭 HTML/auto 출처 페치 (사이트별 코드 0; trafilatura 범용 추출 + 피드 자동발견) ──
 MAX_SOURCE_CHARS = 8000  # 넉넉한 상한 — 대부분 기사엔 사실상 전문, 초장문만 컷. 저작권: 원문은 7일 TTL(DynamoSourceStore)로 ephemeral.
+
+MIN_SOURCE_CHARS = 500
+"""동결 원문의 **하한** — 이보다 짧으면 기사가 아니라 티저(피드 요약·SEO 메타설명)다.
+
+**왜 필요한가(2026-07-17 실측):** openai.com 이 봇을 403 으로 막으면서(`Enable JavaScript and cookies
+to continue`) 전문 추출이 실패했고, 코드가 조용히 RSS 요약으로 폴백해 **SEO 메타설명 139~176자**를
+동결 원문으로 삼았다. openai.com 소스 **8/8(100%)이 이렇게 만들어졌고 7장이 발행됐다** —
+"Learn how OpenAI is making ChatGPT safer for teens…" 한 문장이 카드의 전부였다.
+
+이것이 이 게이트가 존재하는 이유이자, 검증이 못 막는 종류의 실패다: author 는 받은 것을 정확히
+요약했고 certifier 는 그 요약이 동결본에 함의됨을 정확히 확인했다. 게이트는 *동결본에 대한 충실성*만
+보고 *동결본이 기사인지*는 아무도 안 본다 → **garbage in, verified garbage out.**
+동결본이 기사라는 것은 verify-before-publish 의 *전제*이므로 페치 단계에서 지켜야 한다.
+
+**임계 근거(source-store 148건 실측):** 스텁 = openai 139~176 · aws 도입문단 268/373 ·
+aitimes 300자 절단 티저 6건. 진짜 짧은 기사 = aitimes 604·910(기자 바이라인까지 완결).
+500 은 이 둘 사이에 있어 스텁 16건을 정확히 컷하고 진짜 기사는 하나도 안 건드린다.
+"""
+
+
+def _is_stub(text: str) -> bool:
+    """동결 원문 자격 미달(기사가 아닌 티저) 판정. 길이만 본다 — 결정론·언어 무관."""
+    return len(text.strip()) < MIN_SOURCE_CHARS
 
 
 def discover_feed(url: str) -> str:
@@ -232,22 +268,42 @@ def _article_links(listing_html: str, listing_url: str) -> list[str]:
     return out
 
 
+# 본문 끝에 붙는 매체 부트플레이트(구독 권유·저자 소개) — 기사가 아니므로 동결 원문에서 뺀다.
+# **왜 검증에 중요한가:** 동결본은 certifier 가 claim 을 재도출하는 유일한 근거다. 부트플레이트의
+# 숫자가 거기 섞이면 **본문에 없는 수치의 알리바이**가 된다 — the-decoder 의 "AI Radar frontier
+# report **six times a year**" 는 35/35(100%) 기사에 붙어 매번 값 6 을 원문 집합에 넣었고,
+# 그러면 "6개 조직과 협력" 류의 근거 없는 claim 이 통과한다(적대 검증에서 실증).
+# relevance._FOOTER_RE(aitimes 푸터의 'AI' 가 관련성 필터를 무력화)와 같은 계열의 문제.
+# 마커 앞이 본문이므로 마커부터 끝까지 자른다. 소스별 코드 0(매체 무관 패턴만).
+_BOILER_RE = re.compile(
+    r"(?is)\n\s*(?:AI News Without the Hype|Subscribe to THE DECODER|About the authors?)\b.*",
+)
+
+
+def _strip_boilerplate(text: str) -> str:
+    """본문 끝 부트플레이트 제거. 자른 뒤가 기사 길이인지는 호출자(_is_stub)가 판단한다."""
+    return _BOILER_RE.sub("", text).strip()
+
+
 def _extract_body(html_text: str) -> tuple[str, str, str]:
-    """trafilatura 로 임의 HTML → (title, 본문(상한 적용), date). 실패 시 ("","",""). RSS 전문·HTML 공용."""
+    """trafilatura 로 임의 HTML → (title, 본문(부트플레이트 제거 + 상한), date). 실패 시 ("","",""). RSS 전문·HTML 공용."""
     import trafilatura
     doc = trafilatura.bare_extraction(html_text, with_metadata=True)
     if doc is None:
         return ("", "", "")
     title = (getattr(doc, "title", "") or "").strip()
-    body = _excerpt((getattr(doc, "text", "") or "").strip())
+    body = _excerpt(_strip_boilerplate((getattr(doc, "text", "") or "").strip()))
     date = (getattr(doc, "date", "") or "").strip()
     return (title, body, date)
 
 
 def _extract_article(html_text: str, url: str, source_key: str) -> FetchedArticle | None:
-    """HTML 기사 → FetchedArticle. title·본문 둘 다 있어야 채택."""
+    """HTML 기사 → FetchedArticle. title·본문 둘 다 있고 본문이 기사 길이여야 채택(`_is_stub`)."""
     title, text, published = _extract_body(html_text)
     if not (title and text):
+        return None
+    if _is_stub(text):  # 리스팅/쿠키월/스켈레톤에서 부스러기만 추출된 경우 — non-silent
+        _debug.warn("fetch stub", f"{source_key}: 본문 미확보({len(text)}자 < {MIN_SOURCE_CHARS}) — {title[:40]}")
         return None
     return FetchedArticle(source_key, url, title, text, published)
 

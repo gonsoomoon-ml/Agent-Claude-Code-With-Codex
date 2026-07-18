@@ -66,7 +66,7 @@ def test_run_briefing_isolates_failing_card(tmp_path):
     import subprocess
 
     store = SourceStore(str(tmp_path / "store"))
-    users = [_user("u", ["aitimes", "openai"])]   # 2개 출처 → 2개 카드
+    users = [_user("u", ["aitimes", "claude-blog"])]   # 2개 출처 → 2개 카드
 
     calls = {"n": 0}
 
@@ -119,7 +119,7 @@ def test_run_briefing_threads_select_fn_to_curate(tmp_path):
 
 def test_run_briefing_groups_by_area_and_dates_header(tmp_path):
     store = SourceStore(str(tmp_path / "store"))
-    users = [_user("alice", ["aitimes", "openai"])]   # 뉴스·미디어 + OpenAI = 2개 분야(발행처 기준)
+    users = [_user("alice", ["aitimes", "claude-blog"])]   # 뉴스·미디어 + Anthropic = 2개 분야(발행처 기준)
     out = run_briefing(
         SimpleNamespace(), store, users, window_hours=0, fetch_article_fn=_fetch_distinct,
         draft_fn=lambda source, *_a: DraftCard(source.source_id, "헤드라인", "요약", "왜중요",
@@ -129,7 +129,7 @@ def test_run_briefing_groups_by_area_and_dates_header(tmp_path):
     )
     email = out[0].email
     assert "2개 분야" in email                                   # 출처 기준 분야 카운트
-    assert "뉴스·미디어" in email and "OpenAI" in email        # 분야 밴드(2개+, 발행처)
+    assert "뉴스·미디어" in email and "Anthropic" in email     # 분야 밴드(2개+, 발행처)
     assert "6월 29일" in email                                   # run_date → 헤더 날짜
 
 

@@ -23,14 +23,28 @@ from .. import _debug
 from ..config import Settings, UserConfig
 from ..lenses import resolve_lens
 from ..prompts import apply_prompt_template
+from ..retrieval.sources import MAX_SOURCE_CHARS
 from ..stores.source_store import FrozenSource
 
-_AUTHOR_TIMEOUT_S = 240  # `claude -p` 한 카드(1회 호출) 작성 타임아웃(초). 느리지만-완료되는 호출 여유
-# (180→240, 2026-07-01 인시던트 후). ★ pipeline 이 카드별로 이 실패를 격리하므로 초과 카드는 자기만 드롭
-# (배치 전체 중단 아님) → 상향이 안전. 정상 author 는 30~90s 라 happy-path wall-clock 엔 영향 없음.
+_AUTHOR_TIMEOUT_S = 360  # `claude -p` 한 카드(1회 호출) 작성 타임아웃(초). 느리지만-완료되는 호출 여유.
+# 이력: 180→240(2026-07-01 인시던트)→360(2026-07-18, represent-v3.3 워크로드 재보정).
+# ★ 근본 수정은 값이 아니라 v3.3(claims 를 '원문 전체'→'요약 커버리지'로 좁힘, PROMPT_VERSION 참조):
+#   v3 의 "claims 원문 전체 빠짐없이"가 밀집 기사에서 24~39 claims 를 뽑아 지연이 240s+ 로 폭증했다.
+#   v3.3 순차 실측(동시성 1=프로덕션 조건, 밀집 8,000자): claims 35→10~22, 지연 **완료 전부 119~197s**.
+#   즉 정상 기사는 240 밑이지만, 변동(같은 크기가 122s↔실패)이 커 197s+변동 여유로 360 을 둔다.
+# ★ 잔여 tail(값으로 못 막음): 초밀집 연구논문(LaTeX 수식 다수 — 예 CARI4D)은 프롬프트 버전 무관하게
+#   >360s. 어떤 임계값으로도 못 막으니 그 카드는 격리 드롭(pipeline 카드별 try/except, 2026-07-02 인시던트).
+#   → 남은 일 = silent-failure *통지*(드롭을 보이게, 별건 OPEN). 값 상향은 tail 을 못 없앤다.
+# ★ 왜 상향이 안전: (1) 카드별 격리 → 초과 카드만 드롭(배치 중단 아님). (2) 스케줄 브리핑 = add_async_task
+#   로 최대 8h 세션(agentcore_runtime) → 관측 브리핑 최대 46분 대비 전체 여유 압도적. num_turns=1(루프 없음).
 
 # 프롬프트 계약 버전 — 사실층 캐시 키 성분(계약이 바뀌면 캐시 자동 무효화). card-layering §5.
-PROMPT_VERSION = "layered-v2"  # v2: author 가 headline 미생성 — 제목 = 기사 원제목(source.title). 계약 변경 → 캐시 자동 무효화.
+PROMPT_VERSION = "represent-v3.3"  # v3.3: v3.1(선택 규칙·예산) + claims 를 '원문 전체'→'요약 커버리지'로 좁힘
+# (v3.2 = 수치 조건 규칙, 블라인드 A/B 에서 효과 없어 revert — 번호는 changelog 로 건너뜀.)
+# v3.3 근거: v3 의 "claims 원문 전체 빠짐없이"가 밀집 기사에서 35~39 claims 를 뽑아 author 지연이 240s+
+# (순차 실측)로 폭증·카드 유실. claims 는 *발행물(요약)의 검증 안전망*이지 기사 색인이 아니다 — 요약이 버린
+# 사실을 검증할 이유가 없다(독자 미노출). 요약 커버리지로 좁히면 claim 수·지연·certifier 부하가 함께 준다.
+# 안전망 불변식 보존: 요약이 진술한 사실은 여전히 전부 claim(요약 사실은 검증 우회 불가).
 
 # author 가 emit 해야 하는 JSON 계약 (static → 캐시 프리픽스 안전). 변수·날짜 없음.
 _OUTPUT_CONTRACT = (
@@ -39,8 +53,18 @@ _OUTPUT_CONTRACT = (
     '{"summary": "...", "why_it_matters": "...", '
     '"claims": [{"id": "C1", "text": "...", "claim_type": "arithmetic|entailment", '
     '"importance": "core|supporting"}]}\n'
+    "summary: 한국어 산문 한 문단(불릿·번호·줄바꿈 금지), **3~5문장**. 첫 문장 = 이 기사에서 새로 일어난 "
+    "단 하나의 사실. 도입부만 옮기지 말고 본문 전체에서 고른다. 기사의 결론·논조를 바꾸는 반론·단서가 있으면 "
+    "한 절이라도 포함. 원문의 귀속(누가 주장했나)과 유보 표현을 유지. "
+    "담을 사실이 3~5문장을 넘으면 분량을 늘리지 말고 무게로 골라 버려라 — 기사를 통째로 옮기지 마라. "
+    "'왜 중요한가'는 여기 쓰지 마라.\n"
+    "why_it_matters: 한국어 1~3문장 한 단락. summary 를 되풀이하지 말고 독자에게 갖는 의미만. "
+    "새 사실·수치·날짜를 도입하지 마라 — summary 와 claims 에 있는 것만 쓴다.\n"
     "제목(headline)은 만들지 마라 — 카드 제목은 기사 원제목을 그대로 쓴다(사실층 앵커, 재프레이밍 금지).\n"
-    "claims 는 원자적(독립 검증 단위). 숫자/날짜/% 포함이면 claim_type=arithmetic, 그 외 entailment. 애매하면 arithmetic.\n"
+    "claims 는 원자적(독립 검증 단위)이며 **요약이 진술한 모든 사실**을 덮는다 — 요약의 사실은 빠짐없이 "
+    "claim 으로(claim 없는 사실은 검증을 우회한다). 요약에 없는 사실은 claim 으로 만들지 마라 — claims 는 "
+    "발행물(요약)의 안전망이지 기사 전체의 색인이 아니다. 숫자/날짜/% 포함이면 claim_type=arithmetic, "
+    "그 외 entailment. 애매하면 arithmetic.\n"
     "importance: summary 또는 why_it_matters 를 직접 뒷받침하면 core, 그 외 supporting."
 )
 
@@ -106,11 +130,21 @@ def build_user_prompt(source: FrozenSource, *, today: str | None = None) -> str:
     """claude/agent 의 *user 메시지* (= 캐시 안 되는 동적 turn) = 오늘 날짜 + 동결 원문 + 지시.
 
     날짜·source 같은 *변하는 내용*은 여기(캐시 프리픽스 밖)에 둔다 → system 캐싱 보존. source.text 는 f-string(브레이스 안전).
+    **절단 플래그:** 소스의 28.6%가 본문 상한(MAX_SOURCE_CHARS)에서 잘린다 — base 계약의
+    "본문 전체를 근거로"가 *물리적으로 없는 뒷부분*에 대한 추측 압력이 되지 않게 잘렸음을 알린다.
     """
     today = today or date.today().isoformat()
+    warn = (
+        "\n\n(이 원문은 본문 상한에서 **절단**되었다 — 기사의 뒷부분이 없을 수 있다. "
+        "없는 결론·후속을 추정하지 마라.)"
+        if len(source.text) >= MAX_SOURCE_CHARS
+        else ""
+    )
     return (
         f"오늘 날짜: {today} (상대 날짜는 이 기준; 원문에 없는 날짜 생성 금지).\n\n"
-        f"다음 동결 원문을 요약하고 원자적 claims 를 추출하라:\n\n{source.text}"
+        f"다음 동결 원문을 요약하고 원자적 claims 를 추출하라. "
+        f"요약에 담을 사실은 도입부가 아니라 본문 전체에서 고른다.{warn}\n\n"
+        f"{source.text}"
     )
 
 

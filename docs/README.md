@@ -75,4 +75,10 @@
 | plans `2026-07-08-admin-monitoring` | SHIPPED — 11 태스크 TDD(UsageRecorder→author 봉투비용→gate 배선→pipeline carrier→deliver 반환→sent_log 확장→dispatch audit→admin API→IAM→React /admin). Float→Decimal·authz 추출·certify 추정은 gate.verify_card(certifier 무수정). per-task+opus 최종리뷰 통과·232 py+41 web green |
 | deliveries `2026-07-09-admin-monitoring-delivery.md` | SHIPPED·LIVE — 머지 `ee51d6a`(-X theirs, 병렬 card-title/Decoder 통합) + `deploy_api`(sent-log IAM)·`deploy_web`(CloudFront)·`deploy_runtime`(READY) 3종. 배선 확인: `briefing-hourly-tick` ENABLED·dispatch `BRIEFING_DRY_RUN=0`·ARN 일치·`/admin/emails` 401. **첫 실발송 데이터 확인 대기**(백필 불가·dry-run/trial 미기록). footgun: `deploy_scheduler` 금지 |
 
+### summary-quality-certifier-timeout (요약 대표성 + 검증층 + 타임아웃) — COMMITTED·미배포 (브랜치 `fix/certifier-cross-lingual-numerals`, 2026-07-18)
+| 문서 | 상태 |
+|---|---|
+| specs `2026-07-17-represent-v3-prompt-design` | DRAFT→진화 — 병은 길이가 아니라 lead bias. 실제 결과는 v3.1 확정·v3.2 revert·v3.3(스펙은 불변 이력, 최종은 delivery/메모리) |
+| deliveries `2026-07-18-summary-quality-certifier-timeout-delivery.md` | **COMMITTED·미배포**(23커밋·340 tests) — ① certifier 문자열→값 대조(교차언어 위양성 243→6·catch 100%) + 적대 경화 ② SEO 스텁 게이트(MIN_SOURCE_CHARS·openai 비활성) ③ 요약 계약 v3→v3.1(확정)→v3.2(revert)→v3.3(claims=요약 커버리지) ④ author 타임아웃 근본수정(240→360·claims 35→10~22) ⑤ A/B+블라인드 심사 도구. OPEN: (b)잔여 certifier·silent통지·요약예산·독자계측 |
+
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.
