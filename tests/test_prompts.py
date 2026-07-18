@@ -72,19 +72,6 @@ def test_author_system_pins_stance_preservation():
     assert "동사의 세기를 바꾸지 마라" in s
 
 
-def test_author_system_pins_numeric_condition_rule():
-    """v3.2: 수치는 그 측정 조건과 한 몸으로 옮긴다 — 유보 제거의 정량 버전.
-
-    블라인드 심사(2026-07-17)가 잡은 v3.1 의 유일한 반복 결함 = 조건절 생략:
-    '2.4/6.4배(커널만/커널+브로드캐스팅)'·'8배(밀집 대비)' 의 괄호를 떨궈 없던 보편성·인과가 생겼다
-    (Soofi S '8배' 는 인과까지 MoE 로 뒤바뀜). 조건 없는 수치는 누락이 아니라 **왜곡**이라 fail 방향이 다르다.
-    """
-    s = _fact_layer_prompt()
-    assert "수치는 그 조건과 한 몸이다" in s
-    assert "조건 없는 수치는 왜곡" in s          # 누락(빈 자리)과 구분 — 이게 규칙의 핵심
-    assert "조건이 분량을 넘기면 수치를 통째로 버려라" in s  # 예산과의 결합: 스트립 말고 폐기
-
-
 def test_author_system_budget_forces_selection():
     """분량 = **예산**이며 선택 규칙에 묶여 있다. 지워지면 요약이 기사 축약본이 된다.
 
@@ -145,7 +132,7 @@ def test_prompt_version_matches_contract():
     """PROMPT_VERSION 은 fact_card_key 성분 — 계약을 바꾸고 안 올리면 구 카드가 새 것인 척 서빙된다."""
     from briefing.core.authoring.author import PROMPT_VERSION
 
-    assert PROMPT_VERSION == "represent-v3.2"
+    assert PROMPT_VERSION == "represent-v3.1"
 
 
 # ── 해석층 프롬프트·파서 (card-layering §5) ─────────────────────────
