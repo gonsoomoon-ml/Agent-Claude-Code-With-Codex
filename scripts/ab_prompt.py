@@ -114,19 +114,14 @@ def _current_system() -> str:
     )
 
 
-# ── 과거 버전 재현 (현행=v3.2 에서 조각을 되돌린다) ──────────────────────────────
-# 계층: v3.2(현행) ⊃ v3.1(−조건규칙) ⊃ v3(−예산). 각 재현을 **git 원본 md 와 대조 검증**한다
-# (재구성 버그를 두 번 겪었다 — 손 surgery 는 반드시 git 으로 검산).
+# ── 과거 버전 재현 ─────────────────────────────────────────────────────────────
+# 현행(체크아웃) = v3.1 로 확정(2026-07-18: v3.2 조건 규칙은 블라인드 A/B 에서 효과 없어 revert).
+# v3(예산 없음)만 재현 대상. md 는 **git 원본에서 직접** 가져온다 — 손 surgery 는 재구성 버그를 두 번
+# 냈다(그중 하나는 git-verify 로 잡음). 유일한 재구성은 계약 summary 줄(Python 리터럴이라 md 밖).
 _REPO = Path(__file__).resolve().parent.parent
 _MD_PATH = "src/briefing/core/prompts/author_system.md"
 _V3_COMMIT = "f08b741"   # represent-v3 (예산 없음)
-_V31_COMMIT = "f5128e1"  # represent-v3.1 (예산 도입)
-
-# v3.2 가 v3.1 에 더한 '조건 규칙' 계약 fragment(현행 → v3.1 로 되돌릴 대상).
-_V32_CONTRACT = ("원문의 귀속(누가 주장했나)·유보 표현과 **수치의 측정 조건**을 유지"
-                 "(수치는 조건과 한 몸 — '8배'가 아니라 '밀집 모델 대비 8배'; 조건 못 담을 수치는 통째로 버려라). ")
-_V31_CONTRACT = "원문의 귀속(누가 주장했나)과 유보 표현을 유지. "
-# v3.1 이 v3 에 더한 '예산' 계약 fragment.
+# v3 시절 계약 summary 줄(예산 조항 없음 = "목표 길이는 없다").
 _V3_SUMMARY_LINE = (
     "summary: 한국어 산문 한 문단(불릿·번호·줄바꿈 금지). 첫 문장 = 이 기사에서 새로 일어난 단 하나의 사실. "
     "도입부만 옮기지 말고 본문 전체에서 고른다. 기사의 결론·논조를 바꾸는 반론·단서가 있으면 한 절이라도 포함. "
@@ -142,43 +137,19 @@ def _git_md(ref: str) -> str:
                           capture_output=True, text=True, cwd=_REPO, check=True).stdout.strip()
 
 
-def _assemble(md_ref: str, summary_line: str, name: str) -> str:
-    """git 원본 md + 현행 lens·계약 + 지정 summary 줄로 조립.
-
-    md 는 git 에서 오므로 손 surgery 0(= 이 함수가 존재하는 이유). 유일한 재구성은 계약의 summary
-    줄인데, 이건 author.py 의 Python 리터럴이라 md 밖이다. 격리는 main() 의 토큰 불변식이 검증한다.
-    """
+def _v3_system() -> str:
+    """v3 재현 = git f08b741 md + 현행(v3.1) lens·계약, 단 summary 줄만 예산 없는 v3 판으로 교체."""
     cur = _current_system()
-    lens_and_contract = cur[cur.find("\n\n## 요약 관점(lens)"):]  # lens + _OUTPUT_CONTRACT
-    out = _git_md(md_ref) + lens_and_contract
+    out = _git_md(_V3_COMMIT) + cur[cur.find("\n\n## 요약 관점(lens)"):]  # v3 md + 현행 lens/계약
     k = out.find("summary: 한국어 산문 한 문단")
     end = out.find("\nwhy_it_matters:", k)
     if k < 0 or end < 0:
-        raise SystemExit(f"{name} 조립 실패: summary 줄을 못 찾음")
-    return out[:k] + summary_line.rstrip("\n") + out[end:]
+        raise SystemExit("v3 조립 실패: summary 줄을 못 찾음")
+    return out[:k] + _V3_SUMMARY_LINE.rstrip("\n") + out[end:]
 
 
-def _current_summary_line() -> str:
-    cur = _current_system()
-    k = cur.find("summary: 한국어 산문 한 문단")
-    return cur[k:cur.find("\nwhy_it_matters:", k)]
-
-
-def _v31_system() -> str:
-    """v3.1 재현 = git f5128e1 md + 현행 계약에서 조건 echo 만 제거한 summary 줄."""
-    s = _current_summary_line().replace(_V32_CONTRACT, _V31_CONTRACT, 1)
-    if _V32_CONTRACT in s:
-        raise SystemExit("v3.1 재현 실패: 계약 조건 echo 를 못 되돌림")
-    return _assemble(_V31_COMMIT, s, "v3.1")
-
-
-def _v3_system() -> str:
-    """v3 재현 = git f08b741 md + 예산·조건 없는 옛 summary 줄."""
-    return _assemble(_V3_COMMIT, _V3_SUMMARY_LINE, "v3")
-
-
-def _v3_family_user(fs: FrozenSource, today: str) -> str:
-    """v3·v3.1·v3.2 는 user turn 동일(차이는 전부 system 에 있다)."""
+def _arm_user(fs: FrozenSource, today: str) -> str:
+    """v3·v3.1 은 user turn 동일(차이는 전부 system 에 있다)."""
     return build_user_prompt(fs, today=today)
 
 
@@ -251,13 +222,12 @@ def main() -> None:
     want = sys.argv[3].split(",") if len(sys.argv) > 3 else None
     settings = load_settings()
 
-    # 팔 = (system, user_fn) **쌍**. v3·v3.1·v3.2 는 user turn 동일(차이는 전부 system).
-    # v3 = 예산 없음(길지만 충실도 최고, 지난 라운드 fidelity 6/6) · v3.1 = 예산(짧지만 조건절 생략)
-    # · v3.2 = 예산 + 조건 규칙(가설: v3.1 길이에 v3 충실도). 셋 다 git 원본과 대조 검증됨.
+    # 팔 = (system, user_fn) **쌍**. v3·v3.1 은 user turn 동일(차이는 전부 system).
+    # 현행 = v3.1 확정. v3 = 예산 없음(길지만 충실도 최고 — 지난 라운드 fidelity 6/6, 길이 벽).
+    # (v3.2 조건 규칙은 블라인드 A/B 에서 효과 없어 revert됨 — 필요시 그 커밋으로 재현.)
     all_arms = {
-        "v3": (_v3_system(), _v3_family_user),
-        "v3.1": (_v31_system(), _v3_family_user),
-        "v3.2": (_current_system(), _v3_family_user),   # 현행
+        "v3": (_v3_system(), _arm_user),
+        "v3.1": (_current_system(), _arm_user),   # 현행 확정
     }
     arms = {k: v for k, v in all_arms.items() if want is None or k in want}
     if not arms:
@@ -268,9 +238,8 @@ def main() -> None:
     # ★ 격리 검증(돌리기 전) — 각 팔이 자기 계약 토큰만 갖는지. 이 검사가 지난 라운드에서
     #   'md 만 되돌리고 계약엔 남은' 오염을 즉시 잡았다. md·계약 양쪽을 동시에 커버한다.
     _inv = {  # 토큰 → 있어야 하는가
-        "v3":   {"3~5문장": False, "수치는 그 조건과 한 몸": False, "위치가 아니라 사실의 무게": True},
-        "v3.1": {"3~5문장": True,  "수치는 그 조건과 한 몸": False, "위치가 아니라 사실의 무게": True},
-        "v3.2": {"3~5문장": True,  "수치는 그 조건과 한 몸": True,  "위치가 아니라 사실의 무게": True},
+        "v3":   {"3~5문장": False, "위치가 아니라 사실의 무게": True},
+        "v3.1": {"3~5문장": True,  "위치가 아니라 사실의 무게": True},
     }
     for name, (sysmsg, _u) in arms.items():
         for tok, want_ in _inv.get(name, {}).items():
