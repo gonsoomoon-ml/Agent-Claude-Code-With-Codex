@@ -1,8 +1,7 @@
 # 요약 품질 + certifier 정규화 + author 타임아웃 — 전달 기록
 
 - **날짜:** 2026-07-18
-- **상태:** **COMMITTED (브랜치 `fix/certifier-cross-lingual-numerals`, main 대비 23 커밋) · 미배포**
-  — 340 tests passed · ruff clean · 프로덕션은 여전히 구 프롬프트(layered-v2) 가동 중.
+- **상태:** **SHIPPED·LIVE (2026-07-18 배포·trial 검증 완료)** — main 병합(`ad2a8b1`) + `deploy_runtime`(READY·ARN 불변) + `deploy_api`(/catalog openai 제거 확인). 340 tests·ruff clean. **다음 07:00 KST 브리핑부터 전 사용자 v3.3.**
 - **스펙:** [`docs/superpowers/specs/2026-07-17-represent-v3-prompt-design.md`](../superpowers/specs/2026-07-17-represent-v3-prompt-design.md)
   (v3 설계 — 실제 결과는 아래대로 v3.1 확정·v3.2 revert·v3.3 로 진화. 스펙은 불변 이력이라 미개정, 최종 상태는 이 기록·메모리가 진실.)
 - **메모리:** `research-summary-representativeness` · `project-certifier-numeric-normalization` · `project-author-timeout-recalibration`
@@ -49,8 +48,15 @@
 - 타임아웃: 순차 실측(밀집 8,000자) 완료 전부 <240s.
 - **미배포 검증**(실 브리핑 발송)은 배포 후 몫.
 
-## 배포 상태 — **미배포**
-브랜치에만 존재. 프로덕션은 구 프롬프트 가동 중. 배포 시 PROMPT_VERSION `layered-v2`→`represent-v3.3` = 사실층 캐시 전면 무효화(전 카드 재생성). 카나리 불가(fact_card_key 에 user·lens 성분 없음 = 전역 all-or-nothing, kill-switch=전체 revert).
+## 배포 (프로덕션 057716757052 / us-east-1) — 2026-07-18
+1. **main 병합** `ad2a8b1`(--no-ff, 23커밋) · 340 tests green.
+2. **deploy_runtime** — v3.3 프롬프트+코드 컨테이너, CodeBuild(arm64), **READY, ARN 불변**(briefing_agent-b9uh7rDAqL → 스케줄러 매칭·DRY_RUN 보존). `deploy_scheduler` 미실행(풋건 회피).
+3. **deploy_api** — Lambda zip 갱신, `/catalog` 라이브 검증: 13소스·openai 제거·OpenAI 섹션 소멸.
+4. **trial 검증(안전 게이트, 실 구독자 dedup 미접촉):** moongons@amazon.com 5소스 → **SES Send=1 @ 14:48 UTC · async task 완료(1730s≈29분)**. 생성 카드(card-cache) 실측: claims median **14**(v3.1 밀집 35~39 대비), 문장 median 5·예산 준수 75%, **PUBLISH 19/QUARANTINE 1**(numeric.py 가 위양성 BLOCK 억제 — 홍수 없음). 요약이 본문 곳곳 사실 담음(lead bias 개선 확인).
+
+**캐시 전면 무효화**(`layered-v2`→`represent-v3.3`): 다음 브리핑이 전 카드 재생성(1회). **카나리 불가**(fact_card_key 에 user·lens 성분 없음=전역 all-or-nothing). **롤백:** `git revert` + redeploy_runtime(in-place·ARN 불변).
+
+**관측된 잔여(회귀 아님·문서화된 tail):** claims max 45·예산 위반 일부(순응 변동) · 초밀집 논문(CARI4D류) >360s 타임아웃 드롭 · trial 29분(5소스) → 실 13소스 브리핑은 더 김(async 8h 상한 내).
 
 ## 잔여 / OPEN
 1. **(b) certifier 잔여 구멍** — 적대 검증이 찾은 엣지 케이스 일부 미해결(사용자 postpone). 주요 수정(243→6)은 이 브랜치에 반영됨.
