@@ -108,6 +108,24 @@ def test_fact_layer_prompt_has_no_qualitative_length_word():
     assert "간결" not in s
 
 
+def test_author_system_pins_claims_summary_coverage():
+    """claims 스코프 = 요약 커버리지(원문 전체 아님). v3.3 — 근본은 타임아웃/비용, 불변식은 안전망.
+
+    근거(2026-07-18 순차 실측): v3 의 "claims 원문 전체 빠짐없이"가 밀집 기사에서 35~39 claims 를 뽑아
+    author 지연 240s+ → 카드 유실. claims 는 발행물(요약)의 검증 안전망이지 기사 색인이 아니다.
+    ★ 안전망 불변식(비협상): 요약이 진술한 사실은 여전히 전부 claim — claim 없는 사실은 검증을 우회한다.
+    """
+    s = _fact_layer_prompt()
+    # 안전망: 요약 사실은 빠짐없이 claim
+    assert "요약의 어떤 사실도 claim 없이 남기지 마라" in s
+    assert "검증을 우회" in s
+    # 좁힘: 요약 밖 사실은 제외
+    assert "요약에 담지 않은 사실은 claim 으로 만들지 않는다" in s
+    assert "기사 전체의 색인이 아니다" in s
+    # 옛 '원문 전체 빠짐없이' 언어는 사라졌는지(회귀 방지)
+    assert "claims 는 원문 전체를 덮는다" not in s
+
+
 def test_author_system_has_no_headline_contradiction():
     """base 가 headline 을 요구하고 출력 계약이 금지하던 실재 모순(v2)이 사라졌는지.
 
@@ -132,7 +150,7 @@ def test_prompt_version_matches_contract():
     """PROMPT_VERSION 은 fact_card_key 성분 — 계약을 바꾸고 안 올리면 구 카드가 새 것인 척 서빙된다."""
     from briefing.core.authoring.author import PROMPT_VERSION
 
-    assert PROMPT_VERSION == "represent-v3.1"
+    assert PROMPT_VERSION == "represent-v3.3"
 
 
 # ── 해석층 프롬프트·파서 (card-layering §5) ─────────────────────────

@@ -26,14 +26,25 @@ from ..prompts import apply_prompt_template
 from ..retrieval.sources import MAX_SOURCE_CHARS
 from ..stores.source_store import FrozenSource
 
-_AUTHOR_TIMEOUT_S = 240  # `claude -p` 한 카드(1회 호출) 작성 타임아웃(초). 느리지만-완료되는 호출 여유
-# (180→240, 2026-07-01 인시던트 후). ★ pipeline 이 카드별로 이 실패를 격리하므로 초과 카드는 자기만 드롭
-# (배치 전체 중단 아님) → 상향이 안전. 정상 author 는 30~90s 라 happy-path wall-clock 엔 영향 없음.
+_AUTHOR_TIMEOUT_S = 360  # `claude -p` 한 카드(1회 호출) 작성 타임아웃(초). 느리지만-완료되는 호출 여유.
+# 이력: 180→240(2026-07-01 인시던트)→360(2026-07-18, represent-v3.3 워크로드 재보정).
+# ★ 근본 수정은 값이 아니라 v3.3(claims 를 '원문 전체'→'요약 커버리지'로 좁힘, PROMPT_VERSION 참조):
+#   v3 의 "claims 원문 전체 빠짐없이"가 밀집 기사에서 24~39 claims 를 뽑아 지연이 240s+ 로 폭증했다.
+#   v3.3 순차 실측(동시성 1=프로덕션 조건, 밀집 8,000자): claims 35→10~22, 지연 **완료 전부 119~197s**.
+#   즉 정상 기사는 240 밑이지만, 변동(같은 크기가 122s↔실패)이 커 197s+변동 여유로 360 을 둔다.
+# ★ 잔여 tail(값으로 못 막음): 초밀집 연구논문(LaTeX 수식 다수 — 예 CARI4D)은 프롬프트 버전 무관하게
+#   >360s. 어떤 임계값으로도 못 막으니 그 카드는 격리 드롭(pipeline 카드별 try/except, 2026-07-02 인시던트).
+#   → 남은 일 = silent-failure *통지*(드롭을 보이게, 별건 OPEN). 값 상향은 tail 을 못 없앤다.
+# ★ 왜 상향이 안전: (1) 카드별 격리 → 초과 카드만 드롭(배치 중단 아님). (2) 스케줄 브리핑 = add_async_task
+#   로 최대 8h 세션(agentcore_runtime) → 관측 브리핑 최대 46분 대비 전체 여유 압도적. num_turns=1(루프 없음).
 
 # 프롬프트 계약 버전 — 사실층 캐시 키 성분(계약이 바뀌면 캐시 자동 무효화). card-layering §5.
-PROMPT_VERSION = "represent-v3.1"  # v3.1: v3(선택 규칙·논조 보존) + 문장 예산 3~5 — 예산이 선택을 강제한다
-# (v3 = 예산 없음 → A/B 실측에서 요약 1,149자·10문장으로 폭증하고 author 가 2배 느려져 타임아웃까지 났다.
-#  "무엇을 버릴지 고르는 일"이라 해놓고 예산을 안 주면 고를 이유가 없어 규칙이 공허해진다.)
+PROMPT_VERSION = "represent-v3.3"  # v3.3: v3.1(선택 규칙·예산) + claims 를 '원문 전체'→'요약 커버리지'로 좁힘
+# (v3.2 = 수치 조건 규칙, 블라인드 A/B 에서 효과 없어 revert — 번호는 changelog 로 건너뜀.)
+# v3.3 근거: v3 의 "claims 원문 전체 빠짐없이"가 밀집 기사에서 35~39 claims 를 뽑아 author 지연이 240s+
+# (순차 실측)로 폭증·카드 유실. claims 는 *발행물(요약)의 검증 안전망*이지 기사 색인이 아니다 — 요약이 버린
+# 사실을 검증할 이유가 없다(독자 미노출). 요약 커버리지로 좁히면 claim 수·지연·certifier 부하가 함께 준다.
+# 안전망 불변식 보존: 요약이 진술한 사실은 여전히 전부 claim(요약 사실은 검증 우회 불가).
 
 # author 가 emit 해야 하는 JSON 계약 (static → 캐시 프리픽스 안전). 변수·날짜 없음.
 _OUTPUT_CONTRACT = (
@@ -50,9 +61,10 @@ _OUTPUT_CONTRACT = (
     "why_it_matters: 한국어 1~3문장 한 단락. summary 를 되풀이하지 말고 독자에게 갖는 의미만. "
     "새 사실·수치·날짜를 도입하지 마라 — summary 와 claims 에 있는 것만 쓴다.\n"
     "제목(headline)은 만들지 마라 — 카드 제목은 기사 원제목을 그대로 쓴다(사실층 앵커, 재프레이밍 금지).\n"
-    "claims 는 원자적(독립 검증 단위)이며 원문 전 구간을 덮는다 — summary 에 담지 못한 사실도 "
-    "원문에 있으면 빠짐없이 뽑는다. 숫자/날짜/% 포함이면 claim_type=arithmetic, 그 외 entailment. "
-    "애매하면 arithmetic.\n"
+    "claims 는 원자적(독립 검증 단위)이며 **요약이 진술한 모든 사실**을 덮는다 — 요약의 사실은 빠짐없이 "
+    "claim 으로(claim 없는 사실은 검증을 우회한다). 요약에 없는 사실은 claim 으로 만들지 마라 — claims 는 "
+    "발행물(요약)의 안전망이지 기사 전체의 색인이 아니다. 숫자/날짜/% 포함이면 claim_type=arithmetic, "
+    "그 외 entailment. 애매하면 arithmetic.\n"
     "importance: summary 또는 why_it_matters 를 직접 뒷받침하면 core, 그 외 supporting."
 )
 
