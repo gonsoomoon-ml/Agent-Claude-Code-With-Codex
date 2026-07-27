@@ -6,6 +6,7 @@ off(기본) 시 모든 emitter 가 즉시 return → **zero overhead**. Strands 
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
 
@@ -13,6 +14,15 @@ _C = {
     "cyan": "\033[36m", "magenta": "\033[35m", "yellow": "\033[33m",
     "green": "\033[32m", "red": "\033[31m", "dim": "\033[2m", "reset": "\033[0m",
 }
+
+# ★ 배포 관측성(2026-07-27 발견): AgentCore 컨테이너는 **Python logging 레코드만** 수집한다.
+# trafilatura 등 라이브러리 로그는 CloudWatch 에 남는데 우리 raw print 는 3시간 동안 0건이었다 —
+# warn 의 존재 이유가 silent failure 방지인데 배포 환경에서 정확히 silent 였다.
+# 그래서 warn 은 stderr print(로컬·테스트 계약 유지)와 logging 레코드를 **둘 다** 낸다.
+# NullHandler = 로컬에서 logging 의 lastResort 가 stderr 로 한 번 더 찍는 중복 방지
+# (컨테이너에선 root 에 붙은 OTEL 핸들러로 propagate 되어 수집된다 — NullHandler 는 전파를 막지 않는다).
+_LOG = logging.getLogger("briefing")
+_LOG.addHandler(logging.NullHandler())
 
 
 def is_debug() -> bool:
@@ -36,11 +46,15 @@ def dprint(label: str, body: object = "", color: str = "cyan") -> None:
 def warn(label: str, body: object = "") -> None:
     """운영 경고 — **항상** stderr 출력(DEBUG 무관). 드문 실패(출처 skip 등)를 가시화 → silent failure 방지.
 
-    (dprint 와 달리 DEBUG 게이트 없음: 경고는 hot path 가 아니라 드문 실패 시에만 나므로 overhead 무관.
-     배포 시 stderr → CloudWatch 로 잡혀 "무엇이 왜 빠졌나"가 남는다.)
+    (dprint 와 달리 DEBUG 게이트 없음: 경고는 hot path 가 아니라 드문 실패 시에만 나므로 overhead 무관.)
+
+    두 경로로 낸다 — stderr(로컬·테스트에서 즉시 보임) + logging 레코드(컨테이너가 수집하는 유일한 경로).
+    ★ stderr 만으로는 배포 환경에서 관측되지 않는다(2026-07-27 실측: CloudWatch 3시간에 우리 warn 0건).
     """
+    msg = truncate(body)
     c, r = _C["yellow"], _C["reset"]
-    print(f"{c}[WARN {label}]{r} {truncate(body)}", file=sys.stderr, flush=True)
+    print(f"{c}[WARN {label}]{r} {msg}", file=sys.stderr, flush=True)
+    _LOG.warning("[%s] %s", label, msg)
 
 
 def dprint_box(top_label: str, lines: list[str], color: str = "magenta") -> None:

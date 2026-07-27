@@ -9,6 +9,7 @@ core(진실)=로직, 이 파일=배포 어댑터. `BedrockAgentCoreApp` + `@app.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from functools import partial
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
@@ -17,6 +18,24 @@ from ..core.stores.backends import make_stores
 from ..core.config import list_users, load_settings, load_user
 from ..core.pipeline import run_briefing
 from ._smoke import harness_fns, smoke_fns, smoke_users
+
+
+def _production_fns(settings) -> dict:
+    """실 발송 경로가 공유하는 DI seam 묶음 — **scheduled/real 과 trial 이 같은 필터를 써야 한다.**
+
+    2026-07-27 결함: trial 이 `run_briefing_fn=run_briefing`(맨 함수)을 넘겨 이 묶음을 통째로
+    건너뛰었다. 그래서 체험 메일은 키워드 전용 필터(+최신순 선별)로 나갔고, 비-AI 기사가 실렸다.
+    한 곳에서 만들어 양쪽이 쓰게 해 두 경로가 갈라지지 않도록 한다.
+    """
+    fns: dict = {}
+    if settings.gateway_enabled:   # ① 승격: retrieval 을 Gateway MCP 로(opt-in; off 면 직접 — 현 기본)
+        from ..core.retrieval.gateway_client import gateway_fetch_factory
+        fns["fetch_article_fn"] = gateway_fetch_factory(settings)
+    if settings.relevance_llm_enabled:   # curate-stage Haiku 사전 필터 2종(같은 플래그): 관련성 + top-K 선별
+        from ..core.retrieval.relevance_bedrock import make_bedrock_relevance, make_bedrock_select
+        fns["relevance_fn"] = make_bedrock_relevance(settings)   # require_ai 소스(키워드 폴백)
+        fns["select_fn"] = make_bedrock_select(settings)         # select=llm 소스(최신순 폴백)
+    return fns
 
 app = BedrockAgentCoreApp()
 
@@ -108,8 +127,11 @@ async def briefing_entrypoint(payload, context):
 
         def _bg():
             try:
+                # ★ 정기 발송과 **같은** 필터를 쓴다 — 맨 run_briefing 을 넘기면 판정자·선별자가 빠져
+                #   체험 메일이 키워드 전용으로 나간다(2026-07-27 실측 결함).
                 msg = run_trial(settings, store, card_cache, payload, ses=ses,
-                                run_briefing_fn=run_briefing, deliver_fn=deliver_fn,
+                                run_briefing_fn=partial(run_briefing, **_production_fns(settings)),
+                                deliver_fn=deliver_fn,
                                 fallback_fn=fallback_fn, sleep_fn=_time.sleep, run_date=rd,
                                 attempts=int(payload.get("poll_max", 45)),
                                 sleep_seconds=int(payload.get("poll_seconds", 20)), status_fn=_status)
@@ -131,14 +153,7 @@ async def briefing_entrypoint(payload, context):
         users, fns = smoke_users(settings), harness_fns()    # fetch 만 fake → 진짜 claude+codex 실행 검증
     else:  # real
         users = [load_user(uid, settings) for uid in (payload.get("users") or list_users(settings))]
-        fns = {}   # None 기본 = 실제 claude -p author + codex certifier
-        if settings.gateway_enabled:   # ① 승격: retrieval 을 Gateway MCP 로(opt-in; off 면 직접 — 현 기본)
-            from ..core.retrieval.gateway_client import gateway_fetch_factory
-            fns["fetch_article_fn"] = gateway_fetch_factory(settings)
-        if settings.relevance_llm_enabled:   # curate-stage Haiku 사전 필터 2종(같은 플래그): 관련성 + top-K 선별
-            from ..core.retrieval.relevance_bedrock import make_bedrock_relevance, make_bedrock_select
-            fns["relevance_fn"] = make_bedrock_relevance(settings)   # require_ai 소스(키워드 폴백)
-            fns["select_fn"] = make_bedrock_select(settings)         # select=llm 소스(최신순 폴백)
+        fns = _production_fns(settings)   # None 기본 = 실제 claude -p author + codex certifier
 
     # ★ 테스트 모드(smoke/harness)는 card_cache/ledger 우회 — 캐시-hit 으로 harness 의 진짜 CLI 실행이 가려지는 것
     #   + production 원장(③) 오염 방지. store 는 content-addressed 라 그대로 사용(무해).

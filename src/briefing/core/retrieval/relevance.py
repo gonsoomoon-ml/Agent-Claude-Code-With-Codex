@@ -33,14 +33,20 @@ _EN_KEYWORDS = (
 _EN_RE = re.compile(r"\b(" + "|".join(re.escape(w) for w in _EN_KEYWORDS) + r")\b", re.IGNORECASE)
 # 매체 푸터 제거 — 예: aitimes 발췌 끝 "Powered by AItimes AI Solution" 의 'AI' 가 모든 기사를 통과시키는 오탐 방지.
 _FOOTER_RE = re.compile(r"(?i)\bpowered by\b.*", re.S)
+# 삽화 캡션 제거 — aitimes 는 기사 **맨 앞**에 "AI 생성 영상" 캡션을 붙인다. 푸터와 같은 부류의 매체
+# chrome 이지만 본문 앞이라 _FOOTER_RE 를 우회한다(2026-07-27 실측: 이 캡션 때문에 지역 행정 기사
+# —어린이 물놀이터 점검—가 정기 브리핑에 발행됐다). ★ 키워드 목록 튜닝이 아니라 chrome 제거다:
+# 캡션 줄 자체만 지우므로 본문의 진짜 AI 신호는 그대로 남는다(recall 우선 원칙 불변).
+_CAPTION_RE = re.compile(r"(?m)^[ \t]*(?:\([^)\n]*\)[ \t]*)?AI[ \t]*생성[ \t]*(?:영상|이미지|사진|그림)[ \t]*$")
 
 
 def is_ai_relevant(title: str, text: str = "") -> bool:
     """제목+발췌에 AI 신호가 하나라도 있으면 True(recall 우선). require_ai 소스 필터용.
 
-    발췌의 매체 푸터(Powered by …)는 제거 후 검사 — 매체명/푸터의 'AI' 가 필터를 무력화하는 것 방지.
+    발췌의 매체 chrome(푸터 "Powered by …" · 삽화 캡션 "AI 생성 영상")은 제거 후 검사 —
+    매체가 모든 기사에 붙이는 문구의 'AI' 가 필터를 무력화하는 것 방지.
     """
-    body = _FOOTER_RE.sub("", text or "")
+    body = _CAPTION_RE.sub("", _FOOTER_RE.sub("", text or ""))
     blob = f"{title or ''}\n{body}"
     if any(k in blob for k in _KO_KEYWORDS):
         return True

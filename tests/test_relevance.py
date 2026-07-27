@@ -165,3 +165,22 @@ def _min_settings(region="us-east-1", relevance_model_id="global.anthropic.claud
         cognito_scope="", cognito_token_url="", cognito_client_id="", cognito_client_secret="",
         oauth_provider_name="",
     )
+
+
+# ── 매체 chrome 오탐원 (2026-07-27 실측) ──────────────────────────────────────
+
+def test_ai_image_caption_does_not_pass_unrelated_article():
+    """aitimes 는 모든 기사 앞에 AI 삽화 캡션("AI 생성 영상")을 붙인다 — 내용 무관 공짜 매치원.
+
+    실측: 이 캡션 때문에 지역 행정 기사(어린이 물놀이터 점검)가 정기 브리핑에 발행됐다.
+    `_FOOTER_RE`(Powered by …) 와 같은 부류의 chrome 이지만 **본문 앞**에 있어 푸터 방어를 우회한다.
+    키워드 목록은 동결 — 이건 목록 튜닝이 아니라 chrome 제거다.
+    """
+    text = "AI 생성 영상\n광양시가 폭염 중대경보가 발효된 물놀이터의 안전관리 실태를 점검했다고 27일 밝혔다."
+    assert is_ai_relevant("광양, 37도 폭염에 어린이 물놀이터 점검…수질·안전관리 확인", text) is False
+
+
+def test_ai_image_caption_strip_keeps_real_ai_signal():
+    """캡션만 제거한다 — 본문의 진짜 AI 신호는 그대로 통과해야 한다(recall 우선 원칙 불변)."""
+    text = "AI 생성 영상\n오픈에이아이가 새 언어모델을 공개했다고 밝혔다."
+    assert is_ai_relevant("오픈AI 신모델 공개", text) is True

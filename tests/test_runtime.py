@@ -147,3 +147,37 @@ def test_smoke_invoke_publishes_deterministically(tmp_path):
     assert out, "smoke invoke 가 사용자별 브리핑을 산출해야 함(per-user SSE 의 원천)"
     assert out[0].published >= 1               # fake 검증 = 전부 VERIFIED → PUBLISH
     assert out[0].quarantined == 0
+
+
+# ── production fns 배선 (2026-07-27: trial 경로가 판정자를 안 쓰던 결함) ──────────
+
+def test_production_fns_wires_judge_when_enabled(tmp_path):
+    """relevance_llm_enabled=True 면 관련성 판정자·top-K 선별자가 주입된다."""
+    from briefing.runtime.agentcore_runtime import _production_fns
+
+    fns = _production_fns(_settings(tmp_path, relevance_llm_enabled=True))
+    assert "relevance_fn" in fns and "select_fn" in fns
+
+
+def test_production_fns_empty_when_disabled(tmp_path):
+    """플래그 off(로컬·테스트 기본)면 주입 없음 → curate 가 결정론 키워드로 폴백."""
+    from briefing.runtime.agentcore_runtime import _production_fns
+
+    assert _production_fns(_settings(tmp_path, relevance_llm_enabled=False)) == {}
+
+
+def test_trial_uses_same_production_fns_as_scheduled(tmp_path):
+    """★ trial 도 정기 발송과 **같은** 필터를 써야 한다.
+
+    2026-07-27 실측 결함: trial 은 `run_briefing_fn=run_briefing`(맨 함수)을 넘겨 판정자가 빠졌고,
+    그 결과 체험 메일이 키워드 전용 필터로 나갔다(비-AI 기사 발행). 웹 퍼널의 첫인상 경로다.
+    """
+    import pathlib
+
+    import briefing.runtime.agentcore_runtime as rt
+
+    # 소스 검사인 이유: entrypoint 는 @app.entrypoint 로 감싸져 호출 검증이 무겁고, 여기서 지키려는 것은
+    # "두 경로가 같은 묶음을 쓴다"는 **구조 불변식**이다(맨 run_briefing 을 넘기면 필터가 조용히 빠진다).
+    src = pathlib.Path(rt.__file__).read_text(encoding="utf-8")
+    trial_part = src[src.index('mode == "trial"'):src.index('if mode == "smoke"')]
+    assert "_production_fns" in trial_part, "trial 경로가 production fns 를 주입하지 않는다"
