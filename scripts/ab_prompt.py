@@ -23,6 +23,7 @@ import statistics
 import sys
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -36,12 +37,15 @@ from briefing.core.authoring.author import (
 from briefing.core.config import load_settings
 from briefing.core.stores.source_store import FrozenSource
 from briefing.core.retrieval.relevance import _EN_RE, _FOOTER_RE, _KO_KEYWORDS, is_ai_relevant
+from briefing.core.retrieval.relevance_bedrock import _client
 
 REGION = "us-east-1"
 ADMIN = "445814b8-5001-70a6-84a6-6c010ac347ba"
 # `claude -p` 는 각자 독립 프로세스(clean dir·자체 stdin)라 동시 실행이 안전하다 — 공유 상태 0.
 # 대가: 지연이 부풀려진다(프로덕션은 순차) → 타임아웃 판정에 쓰면 안 된다.
-_CONCURRENCY = 8
+# 8→4(2026-07-27): 라운드2 타임아웃 6/36 전부 600s 인데 기계는 유휴(load 0.41/8코어) — 병목은
+# API 왕복이라 동시성을 낮춰 지연 팽창을 줄인다(대가: 벽시계가 늘어난다, ~30분).
+_CONCURRENCY = 4
 # 산출물 저장 위치. **세션 고정 경로 금지** — 2026-07-27 실패: 죽은 세션의 스크래치패드를 가리켜
 # author 36회(25분·약 $3)를 다 쓴 뒤 첫 write 에서 FileNotFoundError 로 전량 유실했다.
 # import 시점에 mkdir 하여 *비싼 호출 전에* 실패하게 만든다(fail-fast). env 로 덮어쓸 수 있다.
@@ -72,6 +76,42 @@ def _ai_hits(text: str) -> int:
     """텍스트의 AI 신호 개수 — 매체 푸터(Powered by …)는 제외(aitimes 푸터 'AI' 오탐 방지)."""
     body = _FOOTER_RE.sub("", text or "")
     return sum(body.count(k) for k in _KO_KEYWORDS) + len(_EN_RE.findall(body))
+
+
+# 요약 채점자 — 동결 키워드는 표본 사전필터(recall 우선)로는 유효하지만, 실제 AI 어휘
+# ("TTS"·"OCR"·"파라미터"·"인코더"·"Qwen" 등 목록에 없는 말)를 못 잡아 **요약**의 AI 내용을
+# 재는 자로 쓰면 맹점이 된다(라운드2 실측: 기사0·기사5 두 팔·두 라운드 내내 0/3 — 요약 실물은
+# 명백한 AI 내용인데 동결 키워드 매치가 0건). 프로덕션 relevance judge 배관(Haiku Converse)을 재사용.
+_JUDGE_AI_SUMMARY_SYSTEM = (
+    "You are a strict classifier. Answer whether the given Korean news summary tells the reader "
+    "something substantive about artificial intelligence — AI/ML models, AI products or services, "
+    "AI research, AI hardware, or the AI industry. Model names, parameter counts, architectures "
+    "(encoder/decoder/transformer), benchmarks, and AI company products all count as AI content. "
+    "A summary that only covers corporate finance, general cloud/IT infrastructure, or unrelated "
+    "topics does not. Answer with exactly one word: YES or NO."
+)
+
+
+def _judge_ai_summary(title: str, summary: str, *, invoke: Callable[[str, str], str]) -> bool:
+    """Haiku 판정자 — **요약**이 AI 내용을 실제로 담았는가(v3.4 게이트 지표).
+
+    invoke=(system,user)->str 시임 — `relevance_bedrock.make_bedrock_relevance` 의 `_invoke` 와
+    같은 형태(client.converse, maxTokens=8, temperature=0)라 테스트/재사용이 쉽다.
+    호출 실패·모호 응답은 `_debug` 가 아니라 `say()` 로 non-silent 경고를 찍고 키워드 판정으로
+    폴백한다 — 한 건의 판정자 실패가 A/B 실험 전체를 죽이면 안 된다(card-isolation 교훈과 동형).
+    """
+    user = f"Title: {title}\n\nSummary: {summary}"
+    try:
+        ans = (invoke(_JUDGE_AI_SUMMARY_SYSTEM, user) or "").upper()
+    except Exception as err:  # noqa: BLE001 — 실패도 폴백으로 흡수(실험을 죽이지 않는다)
+        say(f"⚠ AI 요약 판정자 호출 실패({type(err).__name__}: {err}) → 키워드 폴백")
+        return is_ai_relevant("", summary)
+    if "YES" in ans:
+        return True
+    if "NO" in ans:
+        return False
+    say(f"⚠ AI 요약 판정자 모호 응답 {ans!r} → 키워드 폴백")
+    return is_ai_relevant("", summary)
 
 
 def _anchors(text: str) -> set[str]:
@@ -182,8 +222,11 @@ def _arm_user(fs: FrozenSource, today: str) -> str:
     return build_user_prompt(fs, today=today)
 
 
-def _ledger_rows() -> list[tuple[FrozenSource, float, float]]:
-    """발행 카드 전량 → (동결본, 요약 최심, claims 최심). 표본 선택기들의 공통 원천."""
+def _ledger_rows() -> list[tuple[FrozenSource, float, float, str]]:
+    """발행 카드 전량 → (동결본, 요약 최심, claims 최심, 프로덕션 요약). 표본 선택기들의 공통 원천.
+
+    프로덕션 요약(4번째 원소)은 `_gap_sample` 이 "요약이 원문의 AI 사실을 놓쳤나"를 판정하는 데 쓴다.
+    """
     ddb = boto3.client("dynamodb", region_name=REGION)
     items, kw = [], {}
     while True:
@@ -209,27 +252,33 @@ def _ledger_rows() -> list[tuple[FrozenSource, float, float]]:
             continue
         seen.add(it["source_id"])
         card = json.loads(c["card_json"]["S"])["card"]
-        sd, _ = _depth(src, card.get("summary", ""))
+        prod_summary = card.get("summary", "")
+        sd, _ = _depth(src, prod_summary)
         cd, _ = _depth(src, " ".join(cl["text"] for cl in card.get("claims", [])))
         if sd is None or cd is None:
             continue
         rows.append((FrozenSource(it["source_id"], s.get("url", {}).get("S", ""),
-                                  s.get("title", {}).get("S", ""), src, ""), sd, cd))
+                                  s.get("title", {}).get("S", ""), src, ""), sd, cd, prod_summary))
     return rows
 
 
-def _sample(n: int) -> list[tuple[FrozenSource, float, float]]:
+def _sample(n: int) -> list[tuple[FrozenSource, float, float, str]]:
     """실제 발행 카드 중 **lead bias 가 심했던 것 우선** — 기존 라운드용(동작 불변)."""
     rows = _ledger_rows()
     rows.sort(key=lambda r: r[1] - r[2])   # 요약이 claims 대비 가장 얕은 것부터
     return rows[:n]
 
 
-def _marginal_sample(n: int) -> list[tuple[FrozenSource, float, float]]:
+def _marginal_sample(n: int) -> list[tuple[FrozenSource, float, float, str]]:
     """**AI 가 주변부인 기사** 우선 — v3.4 의 변별 표본(안두릴형).
 
     평범한 AI 기사는 두 팔 모두 AI 사실을 담아 100% 가 나오므로 변별력이 0이다.
     조건: 원문이 관련성 필터를 통과하되(AI 신호 존재) 신호가 희박할 것.
+
+    ★ 설계 결함(2026-07-27 라운드2 실측으로 발견, revert 아님·`_gap_sample` 로 보완):
+    여기는 **원문**의 AI 히트 수로 기사를 고르지만, 게이트 지표는 **요약**의 AI 내용 유무를 잰다.
+    서로 다른 대상을 재므로 "지표가 반응할 수 있는 기사"가 표본에 들어온다는 보장이 없었다
+    (실측: 6기사 중 4건이 바닥·천장에 고정되어 0비트 기여). 과거 라운드 재현을 위해 남겨둔다.
     """
     rows = [r for r in _ledger_rows()
             if is_ai_relevant(r[0].title, r[0].text) and 0 < _ai_hits(r[0].text) <= _MARGINAL_MAX_HITS]
@@ -237,7 +286,25 @@ def _marginal_sample(n: int) -> list[tuple[FrozenSource, float, float]]:
     return rows[:n]
 
 
-def _run_one(job: tuple[int, FrozenSource, str, str, object, int], settings) -> dict:
+def _gap_sample(n: int, *, judge: Callable[[str, str], bool]) -> list[tuple[FrozenSource, float, float, str]]:
+    """**격차(gap) 표본** — 원문엔 AI 사실이 있는데 프로덕션 요약이 그걸 빠뜨린 기사만 고른다.
+
+    `_marginal_sample` 의 설계 결함(원문 AI 히트로 고르지만 지표는 요약의 AI 내용을 잼)을 고친
+    선택기 — 여기선 "요약이 실제로 놓쳤는가"를 후보 단계에서 직접 확인하므로 지표가 반응할 수
+    있는 기사만 표본에 들어온다는 게 구조적으로 보장된다.
+
+    candidate = 원문에 AI 신호 있음(`is_ai_relevant`) ∧ 프로덕션 요약이 그걸 놓침(`judge()` False).
+    정렬은 `_ai_hits` 오름차순(원문에서 AI 가 주변부일수록 요약이 놓치기 쉬운 사례 우선 — 안두릴형).
+    후보 판정은 Haiku 호출 1건씩(수십 건이어도 몇 센트) — author 호출은 여기서 0회다.
+    """
+    candidates = [r for r in _ledger_rows() if is_ai_relevant(r[0].title, r[0].text)]
+    gap = [r for r in candidates if not judge(r[0].title, r[3])]
+    gap.sort(key=lambda r: _ai_hits(r[0].text))
+    return gap[:n]
+
+
+def _run_one(job: tuple[int, FrozenSource, str, str, object, int], settings,
+             invoke: Callable[[str, str], str]) -> dict:
     """작업 1건 = (기사, 팔, 반복) → 지표. 예외는 값으로 돌려준다(스레드 밖에서 집계)."""
     idx, fs, arm, system, user_fn, rep = job
     t0 = time.monotonic()
@@ -255,7 +322,8 @@ def _run_one(job: tuple[int, FrozenSource, str, str, object, int], settings) -> 
         "sent": _sentences(summ), "depth": sd, "anchors": na, "claims_depth": cd,
         "n_claims": len(claims), "hedge": sum(h in summ for h in _HEDGE),
         "filler": sum(f in summ for f in _FILLER),
-        "ai_kept": is_ai_relevant("", summ),   # v3.4 게이트: 요약이 AI 사실을 담았나
+        "ai_kept": _judge_ai_summary(fs.title, summ, invoke=invoke),  # v3.4 게이트: 판정자
+        "ai_kept_kw": is_ai_relevant("", summ),   # 참고용 — 동결 키워드(맹점 크기 정량화, §변경1)
         "secs": round(time.monotonic() - t0),
     }
 
@@ -269,8 +337,22 @@ def main() -> None:
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 6
     reps = int(sys.argv[2]) if len(sys.argv) > 2 else 3
     want = sys.argv[3].split(",") if len(sys.argv) > 3 else None
-    mode = sys.argv[4] if len(sys.argv) > 4 else "leadbias"   # marginal = v3.4 변별 표본
+    mode = sys.argv[4] if len(sys.argv) > 4 else "leadbias"   # marginal|gap = v3.4 변별 표본
     settings = load_settings()
+
+    # AI 요약 판정자용 Bedrock invoke 클로저 — client 는 여기서 **한 번만** 만들어 아래로 주입한다
+    # (판정자 시임은 module-level client 가 아니라 injectable invoke 여야 테스트/재사용이 된다).
+    # relevance_bedrock.make_bedrock_relevance 의 _invoke 와 같은 형태(converse, maxTokens=8, temp=0).
+    _bedrock = _client(settings.region)
+
+    def _invoke(system: str, user: str) -> str:
+        resp = _bedrock.converse(
+            modelId=settings.relevance_model_id,
+            system=[{"text": system}],
+            messages=[{"role": "user", "content": [{"text": user}]}],
+            inferenceConfig={"maxTokens": 8, "temperature": 0},
+        )
+        return resp["output"]["message"]["content"][0]["text"]
 
     # 팔 = (system, user_fn) **쌍**. v3·v3.1 은 user turn 동일(차이는 전부 system).
     # 현행 = v3.1 확정. v3 = 예산 없음(길지만 충실도 최고 — 지난 라운드 fidelity 6/6, 길이 벽).
@@ -311,12 +393,17 @@ def main() -> None:
         f"타임아웃 판정은 순차 실측으로 따로 봐야 한다(참고: 프로덕션 한도 {prod_timeout}s).\n")
 
     say("표본 선정 중(원장·동결본 조회)…")
-    sample = _marginal_sample(n) if mode == "marginal" else _sample(n)
-    for i, (fs, sd, cd) in enumerate(sample):
+    if mode == "gap":
+        sample = _gap_sample(n, judge=lambda t, sm: _judge_ai_summary(t, sm, invoke=_invoke))
+    elif mode == "marginal":
+        sample = _marginal_sample(n)
+    else:
+        sample = _sample(n)
+    for i, (fs, sd, cd, ps) in enumerate(sample):
         say(f"  [{i}] {fs.title[:56]} ({len(fs.text)}자) — 프로덕션 최심 {sd:.2f} vs claims {cd:.2f}")
 
     jobs = [(i, fs, arm, sysmsg, ufn, rep)
-            for i, (fs, _, _) in enumerate(sample)
+            for i, (fs, _, _, _) in enumerate(sample)
             for arm, (sysmsg, ufn) in arms.items()
             for rep in range(reps)]
     say(f"\n{len(jobs)}회 호출 시작…\n")
@@ -325,7 +412,7 @@ def main() -> None:
     results: list[dict] = []
     lock = threading.Lock()
     with ThreadPoolExecutor(max_workers=_CONCURRENCY) as ex:
-        futs = {ex.submit(_run_one, j, settings): j for j in jobs}
+        futs = {ex.submit(_run_one, j, settings, _invoke): j for j in jobs}
         for done, f in enumerate(as_completed(futs), 1):
             r = f.result()
             with lock:   # 즉시 저장 — 중단돼도 여기까지는 남는다
@@ -352,7 +439,8 @@ def main() -> None:
         say(f"  문장        : median {statistics.median([r['sent'] for r in ok]):.0f}")
         say(f"  헤지 보존   : {sum(1 for r in ok if r['hedge'] > 0)}/{len(ok)}")
         say(f"  filler      : {sum(r['filler'] for r in ok)}건")
-        say(f"  AI 사실 포함 : {sum(1 for r in ok if r.get('ai_kept'))}/{len(ok)}   ← v3.4 게이트 지표")
+        say(f"  AI 사실 포함(판정자): {sum(1 for r in ok if r.get('ai_kept'))}/{len(ok)}   ← 게이트 지표")
+        say(f"  AI 사실 포함(키워드): {sum(1 for r in ok if r.get('ai_kept_kw'))}/{len(ok)}   (참고: 맹점 있음)")
         say(f"  {prod_timeout}s 초과  : {slow}/{len(ok)}  ← 프로덕션이면 카드 유실(동시 실행이라 과대추정)")
         # 같은 기사·같은 팔의 반복 간 흔들림 = 노이즈 바닥. 팔 간 차이가 이보다 작으면 판정 불가.
         jit_d = [max(v) - min(v) for v in
