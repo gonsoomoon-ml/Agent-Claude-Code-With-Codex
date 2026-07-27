@@ -91,6 +91,32 @@ _JUDGE_AI_SUMMARY_SYSTEM = (
     "topics does not. Answer with exactly one word: YES or NO."
 )
 
+# ── 판정자 폴백 카운터 (review finding, commit 976a8d9 이후) ───────────────────
+# 이 실험 전체의 존재 이유가 "판정자 기반 게이트 지표로 낡은 키워드 지표를 대체"하는 것인데,
+# 판정자가 **조직적으로**(모델 id 오타·스로틀링·자격증명 만료) 실패하면 매 호출이 조용히 키워드
+# 폴백으로 빠져 게이트 지표가 정확히 그 낡은 지표로 퇴화한다 — 그런데도 개별 경고는 `say()` 로
+# 한 번씩만 찍혀 30분+ 실행의 수십 줄 진행 로그에 묻힌다. 운영자가 마지막에 보는 건 헤드라인
+# "AI 사실 포함(판정자)" 숫자뿐이라 이 퇴화를 눈치챌 방법이 없다 — 그래서 최종 집계가 필요하다.
+# `_run_one` 이 `ThreadPoolExecutor` 워커 스레드에서 병렬 호출하므로 bare `+= 1` 은 안전하지
+# 않다(두 스레드가 같은 옛 값을 읽고 같은 새 값을 써 증가분이 유실되는 lost-update 레이스).
+# `threading.Lock` 으로 read-modify-write 를 원자화한다 — 카운트당 락 경합은 미미하다(전체
+# 호출이 초 단위 Bedrock 왕복이라 락 자체는 병목이 아니다).
+_judge_fallback_lock = threading.Lock()
+_judge_fallback_count = 0
+
+
+def _record_judge_fallback() -> None:
+    """판정자 폴백 발생 1건 기록 — 스레드 세이프(락으로 read-modify-write 보호)."""
+    global _judge_fallback_count
+    with _judge_fallback_lock:
+        _judge_fallback_count += 1
+
+
+def judge_fallback_count() -> int:
+    """지금까지 발생한 판정자 폴백 총 건수 — 최종 요약·ad-hoc 검증 스니펫에서 읽는 공개 접근자."""
+    with _judge_fallback_lock:
+        return _judge_fallback_count
+
 
 def _judge_ai_summary(title: str, summary: str, *, invoke: Callable[[str, str], str]) -> bool:
     """Haiku 판정자 — **요약**이 AI 내용을 실제로 담았는가(v3.4 게이트 지표).
@@ -99,18 +125,22 @@ def _judge_ai_summary(title: str, summary: str, *, invoke: Callable[[str, str], 
     같은 형태(client.converse, maxTokens=8, temperature=0)라 테스트/재사용이 쉽다.
     호출 실패·모호 응답은 `_debug` 가 아니라 `say()` 로 non-silent 경고를 찍고 키워드 판정으로
     폴백한다 — 한 건의 판정자 실패가 A/B 실험 전체를 죽이면 안 된다(card-isolation 교훈과 동형).
+    반환 타입은 그대로 `bool` 유지 — 폴백 여부는 반환값이 아니라 `_record_judge_fallback()`
+    부작용으로만 기록한다(ad-hoc 검증 스니펫이 이 함수를 bool 로 소비하는 계약을 깨지 않기 위해).
     """
     user = f"Title: {title}\n\nSummary: {summary}"
     try:
         ans = (invoke(_JUDGE_AI_SUMMARY_SYSTEM, user) or "").upper()
     except Exception as err:  # noqa: BLE001 — 실패도 폴백으로 흡수(실험을 죽이지 않는다)
         say(f"⚠ AI 요약 판정자 호출 실패({type(err).__name__}: {err}) → 키워드 폴백")
+        _record_judge_fallback()
         return is_ai_relevant("", summary)
     if "YES" in ans:
         return True
     if "NO" in ans:
         return False
     say(f"⚠ AI 요약 판정자 모호 응답 {ans!r} → 키워드 폴백")
+    _record_judge_fallback()
     return is_ai_relevant("", summary)
 
 
@@ -451,6 +481,19 @@ def main() -> None:
         if jit_d:
             say(f"  ▸ 노이즈 바닥(같은 기사 반복 간): 최심 폭 median {statistics.median(jit_d):.2f} "
                 f"({_spread(jit_d)}) · 길이 폭 median {statistics.median(jit_l):.0f}자")
+
+    # ★ 게이트 지표(위 "AI 사실 포함(판정자)")가 판정자 폴백으로 얼마나 오염됐는지 — overall 1줄이면
+    # 충분하다(팔별로 쪼개도 원인 진단에 추가 정보가 없다: 폴백은 대개 판정자 자체의 조직적 장애라
+    # 팔과 무관하게 균일하게 덮친다). 0건이면 튀지 않게, 1건이라도 있으면 눈에 띄게 — 운영자가
+    # 수십 줄 진행 로그 사이의 개별 `say()` 경고를 놓쳤더라도 이 한 줄에서는 놓칠 수 없어야 한다.
+    fallback = judge_fallback_count()
+    if fallback:
+        say(f"\n{'!' * 84}\n"
+            f"⚠⚠⚠ AI 요약 판정자 폴백 {fallback}건 — 게이트 지표 일부가 키워드 점수로 되돌아감(그 위 "
+            f"'AI 사실 포함(판정자)' 숫자를 그대로 믿지 말 것). 판정자 조직적 실패 의심 — 모델 id·"
+            f"스로틀링·자격증명부터 확인.\n{'!' * 84}")
+    else:
+        say("\n판정자 폴백 0건 (게이트 지표 전량 판정자 기반 — 키워드 대체 없음)")
     say(f"\n전문 저장: {path}")
 
 
