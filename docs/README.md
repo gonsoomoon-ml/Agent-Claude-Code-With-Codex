@@ -85,6 +85,7 @@
 | 문서 | 상태 |
 |---|---|
 | (스펙 없음 — 직접 수정) 해석층 본문 claim id 유출 | **SHIPPED·LIVE** `c955825`·`deploy_runtime` READY — why 에 "역할 분리(C4, C5)가" 노출. 괄호형=결정론 살균, 인라인=lint 기각→사실층 why 폴백. `INTERP_PROMPT_VERSION` 신설(캐시 히트가 `interpret_card` 를 우회 → 손잡이 없으면 TTL 30일간 구 해석 재서빙). lint 실패 로그 `dprint`→`warn` |
-| specs `2026-07-27-ai-relevance-axis-design` | **DRAFT** — 관련성 필터를 통과한 기사의 요약에 AI 사실 0건(안두릴 카드). 선택 규칙 ①~④ 에 독자 관련성 축이 없어서 생긴 사양 실패. represent-v3.4 로 축 추가. 머지 게이트=A/B 신규 지표(AI 사실 포함률) 상승 + 앵커 최심·헤지 비회귀 |
+| specs `2026-07-27-ai-relevance-axis-design` · plans `…-ai-relevance-axis` | 설계·플랜(불변 이력). 실제 결과는 delivery 참조 — fat 조항 폐기·lean 확정 등 진화가 있었다 |
+| deliveries `2026-07-27-ai-relevance-axis-delivery.md` | **SHIPPED**(main `de81c8f`·`deploy_runtime` READY·ECR `20260727-205949-088`) — 요약 선택 규칙에 독자 관련성 축(represent-v3.4). **배포 근거 = 회귀 없이 특정 실패 유형 해소이지 AI 포함률 전반 개선 아님**(촉발 사례는 독립 2라운드 일관 개선, 전반은 검정력 부족으로 유보). 순차 지연 6/6 완주(max 219s/360s)·헤지·최심·filler 무회귀. ★재제안 금지: fat 조항("둘 다 담는다")은 지표가 훨씬 좋지만(29→75%) 장문 기사를 죽인다(400s·900s 실패) — §5. 잔존: 판정자 배경지식 누출 ~10%(보수적 방향)·gap 모집단 4건. 남은 검증=다음 아침 런 |
 
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.
