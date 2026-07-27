@@ -81,4 +81,10 @@
 | specs `2026-07-17-represent-v3-prompt-design` | DRAFT→진화 — 병은 길이가 아니라 lead bias. 실제 결과는 v3.1 확정·v3.2 revert·v3.3(스펙은 불변 이력, 최종은 delivery/메모리) |
 | deliveries `2026-07-18-summary-quality-certifier-timeout-delivery.md` | **SHIPPED·LIVE**(main ad2a8b1·deploy_runtime READY·deploy_api·trial SES Send=1) — ① certifier 문자열→값 대조(교차언어 위양성 243→6·catch 100%) + 적대 경화 ② SEO 스텁 게이트(MIN_SOURCE_CHARS·openai 비활성) ③ 요약 계약 v3→v3.1(확정)→v3.2(revert)→v3.3(claims=요약 커버리지) ④ author 타임아웃 근본수정(240→360·claims 35→10~22) ⑤ A/B+블라인드 심사 도구. OPEN: (b)잔여 certifier·silent통지·요약예산·독자계측 |
 
+### card-content-quality (발송 카드 내용 품질 — 2026-07-27 실발송 감사에서 발단)
+| 문서 | 상태 |
+|---|---|
+| (스펙 없음 — 직접 수정) 해석층 본문 claim id 유출 | **SHIPPED·LIVE** `c955825`·`deploy_runtime` READY — why 에 "역할 분리(C4, C5)가" 노출. 괄호형=결정론 살균, 인라인=lint 기각→사실층 why 폴백. `INTERP_PROMPT_VERSION` 신설(캐시 히트가 `interpret_card` 를 우회 → 손잡이 없으면 TTL 30일간 구 해석 재서빙). lint 실패 로그 `dprint`→`warn` |
+| specs `2026-07-27-ai-relevance-axis-design` | **DRAFT** — 관련성 필터를 통과한 기사의 요약에 AI 사실 0건(안두릴 카드). 선택 규칙 ①~④ 에 독자 관련성 축이 없어서 생긴 사양 실패. represent-v3.4 로 축 추가. 머지 게이트=A/B 신규 지표(AI 사실 포함률) 상승 + 앵커 최심·헤지 비회귀 |
+
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.
