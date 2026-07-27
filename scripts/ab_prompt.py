@@ -34,6 +34,7 @@ from briefing.core.authoring.author import (
 )
 from briefing.core.config import load_settings
 from briefing.core.stores.source_store import FrozenSource
+from briefing.core.retrieval.relevance import _EN_RE, _FOOTER_RE, _KO_KEYWORDS, is_ai_relevant
 
 REGION = "us-east-1"
 ADMIN = "445814b8-5001-70a6-84a6-6c010ac347ba"
@@ -55,6 +56,18 @@ _FILLER = ("주목받고 있다", "관심이 모이고 있다", "귀추가 주�
 def say(*a: object) -> None:
     """즉시 출력 — 파이프로 넘기면 stdout 이 블록 버퍼링돼 진행이 안 보이고, 중단 시 통째로 유실된다."""
     print(*a, flush=True)
+
+
+# ── AI 사실 포함률 (represent-v3.4 게이트 지표) ──────────────────────────────
+# 판정은 **동결된 키워드 필터 재사용** — "이 텍스트에 AI 신호가 있나"를 위해 이미 존재하고,
+# 동결 상태라 지표가 표류하지 않는다. 절대 정밀도가 아니라 두 팔의 *상대 비교*가 목적.
+_MARGINAL_MAX_HITS = 3   # 히트가 이보다 많으면 AI 가 기사의 본 줄기 → 두 팔 다 100% 라 변별력 0
+
+
+def _ai_hits(text: str) -> int:
+    """텍스트의 AI 신호 개수 — 매체 푸터(Powered by …)는 제외(aitimes 푸터 'AI' 오탐 방지)."""
+    body = _FOOTER_RE.sub("", text or "")
+    return sum(body.count(k) for k in _KO_KEYWORDS) + len(_EN_RE.findall(body))
 
 
 def _anchors(text: str) -> set[str]:
@@ -148,13 +161,25 @@ def _v3_system() -> str:
     return out[:k] + _V3_SUMMARY_LINE.rstrip("\n") + out[end:]
 
 
+_V33_COMMIT = "0284721"   # represent-v3.3 = 독자 관련성 축 추가 직전 (이 스펙의 baseline)
+
+
+def _v33_system() -> str:
+    """v3.3 재현 = git 0284721 의 author_system.md + 현행 lens·계약.
+
+    v3.4 변경은 **md 한정**(선택 규칙에 축 추가)이라 _v3_system 의 summary 줄 surgery 가 필요 없다.
+    """
+    cur = _current_system()
+    return _git_md(_V33_COMMIT) + cur[cur.find("\n\n## 요약 관점(lens)"):]
+
+
 def _arm_user(fs: FrozenSource, today: str) -> str:
     """v3·v3.1 은 user turn 동일(차이는 전부 system 에 있다)."""
     return build_user_prompt(fs, today=today)
 
 
-def _sample(n: int) -> list[tuple[FrozenSource, float, float]]:
-    """실제 발행 카드 중 **lead bias 가 심했던 것 우선** — 개선 여부를 볼 표본."""
+def _ledger_rows() -> list[tuple[FrozenSource, float, float]]:
+    """발행 카드 전량 → (동결본, 요약 최심, claims 최심). 표본 선택기들의 공통 원천."""
     ddb = boto3.client("dynamodb", region_name=REGION)
     items, kw = [], {}
     while True:
@@ -186,7 +211,25 @@ def _sample(n: int) -> list[tuple[FrozenSource, float, float]]:
             continue
         rows.append((FrozenSource(it["source_id"], s.get("url", {}).get("S", ""),
                                   s.get("title", {}).get("S", ""), src, ""), sd, cd))
+    return rows
+
+
+def _sample(n: int) -> list[tuple[FrozenSource, float, float]]:
+    """실제 발행 카드 중 **lead bias 가 심했던 것 우선** — 기존 라운드용(동작 불변)."""
+    rows = _ledger_rows()
     rows.sort(key=lambda r: r[1] - r[2])   # 요약이 claims 대비 가장 얕은 것부터
+    return rows[:n]
+
+
+def _marginal_sample(n: int) -> list[tuple[FrozenSource, float, float]]:
+    """**AI 가 주변부인 기사** 우선 — v3.4 의 변별 표본(안두릴형).
+
+    평범한 AI 기사는 두 팔 모두 AI 사실을 담아 100% 가 나오므로 변별력이 0이다.
+    조건: 원문이 관련성 필터를 통과하되(AI 신호 존재) 신호가 희박할 것.
+    """
+    rows = [r for r in _ledger_rows()
+            if is_ai_relevant(r[0].title, r[0].text) and 0 < _ai_hits(r[0].text) <= _MARGINAL_MAX_HITS]
+    rows.sort(key=lambda r: _ai_hits(r[0].text))   # 가장 희박한 것부터
     return rows[:n]
 
 
@@ -207,7 +250,9 @@ def _run_one(job: tuple[int, FrozenSource, str, str, object, int], settings) -> 
         "idx": idx, "arm": arm, "rep": rep, "summary": summ, "len": len(summ),
         "sent": _sentences(summ), "depth": sd, "anchors": na, "claims_depth": cd,
         "n_claims": len(claims), "hedge": sum(h in summ for h in _HEDGE),
-        "filler": sum(f in summ for f in _FILLER), "secs": round(time.monotonic() - t0),
+        "filler": sum(f in summ for f in _FILLER),
+        "ai_kept": is_ai_relevant("", summ),   # v3.4 게이트: 요약이 AI 사실을 담았나
+        "secs": round(time.monotonic() - t0),
     }
 
 
@@ -220,6 +265,7 @@ def main() -> None:
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 6
     reps = int(sys.argv[2]) if len(sys.argv) > 2 else 3
     want = sys.argv[3].split(",") if len(sys.argv) > 3 else None
+    mode = sys.argv[4] if len(sys.argv) > 4 else "leadbias"   # marginal = v3.4 변별 표본
     settings = load_settings()
 
     # 팔 = (system, user_fn) **쌍**. v3·v3.1 은 user turn 동일(차이는 전부 system).
@@ -227,7 +273,8 @@ def main() -> None:
     # (v3.2 조건 규칙은 블라인드 A/B 에서 효과 없어 revert됨 — 필요시 그 커밋으로 재현.)
     all_arms = {
         "v3": (_v3_system(), _arm_user),
-        "v3.1": (_current_system(), _arm_user),   # 현행 확정
+        "v3.3": (_v33_system(), _arm_user),       # baseline (git 0284721 고정)
+        "v3.4": (_current_system(), _arm_user),   # 제안 (워킹트리)
     }
     arms = {k: v for k, v in all_arms.items() if want is None or k in want}
     if not arms:
@@ -239,7 +286,8 @@ def main() -> None:
     #   'md 만 되돌리고 계약엔 남은' 오염을 즉시 잡았다. md·계약 양쪽을 동시에 커버한다.
     _inv = {  # 토큰 → 있어야 하는가
         "v3":   {"3~5문장": False, "위치가 아니라 사실의 무게": True},
-        "v3.1": {"3~5문장": True,  "위치가 아니라 사실의 무게": True},
+        "v3.3": {"독자 관련성 축": False, "위치가 아니라 사실의 무게": True},
+        "v3.4": {"독자 관련성 축": True,  "위치가 아니라 사실의 무게": True},
     }
     for name, (sysmsg, _u) in arms.items():
         for tok, want_ in _inv.get(name, {}).items():
@@ -259,7 +307,7 @@ def main() -> None:
         f"타임아웃 판정은 순차 실측으로 따로 봐야 한다(참고: 프로덕션 한도 {prod_timeout}s).\n")
 
     say("표본 선정 중(원장·동결본 조회)…")
-    sample = _sample(n)
+    sample = _marginal_sample(n) if mode == "marginal" else _sample(n)
     for i, (fs, sd, cd) in enumerate(sample):
         say(f"  [{i}] {fs.title[:56]} ({len(fs.text)}자) — 프로덕션 최심 {sd:.2f} vs claims {cd:.2f}")
 
@@ -300,6 +348,7 @@ def main() -> None:
         say(f"  문장        : median {statistics.median([r['sent'] for r in ok]):.0f}")
         say(f"  헤지 보존   : {sum(1 for r in ok if r['hedge'] > 0)}/{len(ok)}")
         say(f"  filler      : {sum(r['filler'] for r in ok)}건")
+        say(f"  AI 사실 포함 : {sum(1 for r in ok if r.get('ai_kept'))}/{len(ok)}   ← v3.4 게이트 지표")
         say(f"  {prod_timeout}s 초과  : {slow}/{len(ok)}  ← 프로덕션이면 카드 유실(동시 실행이라 과대추정)")
         # 같은 기사·같은 팔의 반복 간 흔들림 = 노이즈 바닥. 팔 간 차이가 이보다 작으면 판정 불가.
         jit_d = [max(v) - min(v) for v in
