@@ -79,7 +79,7 @@
 | 문서 | 상태 |
 |---|---|
 | specs `2026-07-17-represent-v3-prompt-design` | DRAFT→진화 — 병은 길이가 아니라 lead bias. 실제 결과는 v3.1 확정·v3.2 revert·v3.3(스펙은 불변 이력, 최종은 delivery/메모리) |
-| deliveries `2026-07-18-summary-quality-certifier-timeout-delivery.md` | **SHIPPED·LIVE**(main ad2a8b1·deploy_runtime READY·deploy_api·trial SES Send=1) — ① certifier 문자열→값 대조(교차언어 위양성 243→6·catch 100%) + 적대 경화 ② SEO 스텁 게이트(MIN_SOURCE_CHARS·openai 비활성) ③ 요약 계약 v3→v3.1(확정)→v3.2(revert)→v3.3(claims=요약 커버리지) ④ author 타임아웃 근본수정(240→360·claims 35→10~22) ⑤ A/B+블라인드 심사 도구. OPEN: (b)잔여 certifier·silent통지·요약예산·독자계측 |
+| deliveries `2026-07-18-summary-quality-certifier-timeout-delivery.md` | **SHIPPED·LIVE**(main ad2a8b1·deploy_runtime READY·deploy_api·trial SES Send=1) — ① certifier 문자열→값 대조(교차언어 위양성 243→6·catch 100%) + 적대 경화 ② SEO 스텁 게이트(MIN_SOURCE_CHARS·openai 비활성) ③ 요약 계약 v3→v3.1(확정)→v3.2(revert)→v3.3(claims=요약 커버리지) ④ author 타임아웃 근본수정(240→360·claims 35→10~22) ⑤ A/B+블라인드 심사 도구. OPEN: (b)잔여 certifier[**2026-07-27 실측**: `arithmetic/DEMOTED` 333건 중 수사(number word) 표현 49건(전체 claim의 0.35%) — 원문이 `the second`·`single-digit` 처럼 **낱말**로 쓴 수량을 값 대조가 못 맞춰 *참인 사실이 `(미확인)` 로 표기*. BLOCKED 아님 = 안전 무손상, 정밀도 손실. **기록만·미조치**: 고치려면 catch-rate 반토막 함정 방향이라 eval_set 확장이 선행]·silent통지·요약예산·독자계측 |
 
 ### card-content-quality (발송 카드 내용 품질 — 2026-07-27 실발송 감사에서 발단)
 | 문서 | 상태 |
