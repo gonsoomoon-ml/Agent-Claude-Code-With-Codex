@@ -153,6 +153,13 @@ def test_prompt_version_matches_contract():
     assert PROMPT_VERSION == "represent-v3.3"
 
 
+def test_interp_prompt_version_matches_contract():
+    """INTERP_PROMPT_VERSION 은 interp_card_key 성분 — 해석층 계약을 바꾸고 안 올리면 구 해석이 재서빙된다."""
+    from briefing.core.authoring.author import INTERP_PROMPT_VERSION
+
+    assert INTERP_PROMPT_VERSION == "interp-v1.1"
+
+
 # ── 해석층 프롬프트·파서 (card-layering §5) ─────────────────────────
 
 

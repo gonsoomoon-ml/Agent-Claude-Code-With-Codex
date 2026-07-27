@@ -40,13 +40,16 @@ def fact_card_key(source_id: str, author_model_id: str, prompt_version: str) -> 
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def interp_card_key(source_id: str, lens: str, fact_key: str) -> str:
-    """해석층 키 = sha256(source_id | lens | fact_key) — (출처, lens) 코호트 공유, skill 미포함(v1).
+def interp_card_key(source_id: str, lens: str, fact_key: str, interp_version: str) -> str:
+    """해석층 키 = sha256(source_id | lens | fact_key | interp_version) — (출처, lens) 코호트 공유, skill 미포함(v1).
 
     fact_key 를 성분으로 포함 → 사실층이 재생성되면 해석층도 자동 무효화(층 간 정합성).
+    ★ interp_version(INTERP_PROMPT_VERSION) 은 **직접** 넣어야 한다 — fact_key 연쇄는 *사실층* 계약만
+      실어 나르므로, 해석층 프롬프트·가드 개정은 그 연쇄에 없다(2026-07-27: 살균 고침이 캐시된 구
+      해석에 닿지 않은 원인. 캐시 히트는 gate.interpret_card 를 통째로 우회한다).
     저장물은 '조립 완료' GatedCard(사실층 + lens why) — 기존 직렬화 그대로 재사용.
     """
-    raw = f"interp|{source_id}|{lens}|{fact_key}"
+    raw = f"interp|{source_id}|{lens}|{fact_key}|{interp_version}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 

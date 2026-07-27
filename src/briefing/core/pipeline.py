@@ -16,7 +16,7 @@ from datetime import date, timedelta
 
 from . import _debug, render
 from .retrieval import sources as src
-from .authoring.author import PROMPT_VERSION
+from .authoring.author import INTERP_PROMPT_VERSION, PROMPT_VERSION
 from .stores.cache import CardCache, fact_card_key, interp_card_key
 from .config import Settings, UserConfig
 from .retrieval.curation import FetchArticleFn, curate
@@ -160,7 +160,7 @@ def _process(fs, u, settings, store, card_cache, ledger, run_date,
     if lens == DEFAULT_LENS or fact.decision == "QUARANTINE":
         gated, key = fact, fact_key                          # 사실층 = general 카드 그 자체
     else:
-        key = interp_card_key(fs.source_id, lens, fact_key)
+        key = interp_card_key(fs.source_id, lens, fact_key, INTERP_PROMPT_VERSION)
         gated = interp_memo.get((fs.source_id, lens))
         if gated is None and card_cache is not None:
             gated = card_cache.get(key)

@@ -54,8 +54,17 @@ def test_fact_card_key_shared_across_lens_and_skill():
 
 def test_interp_card_key_per_lens_and_chained_to_fact():
     fk1, fk2 = fact_card_key("S", "m", "v1"), fact_card_key("S", "m", "v2")
-    assert interp_card_key("S", "engineer", fk1) != interp_card_key("S", "business", fk1)  # lens 별 분리
-    assert interp_card_key("S", "engineer", fk1) != interp_card_key("S", "engineer", fk2)  # 사실층 갱신 → 해석층 자동 무효화
+    assert interp_card_key("S", "engineer", fk1, "iv1") != interp_card_key("S", "business", fk1, "iv1")  # lens 별 분리
+    assert interp_card_key("S", "engineer", fk1, "iv1") != interp_card_key("S", "engineer", fk2, "iv1")  # 사실층 갱신 → 자동 무효화
+
+
+def test_interp_card_key_versions_interp_contract_without_touching_fact():
+    # 해석층 프롬프트 계약(interp_system.md) 개정 → **해석층 키만** 무효화.
+    # 2026-07-27 회귀: 이 성분이 없어 살균 고침이 캐시된 구 해석(TTL 30일)에 닿지 않았다.
+    # 사실층 PROMPT_VERSION 을 올려 우회하면 author+certifier 전량 재실행이라 비용이 틀린다.
+    fk = fact_card_key("S", "m", "v1")
+    assert interp_card_key("S", "engineer", fk, "iv1") != interp_card_key("S", "engineer", fk, "iv2")
+    assert fact_card_key("S", "m", "v1") == fk      # 사실층 키는 불변(비싼 층 보존)
 
 
 # ── 사용자 간 공유(드라이버 통합) ─────────────────────────────

@@ -172,24 +172,45 @@ def _num_tokens(text: str) -> set[str]:
     return {m.group().replace(",", "") for m in _NUM_RE.finditer(text)}
 
 
+# claim id 토큰. 후행 \b 없음: 한글 조사가 id 에 직접 붙고("C1이") 한글도 \w 라 boundary 가 성립하지 않는다.
+_CLAIM_ID_RE = re.compile(r"\bC\d+")
+# 괄호 안이 **오직** claim id 목록일 때만 '인용'으로 본다 — "(C4, C5)" O / "(직원 100명)" X.
+_CITATION_PAREN_RE = re.compile(r"\s*[(（]\s*C\d+(?:\s*[,·、]\s*C\d+)*\s*[)）]")
+
+
+def _strip_claim_citations(why: str) -> str:
+    """독자 대면 why 에서 **괄호형 claim id 인용만** 제거한다(앞 공백까지 함께 — 흔적 0).
+
+    계약(interp_system.md): id 인용은 `based_on` 필드로만 — 독자는 claim id 를 볼 수 없다.
+    괄호 인용("역할 분리(C4, C5)가")은 들어내도 문장이 온전하므로 결정론 수리가 가능하다.
+    인라인 인용("C1이 보여주듯")은 id 가 문장 성분(주어)이라 지우면 한국어가 깨진다 — 여기서
+    손대지 않고 lint 가 폴백시킨다(깨진 문장 발행 < 사실층 why 발행).
+    """
+    return _CITATION_PAREN_RE.sub("", why).strip()
+
+
 def _interp_lint(interp: Interpretation, fact: GatedCard, source: FrozenSource) -> str | None:
     """해석층 결정론 lint (no-new-facts 가드) — 통과 None / 실패 사유 문자열.
+
+    ★ 입력은 `_strip_claim_citations` 로 **살균된 뒤**의 해석이다(= 실제 발행될 문자열을 검사).
 
     trust laundering 차단: 해석은 "✓ 검증" 배지 카드에 실리므로, 검증되지 않은 새 사실(특히 수치)을
     밀수할 수 없어야 한다. 규칙(v1 — 미결 #5 의 '결정론 lint 부터' 채택):
       ① why 비어있지 않음  ② based_on ≠ ∅ 이고 전부 VERIFIED claim id
-      ③ why 의 모든 숫자 토큰이 (동결 원문 ∪ VERIFIED claims) 에 존재.
+      ③ 본문에 claim id 잔존 없음(살균 불가 형태 = 독자 노출) — 2026-07-27 라이브 회귀
+      ④ why 의 모든 숫자 토큰이 (동결 원문 ∪ VERIFIED claims) 에 존재.
+    ③ 이 ④ 보다 앞서므로 id 속 숫자가 '미검증 수치'로 오탐될 여지가 없다(2026-07-06 오탐 회귀를
+    가리개(re.sub)가 아니라 **제거 또는 기각**으로 해소 — 관용이 유출로 굳던 경로를 끊는다).
     """
     if not interp.why_it_matters.strip():
         return "why 빈값"
     ok_ids = {c.id for c in verified_claims(fact)}
     if not interp.based_on or not set(interp.based_on) <= ok_ids:
         return f"based_on 인용 무효 ({list(interp.based_on)} ⊄ {sorted(ok_ids)})"
+    if leaked := _CLAIM_ID_RE.findall(interp.why_it_matters):
+        return f"본문 claim id 인용 잔존 {sorted(set(leaked))} (살균 불가 형태)"
     allowed = _num_tokens(source.text) | {t for c in verified_claims(fact) for t in _num_tokens(c.text)}
-    # claim id 본문 인용("C5에 기술된…")의 숫자는 사실 수치가 아님 — 오탐 방지(2026-07-06 라이브 e2e 회귀).
-    # 후행 \b 없음: 한글 조사가 id 에 직접 붙고("C1이") 한글도 \w 라 boundary 가 성립하지 않는다.
-    why_wo_ids = re.sub(r"\bC\d+", " ", interp.why_it_matters)
-    smuggled = _num_tokens(why_wo_ids) - allowed
+    smuggled = _num_tokens(interp.why_it_matters) - allowed
     if smuggled:
         return f"미검증 수치 밀수 {sorted(smuggled)}"
     return None
@@ -220,8 +241,11 @@ def interpret_card(
     except Exception as e:  # noqa: BLE001 — 층별 격리: 해석 실패가 검증된 카드를 죽이면 안 됨
         _debug.warn("gate interp", f"{fact.card.source_id[:12]}: {type(e).__name__}: {e} → 사실층 why 폴백")
         return fact
+    interp = replace(interp, why_it_matters=_strip_claim_citations(interp.why_it_matters))  # 살균 후 lint = 발행문 검사
     reason = _interp_lint(interp, fact, source)
     if reason is not None:
-        _debug.dprint("gate interp", f"lint 실패({reason}) → 사실층 why 폴백", "yellow")
+        # warn(=DEBUG 무관 stderr→CloudWatch): 폴백은 lens 해석 한 단락을 버리는 조용한 열화다.
+        # dprint 였을 땐 운영에서 무증상 → 가드 발동 빈도를 재평가할 수 없었다(2026-07-27).
+        _debug.warn("gate interp", f"{fact.card.source_id[:12]}: lint 실패({reason}) → 사실층 why 폴백")
         return fact
     return replace(fact, card=replace(fact.card, why_it_matters=interp.why_it_matters))

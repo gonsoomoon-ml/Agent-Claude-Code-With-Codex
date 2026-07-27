@@ -144,12 +144,46 @@ def test_interpret_card_requires_valid_citation():
     assert bad_cite.card.why_it_matters == "일반 해석."
 
 
-def test_interpret_card_claim_id_mentions_not_counted_as_numbers():
-    # 회귀(2026-07-06 라이브 e2e 발견): why 가 "C1이 보여주듯…"처럼 claim id 를 본문 인용하면
-    # id 속 숫자(1)가 '미검증 수치'로 오탐되어 폴백됐다 — id 토큰은 수치 검사에서 제외해야 함.
+def test_interpret_card_strips_parenthetical_claim_citations():
+    # 회귀(2026-07-27 라이브 발송 발견): "역할 분리(C4, C5)가…"처럼 괄호 claim id 인용이 독자
+    # 이메일까지 노출됐다 — interp_system.md 계약은 id 를 based_on 으로만 허용한다.
+    # 괄호 인용은 들어내도 문장이 온전하므로 결정론 살균(제거)한다.
+    # (동시에 2026-07-06 오탐 회귀도 덮는다: id 속 숫자 1·2 가 살균으로 사라져 수치 검사를 안 건드림.)
+    out = interpret_card(_fact(), _SRC, None, None,
+                         interp_fn=lambda *a: Interpretation("역할 분리(C1, C2)가 비용을 낮춘다.", ("C1",)))
+    assert out.card.why_it_matters == "역할 분리가 비용을 낮춘다."
+
+
+def test_interpret_card_strips_citation_without_leaving_whitespace_scar():
+    # 앞 공백형 인용 "…낮춘다 (C1)." — 제거 흔적(이중 공백·" .")이 독자 문장에 남으면 안 됨
+    out = interpret_card(_fact(), _SRC, None, None,
+                         interp_fn=lambda *a: Interpretation("비용을 낮춘다 (C1). 그래서 중요하다.", ("C1",)))
+    assert out.card.why_it_matters == "비용을 낮춘다. 그래서 중요하다."
+
+
+def test_interpret_card_keeps_prose_parentheses():
+    # 과잉 제거 방지: 괄호 안이 *id 목록일 때만* 제거 — 산문 괄호는 보존(숫자는 원문 근거라 통과)
+    out = interpret_card(_fact(), _SRC, None, None,
+                         interp_fn=lambda *a: Interpretation("규모(직원 100명)가 핵심.", ("C1",)))
+    assert out.card.why_it_matters == "규모(직원 100명)가 핵심."
+
+
+def test_interpret_card_bare_claim_id_falls_back():
+    # 인라인 인용 "C1이 보여주듯…"은 id 가 문장의 주어라 지우면 한국어가 깨진다 → 결정론 수리 불가.
+    # 깨진 문장을 독자에게 보내느니 사실층 why 로 폴백(층별 격리와 같은 원칙).
     out = interpret_card(_fact(), _SRC, None, None,
                          interp_fn=lambda *a: Interpretation("C1이 보여주듯 규모가 핵심.", ("C1",)))
-    assert out.card.why_it_matters == "C1이 보여주듯 규모가 핵심."
+    assert out.card.why_it_matters == "일반 해석."
+
+
+def test_interpret_card_fallback_is_visible_without_debug(capsys, monkeypatch):
+    # 폴백은 lens 해석 한 단락을 조용히 버리는 열화다 — DEBUG off 인 프로덕션에서도 관측돼야
+    # 발동 빈도를 재평가할 수 있다(dprint 는 DEBUG 게이트라 운영에서 무증상이었음).
+    monkeypatch.delenv("DEBUG", raising=False)
+    out = interpret_card(_fact(), _SRC, None, None,
+                         interp_fn=lambda *a: Interpretation("생산성이 300% 오른다.", ("C1",)))
+    assert out.card.why_it_matters == "일반 해석."
+    assert "미검증 수치 밀수" in capsys.readouterr().err
 
 
 def test_interpret_card_isolates_interp_failure():
