@@ -160,6 +160,8 @@ def test_author_system_prompt_has_reader_relevance_axis():
     s = build_system_prompt(lens_guidance="", skill_md="")
     assert "독자 관련성 축" in s
     assert "프레이밍은 바꾸지 마라" in s      # (A) 포함이지 (B) 재구성이 아니라는 집행부
+    # 없는 사실 생성 차단 — 이 절만 지워도 나머지 두 단언은 통과한다(리뷰 지적, 2026-07-27)
+    assert "원문에 AI 관련 서술이 없으면 만들어내지 않는다" in s
 
 
 def test_interp_prompt_version_matches_contract():
