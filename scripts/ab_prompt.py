@@ -17,6 +17,7 @@ usage: uv run python scripts/ab_prompt.py [N] [REPS] [arm,arm]   # 기본: 6기�
 from __future__ import annotations
 
 import json
+import os
 import re
 import statistics
 import sys
@@ -41,8 +42,11 @@ ADMIN = "445814b8-5001-70a6-84a6-6c010ac347ba"
 # `claude -p` 는 각자 독립 프로세스(clean dir·자체 stdin)라 동시 실행이 안전하다 — 공유 상태 0.
 # 대가: 지연이 부풀려진다(프로덕션은 순차) → 타임아웃 판정에 쓰면 안 된다.
 _CONCURRENCY = 8
-_SCRATCH = Path("/tmp/claude-1000/-home-ubuntu-Agent-Claude-Code-With-Codex/"
-                "a80ab529-104b-4976-8e30-7d1cb2390975/scratchpad")
+# 산출물 저장 위치. **세션 고정 경로 금지** — 2026-07-27 실패: 죽은 세션의 스크래치패드를 가리켜
+# author 36회(25분·약 $3)를 다 쓴 뒤 첫 write 에서 FileNotFoundError 로 전량 유실했다.
+# import 시점에 mkdir 하여 *비싼 호출 전에* 실패하게 만든다(fail-fast). env 로 덮어쓸 수 있다.
+_SCRATCH = Path(os.environ.get("AB_SCRATCH") or "/tmp/ab-prompt").expanduser()
+_SCRATCH.mkdir(parents=True, exist_ok=True)
 
 # 앵커 = 원문에 등장하는 숫자/라틴 고유명사. 한자어 개념은 안 잡히므로 **절대 수준은 과소추정**이지만,
 # 두 팔이 같은 앵커 종류를 쓰므로 **비교는 유효**하다.
