@@ -82,13 +82,24 @@ def _ai_hits(text: str) -> int:
 # ("TTS"·"OCR"·"파라미터"·"인코더"·"Qwen" 등 목록에 없는 말)를 못 잡아 **요약**의 AI 내용을
 # 재는 자로 쓰면 맹점이 된다(라운드2 실측: 기사0·기사5 두 팔·두 라운드 내내 0/3 — 요약 실물은
 # 명백한 AI 내용인데 동결 키워드 매치가 0건). 프로덕션 relevance judge 배관(Haiku Converse)을 재사용.
+#
+# ★ 배관은 재사용하되 **질문은 다르다** — 이 구분을 놓쳐 2026-07-27 오판이 났다.
+# production `relevance._JUDGE_SYSTEM` 은 "기사가 AI 업계에 관한 것인가"를 묻고, 그래서
+# "or the AI industry and its companies" 가 옳다. 이 지표는 "**요약이** 독자에게 AI 를
+# 알려주는가"를 묻는다 — 정반대로 배경지식 추론을 **금지**해야 하는 질문이다.
+# 초판이 그 구절을 그대로 베껴 안두릴 요약(순수 금융 364자, AI 언급 0)을 YES 로 판정했다:
+# 모델이 "안두릴 = AI 방산 기업"이라는 자기 지식으로 분류한 것 — 정확히 우리가 잡으려던 사례를 놓쳤다.
+# 그래서 (a) "AI industry" 절 삭제 (b) "요약에 적힌 것만 근거로 삼아라"를 명시.
 _JUDGE_AI_SUMMARY_SYSTEM = (
-    "You are a strict classifier. Answer whether the given Korean news summary tells the reader "
+    "You are a strict classifier. Answer whether the given Korean news summary itself states "
     "something substantive about artificial intelligence — AI/ML models, AI products or services, "
-    "AI research, AI hardware, or the AI industry. Model names, parameter counts, architectures "
-    "(encoder/decoder/transformer), benchmarks, and AI company products all count as AI content. "
-    "A summary that only covers corporate finance, general cloud/IT infrastructure, or unrelated "
-    "topics does not. Answer with exactly one word: YES or NO."
+    "AI research, or AI hardware. Model names, parameter counts, architectures "
+    "(encoder/decoder/transformer), benchmarks, and descriptions of AI products count as AI content. "
+    "Judge ONLY what the summary text states. Do not use background knowledge about the companies "
+    "or people it names: if the summary names a company you know works on AI but says nothing about "
+    "AI technology, products, or research, answer NO. A summary that only covers corporate finance "
+    "(valuations, funding rounds), general cloud/IT infrastructure, regulation, or unrelated topics "
+    "is NO. Answer with exactly one word: YES or NO."
 )
 
 # ── 판정자 폴백 카운터 (review finding, commit 976a8d9 이후) ───────────────────
@@ -252,10 +263,15 @@ def _arm_user(fs: FrozenSource, today: str) -> str:
     return build_user_prompt(fs, today=today)
 
 
-def _ledger_rows() -> list[tuple[FrozenSource, float, float, str]]:
+def _ledger_rows(min_chars: int = 1500) -> list[tuple[FrozenSource, float, float, str]]:
     """발행 카드 전량 → (동결본, 요약 최심, claims 최심, 프로덕션 요약). 표본 선택기들의 공통 원천.
 
     프로덕션 요약(4번째 원소)은 `_gap_sample` 이 "요약이 원문의 AI 사실을 놓쳤나"를 판정하는 데 쓴다.
+
+    `min_chars` 기본 1500 은 **최심(lead bias) 실험의 전제**다 — 요약이 원문 끝까지 갔는지 재려면
+    대표할 본문이 있어야 하기 때문. 다른 질문에는 그 근거가 적용되지 않으므로 선택기가 낮출 수 있다.
+    (2026-07-27 실측: 원장 134건 중 25건이 1500자 미만이고 **전부 AI 관련**이다. 이 축을 촉발한
+     안두릴 기사가 934자라 통째로 배제됐고, 그래서 격차 후보가 장문 AWS 문서 3건만 남았다.)
     """
     ddb = boto3.client("dynamodb", region_name=REGION)
     items, kw = [], {}
@@ -278,7 +294,7 @@ def _ledger_rows() -> list[tuple[FrozenSource, float, float, str]]:
         if not s or not c or "text" not in s:
             continue
         src = s["text"]["S"]
-        if len(src) < 1500:            # 대표할 본문이 있어야 의미
+        if len(src) < min_chars:       # 최심 실험의 전제 — 질문에 따라 선택기가 낮춘다
             continue
         seen.add(it["source_id"])
         card = json.loads(c["card_json"]["S"])["card"]
@@ -326,8 +342,13 @@ def _gap_sample(n: int, *, judge: Callable[[str, str], bool]) -> list[tuple[Froz
     candidate = 원문에 AI 신호 있음(`is_ai_relevant`) ∧ 프로덕션 요약이 그걸 놓침(`judge()` False).
     정렬은 `_ai_hits` 오름차순(원문에서 AI 가 주변부일수록 요약이 놓치기 쉬운 사례 우선 — 안두릴형).
     후보 판정은 Haiku 호출 1건씩(수십 건이어도 몇 센트) — author 호출은 여기서 0회다.
+
+    ★ 길이 하한을 600 으로 낮춘다(기본 1500 아님). 1500 은 최심 실험의 전제라 이 질문엔 무관한데,
+    그것 때문에 원장의 짧은 뉴스 25건(전부 AI 관련, 안두릴 934자 포함)이 배제돼 후보가 장문 AWS
+    문서 3건만 남았다 — 촉발 사례가 표본에서 빠진 실험은 답을 줄 수 없다. 600 은 요약할 것이
+    있는 최소선(RSS 스텁 컷은 MIN_SOURCE_CHARS 가 상류에서 이미 한다).
     """
-    candidates = [r for r in _ledger_rows() if is_ai_relevant(r[0].title, r[0].text)]
+    candidates = [r for r in _ledger_rows(min_chars=600) if is_ai_relevant(r[0].title, r[0].text)]
     gap = [r for r in candidates if not judge(r[0].title, r[3])]
     gap.sort(key=lambda r: _ai_hits(r[0].text))
     return gap[:n]
