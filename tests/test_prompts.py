@@ -150,7 +150,16 @@ def test_prompt_version_matches_contract():
     """PROMPT_VERSION 은 fact_card_key 성분 — 계약을 바꾸고 안 올리면 구 카드가 새 것인 척 서빙된다."""
     from briefing.core.authoring.author import PROMPT_VERSION
 
-    assert PROMPT_VERSION == "represent-v3.3"
+    assert PROMPT_VERSION == "represent-v3.4"
+
+
+def test_author_system_prompt_has_reader_relevance_axis():
+    """독자 관련성 축(v3.4)은 비-오버라이드 규칙 — 지워지면 안두릴형 카드(요약에 AI 0건)가 다시 나온다."""
+    from briefing.core.authoring.author import build_system_prompt
+
+    s = build_system_prompt(lens_guidance="", skill_md="")
+    assert "독자 관련성 축" in s
+    assert "프레이밍은 바꾸지 마라" in s      # (A) 포함이지 (B) 재구성이 아니라는 집행부
 
 
 def test_interp_prompt_version_matches_contract():
