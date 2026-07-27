@@ -104,8 +104,35 @@
 A/B·진단 누적 약 **$19.4** (유실 $3 포함 — `_SCRATCH` 가 죽은 세션을 가리켜 36회 호출을 다 쓰고 결과를
 전량 버린 사고. 그 고침이 `d01bae8` 의 fail-fast). 배포 후 캐시 무효화 1회 ~$1.10.
 
-## 9. 남은 검증
+## 9. trial 실발송 검증 결과 — 결함 3건 발견·수정 (같은 날 후속)
 
-- **다음 아침 런에서 실제 카드 확인** — 특히 장문 AWS 기사가 정상 발송되는지(지연 회귀 재확인)와
-  안두릴형 기사의 요약에 AI 사실이 담기는지.
-- trial 실발송 — 수신 주소 확정 후 수행.
+trial 발송(`moongons@amazon.com`, SES `Send=1` @21:45, 33.4분) 후 생성 카드를 대조한 결과:
+
+**확인된 것:** claim id 유출 **0/16** (아침 고침 프로덕션 작동) · v3.4 카드 18장 정상 생성 · QUARANTINE 1건.
+
+**발견된 결함 3건** (커밋 `da680bb` · Dockerfile `c4e0ac2` · 배포 `20260727-234226-797`):
+
+1. **비-AI 기사가 정기 브리핑에 발행됨.** `광양, 37도 폭염에 어린이 물놀이터 점검` (원장 확인 =
+   trial 아님, 20:00 정기 발송). 원인 = aitimes 가 기사 **맨 앞**에 붙이는 삽화 캡션 `"AI 생성 영상"`
+   이 모든 기사에 공짜 `AI` 키워드 매치를 준다. `_FOOTER_RE`(Powered by …)와 같은 부류의 매체
+   chrome 인데 본문 앞이라 푸터 방어를 우회. Haiku 판정자는 같은 입력에 **3/3 REJECT** — 폴백만 뚫렸다.
+   → `_CAPTION_RE` 로 캡션 줄만 제거(★키워드 목록 동결 유지 — 목록 튜닝이 아니라 chrome 제거).
+2. **trial 경로가 관련성 판정자를 아예 쓰지 않았다.** `fns` 는 `else: # real` 블록에서만 만들어지는데
+   trial 은 그 앞에서 return 하고 `run_briefing_fn=run_briefing`(맨 함수)을 넘겼다 → 체험 메일이
+   키워드 전용 필터 + 최신순 선별로 발송. **웹 퍼널의 첫인상 경로.**
+   → `_production_fns(settings)` 로 추출해 trial·scheduled 공유 + 구조 불변식 테스트.
+3. **`_debug.warn` 이 CloudWatch 에 도달하지 않았다.** 컨테이너는 **Python logging 레코드만** 수집한다
+   (3시간 로그에 우리 warn 0건, trafilatura 라이브러리 로그는 존재). warn 의 존재 이유가 silent
+   failure 방지인데 배포 환경에서 정확히 silent 였다 — 그리고 이 때문에 결함 1의 경위(판정자가
+   폴백했는지)를 **끝내 확정하지 못했다**.
+   → stderr print + logging 레코드 양쪽 emit(NullHandler 로 로컬 중복 방지).
+
+부수: `Dockerfile` 의 `curl … | bash -` 가 NodeSource 403 을 삼켜(파이프라인 종료 상태 = bash) 8단계 뒤
+`npm: command not found`(exit 127)로 나타나던 침묵 실패 → 공식 tarball + `node --version` 단언으로 교체.
+
+## 10. 남은 검증 (다음 아침 런)
+
+- 장문 AWS 기사가 정상 발송되는지 — v3.4 지연 회귀의 실효 확인
+- 비-AI 기사 부재 — 캡션 스트립 실효 확인
+- `[curate skip]`·`[relevance llm]` 등 **우리 warn 이 실제로 CloudWatch 에 찍히는지** — 관측성 고침 확인.
+  이게 확인돼야 결함 1 의 미해결 경위(판정자 폴백 여부)를 앞으로 진단할 수 있다.
