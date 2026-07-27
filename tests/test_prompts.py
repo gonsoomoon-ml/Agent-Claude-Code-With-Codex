@@ -162,6 +162,9 @@ def test_author_system_prompt_has_reader_relevance_axis():
     assert "프레이밍은 바꾸지 마라" in s      # (A) 포함이지 (B) 재구성이 아니라는 집행부
     # 없는 사실 생성 차단 — 이 절만 지워도 나머지 두 단언은 통과한다(리뷰 지적, 2026-07-27)
     assert "원문에 AI 관련 서술이 없으면 만들어내지 않는다" in s
+    # 지면 경쟁 차단 — A/B 1라운드에서 헤지 보존이 56%→35% 로 회귀했다(6기사 중 4기사 동일 방향).
+    # AI 사실을 넣느라 ④(유보·반론)가 밀려난 것 → 두 규칙이 경쟁하지 않음을 명시해야 한다.
+    assert "④(유보·반론)를 밀어내지 마라" in s
 
 
 def test_interp_prompt_version_matches_contract():
