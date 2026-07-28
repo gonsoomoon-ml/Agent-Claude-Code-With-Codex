@@ -89,6 +89,11 @@ class DraftCard:
     summary: str
     why_it_matters: str       # PROFILE(역할·관심)에 묶인 영향 — 가장 검증이 필요한 줄
     claims: tuple[Claim, ...]
+    # 해석층이 밝힌 근거 claim id (사실층 카드는 빈 튜플). **기본값 = 구 캐시 항목 호환**(TTL 30일 공존).
+    # 왜 저장하나: 계약(interp_system.md:13)은 인용을 필수로 요구하고 lint 가 검사하지만 2026-07-28 이전엔
+    # 검사 후 폐기돼 "이 해석이 근거를 옳게 골랐나"를 사후에 물을 수 없었다. 해석층은 certifier 를 거치지
+    # 않는 유일한 발행 텍스트라(카드엔 '✓ 검증' 배지가 붙는다) 이 감사 경로가 특히 중요하다.
+    based_on: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

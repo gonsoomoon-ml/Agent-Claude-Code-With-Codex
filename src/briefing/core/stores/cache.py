@@ -93,6 +93,8 @@ def _deserialize(d: dict) -> GatedCard:
         summary=cd["summary"],
         why_it_matters=cd["why_it_matters"],
         claims=tuple(Claim(**c) for c in cd["claims"]),
+        # `.get` = 구 캐시 항목(2026-07-28 이전, based_on 키 없음) 호환 — TTL 30일 동안 공존한다.
+        based_on=tuple(cd.get("based_on", ())),
     )
     verdicts = tuple(CertVerdict(**v) for v in d["verdicts"])
     return GatedCard(draft, verdicts, d["decision"], d["attempts"])

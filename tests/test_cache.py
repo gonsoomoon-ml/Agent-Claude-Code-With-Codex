@@ -101,3 +101,20 @@ def test_card_cache_skips_pipeline_on_second_same_lens(tmp_path):
     assert calls == {"draft": 1, "interp": 1}  # ★ 같은 (source, lens) → 두 층 다 캐시 hit → 재실행 0회
     assert out[0].published == 1               # 캐시본으로도 정상 발행
     assert "engineer 관점 해석." in out[0].email  # bob 도 공유 해석층을 받는다
+
+
+def test_cache_roundtrip_preserves_based_on():
+    """해석층 근거 인용이 캐시 왕복에서 살아남는다(감사 자산이 캐시에서 증발하면 의미가 없다)."""
+    g = GatedCard(
+        DraftCard("S", "헤드라인", "요약", "왜", (Claim("C1", "x", "arithmetic", "core"),), ("C1",)),
+        (CertVerdict("C1", "VERIFIED", "ev", "deterministic"),), "PUBLISH", 1)
+    back = _deserialize(_serialize(g))
+    assert back.card.based_on == ("C1",)
+    assert back == g
+
+
+def test_deserialize_old_card_without_based_on():
+    """구 캐시 항목(based_on 키 없음)은 기본값으로 로드된다 — TTL 30일 동안 구 카드가 공존한다."""
+    d = _serialize(_gated())
+    d["card"].pop("based_on", None)          # 2026-07-28 이전 형식 재현
+    assert _deserialize(d).card.based_on == ()

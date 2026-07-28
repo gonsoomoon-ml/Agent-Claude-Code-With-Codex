@@ -221,3 +221,24 @@ def test_interpret_card_passes_only_verified_claims():
 
     interpret_card(fact, _SRC, None, None, interp_fn=spy)
     assert seen["ids"] == ("C1",)
+
+
+def test_interpret_card_persists_based_on():
+    """해석층이 밝힌 근거 claim 을 카드에 남긴다 — 사후 감사의 전제.
+
+    계약(interp_system.md:13)은 `based_on` 인용을 **필수**로 요구하고 lint 가 검사하지만,
+    2026-07-28 이전에는 검사 후 폐기돼 "이 해석이 근거를 옳게 골랐나"를 물을 방법이 없었다
+    (해석층은 certifier 를 거치지 않는 유일한 발행 텍스트라 더 중요하다).
+    """
+    out = interpret_card(_fact(), _SRC, None, None,
+                         interp_fn=lambda *a: Interpretation("엔지니어에게 중요한 이유.", ("C1", "C2")))
+    assert out.card.based_on == ("C1", "C2")
+    assert out.card.why_it_matters == "엔지니어에게 중요한 이유."      # 기존 동작 불변
+
+
+def test_interpret_card_fallback_claims_no_basis():
+    """폴백(해석 실패)은 사실층 why 를 쓰므로 근거 인용도 없어야 한다 — 없는 근거를 주장하지 않는다."""
+    out = interpret_card(_fact(), _SRC, None, None,
+                         interp_fn=lambda *a: Interpretation("생산성이 300% 오른다.", ("C1",)))  # 수치 밀수 → 폴백
+    assert out.card.why_it_matters == "일반 해석."
+    assert out.card.based_on == ()

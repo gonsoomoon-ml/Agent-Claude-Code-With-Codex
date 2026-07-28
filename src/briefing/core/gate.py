@@ -248,4 +248,7 @@ def interpret_card(
         # dprint 였을 땐 운영에서 무증상 → 가드 발동 빈도를 재평가할 수 없었다(2026-07-27).
         _debug.warn("gate interp", f"{fact.card.source_id[:12]}: lint 실패({reason}) → 사실층 why 폴백")
         return fact
-    return replace(fact, card=replace(fact.card, why_it_matters=interp.why_it_matters))
+    # based_on 도 함께 이식 — 인용을 요구·검사하고 버리면 사후 감사가 불가능하다(2026-07-28).
+    # 폴백 경로(위 두 return)는 fact 를 그대로 돌려주므로 based_on 이 빈 튜플로 남는다 = 없는 근거를 주장하지 않음.
+    return replace(fact, card=replace(fact.card, why_it_matters=interp.why_it_matters,
+                                      based_on=interp.based_on))
