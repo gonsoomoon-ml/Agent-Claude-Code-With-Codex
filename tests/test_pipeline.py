@@ -205,7 +205,7 @@ def test_layered_fact_once_interp_per_lens(tmp_path):
         return DraftCard(source.source_id, "헤드라인", "요약", "일반 해석",
                          (Claim("C1", "ok", "entailment", "core"),))
 
-    def interp(source, claims, user, settings):
+    def interp(source, claims, user, settings, summary=""):
         calls["interp"] += 1
         return Interpretation(f"{user.lens} 관점 해석", (claims[0].id,))
 

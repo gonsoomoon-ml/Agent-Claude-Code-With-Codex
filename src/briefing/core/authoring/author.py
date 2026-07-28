@@ -46,7 +46,13 @@ PROMPT_VERSION = "represent-v3.4"  # v3.4: 선택 규칙에 독자 관련성 축
 
 # 해석층 프롬프트 계약 버전 — **해석층** 캐시 키(interp_card_key) 성분. PROMPT_VERSION 과 분리한 이유:
 # 해석층 계약만 바뀐 개정에 사실층 키까지 흔들면 author+certifier 를 전량 재실행하게 된다(비싼 층 보존).
-INTERP_PROMPT_VERSION = "interp-v1.1"  # v1.1: 본문 claim id 인용 금지를 형태 무관으로 명시(괄호형 포함)
+INTERP_PROMPT_VERSION = "interp-v1.2"  # v1.2: 재료 변경 — 요약을 보여주고 "요약이 버린 것"을 쓰게 한다
+# v1.2 근거(2026-07-28, n=60 대응표본 · McNemar): 해석층 산출의 **92%가 요약만 읽고도 말할 수 있는 것**
+# 이었다(도출가능성 감사). 원인은 문체가 아니라 **재료** — 인터프리터는 claims(=요약 커버리지)만 보고
+# 자기가 무엇을 반복하는지도 몰랐다. 문체를 바꾸는 후보 5종(3칸 구조·침묵 허가·반사실·조건부·관계형)은
+# 전부 통찰 4% 부근에 정체했고, **요약을 보여주고 "버린 것을 찾아라"로 바꾸자 4%→36%**
+# (전이 19 · 역전 1 · p=0.0000; engineer 3→33% p=0.0020, business 4→38% p=0.0059 각각 유의).
+# 오추론 2%→5%(게이트 상한), 순차 지연 장문 6건 max 151s(한도 360s, base 57s).
 # v1.1 근거(2026-07-27 라이브 유출): v1 은 "C5에 따르면"(인라인)만 금지 예로 들어, 모델이 괄호형
 # "역할 분리(C4, C5)가"는 규칙 밖으로 읽고 독자 이메일까지 내보냈다. gate 가 살균/기각으로 강제하지만,
 # 이 상수가 없으면 그 고침이 **캐시된 구 해석(TTL 30일)에 닿지 않는다** — 키 성분이 곧 무효화 장치.
@@ -223,19 +229,26 @@ def build_interp_system_prompt(*, lens_guidance: str) -> str:
 
 
 def build_interp_user_prompt(
-    source: FrozenSource, verified_claims: tuple[Claim, ...], *, today: str | None = None
+    source: FrozenSource, verified_claims: tuple[Claim, ...], *,
+    today: str | None = None, summary: str = "",
 ) -> str:
-    """해석층 user 메시지(동적) = 날짜 + **검증된 claims 목록** + 동결 원문.
+    """해석층 user 메시지(동적) = **이미 발행된 요약** + 날짜 + 검증된 claims + 동결 원문.
 
     해석은 VERIFIED claims 위에서만 — gate 가 seam 에서 이미 걸러 넘겨준다(미검증 claim 미노출).
+
+    ★ v1.2: 요약을 **보여준다.** 이전에는 인터프리터가 자기가 무엇을 반복하는지 몰랐고, 그 결과
+    산출의 92%가 "요약만 읽고도 말할 수 있는 것"이었다(2026-07-28 도출가능성 감사).
     """
     today = today or date.today().isoformat()
     claim_lines = "\n".join(f"- {c.id}: {c.text}" for c in verified_claims)
+    head = f"[이미 발행된 요약]\n{summary}\n\n" if summary.strip() else ""
     return (
+        f"{head}"
         f"오늘 날짜: {today} (원문에 없는 날짜·숫자 생성 금지).\n\n"
         f"검증된 사실(claims):\n{claim_lines}\n\n"
-        "위 검증된 사실과 아래 동결 원문에 근거해, 독자 관점의 '나에게 왜 중요한가' 한 단락(1~3문장)만 작성하라. "
-        f"새 사실·수치 도입 금지.\n\n동결 원문:\n\n{source.text}"
+        "위 [이미 발행된 요약]이 독자가 방금 읽은 것이다. 동결 원문에서 **요약이 담지 않은 것 중 "
+        "독자가 알아야 할 것**을 찾아 한 단락(1~3문장)으로 써라. "
+        f"새 사실·수치 도입 금지 — 원문에 적힌 것만.\n\n동결 원문:\n\n{source.text}"
     )
 
 
@@ -244,6 +257,7 @@ def draft_interpretation(
     verified_claims: tuple[Claim, ...],
     user: UserConfig,
     settings: Settings,
+    summary: str = "",     # 위치인자 5번 — gate 가 fact.card.summary 를 넘긴다(v1.2 재료 변경)
     *,
     recorder=None,
 ) -> Interpretation:
@@ -254,7 +268,8 @@ def draft_interpretation(
     """
     system_prompt = build_interp_system_prompt(lens_guidance=resolve_lens(user.lens).guidance)
     text = _run_author(
-        system_prompt, build_interp_user_prompt(source, verified_claims), settings, recorder=recorder
+        system_prompt, build_interp_user_prompt(source, verified_claims, summary=summary),
+        settings, recorder=recorder
     )
     return _parse_interp(text)
 

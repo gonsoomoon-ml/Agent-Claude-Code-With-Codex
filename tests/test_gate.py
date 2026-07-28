@@ -215,12 +215,16 @@ def test_interpret_card_passes_only_verified_claims():
     fact = GatedCard(card, (_v("VERIFIED", "C1"), _v("DEMOTED", "C2")), "PUBLISH", 1)
     seen = {}
 
-    def spy(source, claims, user, settings):
+    def spy(source, claims, user, settings, summary=""):
         seen["ids"] = tuple(c.id for c in claims)
+        seen["summary"] = summary
         return Interpretation("해석.", ("C1",))
 
     interpret_card(fact, _SRC, None, None, interp_fn=spy)
     assert seen["ids"] == ("C1",)
+    # interp-v1.2: 해석층이 **이미 발행된 요약**을 봐야 자기가 무엇을 반복하는지 안다.
+    # 안 주면 산출의 92%가 "요약만 읽고도 말할 수 있는 것"이 된다(2026-07-28 도출가능성 감사).
+    assert seen["summary"] == "s"
 
 
 def test_interpret_card_persists_based_on():

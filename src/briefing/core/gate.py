@@ -237,7 +237,9 @@ def interpret_card(
         return fact
     interp_fn = interp_fn or partial(author.draft_interpretation, recorder=recorder)  # 기본 = 같은 headless `claude -p`(짧은 출력)
     try:
-        interp = interp_fn(source, verified_claims(fact), user, settings)
+        # summary 를 5번째 위치인자로 — 해석층이 **자기가 무엇을 반복하는지** 봐야 한다(interp-v1.2).
+        # 위치인자인 이유: 테스트 fake 들이 `lambda *a` 라 kwarg 를 못 받는다.
+        interp = interp_fn(source, verified_claims(fact), user, settings, fact.card.summary)
     except Exception as e:  # noqa: BLE001 — 층별 격리: 해석 실패가 검증된 카드를 죽이면 안 됨
         _debug.warn("gate interp", f"{fact.card.source_id[:12]}: {type(e).__name__}: {e} → 사실층 why 폴백")
         return fact

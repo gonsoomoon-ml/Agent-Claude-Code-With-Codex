@@ -167,13 +167,6 @@ def test_author_system_prompt_has_reader_relevance_axis():
     assert "④(유보·반론)를 밀어내지 마라" in s
 
 
-def test_interp_prompt_version_matches_contract():
-    """INTERP_PROMPT_VERSION 은 interp_card_key 성분 — 해석층 계약을 바꾸고 안 올리면 구 해석이 재서빙된다."""
-    from briefing.core.authoring.author import INTERP_PROMPT_VERSION
-
-    assert INTERP_PROMPT_VERSION == "interp-v1.1"
-
-
 # ── 해석층 프롬프트·파서 (card-layering §5) ─────────────────────────
 
 
@@ -211,3 +204,33 @@ def test_to_draft_card_unknown_claim_type_defaults_arithmetic():
                                        "claims": [{"id": "C1", "text": "t"}]})
     assert card.claims[0].claim_type == "arithmetic"
     assert card.headline == "제목"   # headline = title 인자(기사 원제목), data 의 headline 무시
+
+
+def test_interp_prompt_version_bumped_for_beyond_contract():
+    """계약이 바뀌면 INTERP_PROMPT_VERSION 도 — 안 올리면 캐시 히트가 interpret_card 를 우회한다(TTL 30일)."""
+    from briefing.core.authoring.author import INTERP_PROMPT_VERSION
+
+    assert INTERP_PROMPT_VERSION == "interp-v1.2"
+
+
+def test_interp_system_prompt_asks_what_summary_left_out():
+    """v1.2 계약의 핵심 — 같은 재료로 다르게 쓰라는 게 아니라 **요약이 버린 재료**를 쓰라는 것.
+
+    실측 근거(n=60 대응표본): 재료를 안 바꾼 후보 5종은 전부 통찰 4% 부근에 정체했고,
+    요약을 보여주고 '버린 것을 찾아라'로 바꾸자 4%→36%(McNemar p=0.0000, 역전 1/56).
+    """
+    from briefing.core.authoring.author import build_interp_system_prompt
+
+    s = build_interp_system_prompt(lens_guidance="")
+    assert "요약이 담지 않은 것" in s
+    assert "이미 발행된 요약" in s          # user 메시지의 요약 섹션을 가리킨다
+
+
+def test_interp_user_prompt_shows_the_published_summary():
+    """인터프리터가 **자기가 무엇을 반복하는지** 볼 수 있어야 한다 — v1.1 까지는 요약을 못 받았다."""
+    from briefing.core.authoring.author import Claim, build_interp_user_prompt
+
+    src = FrozenSource("sid", "u", "t", "원문 본문.", "ts")
+    out = build_interp_user_prompt(src, (Claim("C1", "사실.", "entailment", "core"),),
+                                   today="2026-07-28", summary="발행된 요약 문장.")
+    assert "[이미 발행된 요약]" in out and "발행된 요약 문장." in out

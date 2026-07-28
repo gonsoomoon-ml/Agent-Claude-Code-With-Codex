@@ -63,7 +63,8 @@ def smoke_verify_fn(card: DraftCard) -> tuple[CertVerdict, ...]:
     )
 
 
-def smoke_interp_fn(source: FrozenSource, verified_claims, user: UserConfig, settings: Settings) -> Interpretation:
+def smoke_interp_fn(source: FrozenSource, verified_claims, user: UserConfig, settings: Settings,
+                    summary: str = "") -> Interpretation:
     """fake 해석층 — `claude -p` 미호출. 숫자 없는 why(결정론 lint 통과) + 첫 VERIFIED claim 인용.
 
     실 사용자 lens 가 general 이 아니면 파이프라인이 해석층을 타므로, smoke 도 이 seam 을 fake 로 채운다
