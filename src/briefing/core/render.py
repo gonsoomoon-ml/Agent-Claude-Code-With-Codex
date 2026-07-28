@@ -1,7 +1,7 @@
 """render — PUBLISH 카드 → "검증 명세서(Verified Dispatch)" 이메일.
 
 디자인(`design/ux/email-ux-mockup.md`):
-- 카드 = **요약(검증 대상) → 점선 → 나에게 왜 중요한가(해석, 시각 구분) → 검증줄**. depth 로 밀도(title-only/summary/full).
+- 카드 = **요약(검증 대상) → 점선 → 사실들을 엮으면(해석, 시각 구분) → 검증줄**. depth 로 밀도(title-only/summary/full).
 - 검증줄 = **"다른 AI 에이전트가 사실 N건 검증"** (decorrelation 을 평이하게) + `<details>` 근거. 개별 claim 텍스트는 비노출(불변식).
 - 분야(Area) = 출처 카탈로그 category 로 그룹 — **분야 2개 이상일 때만 밴드**, 번호 분야별 리셋(`source_categories` 주입).
 - decision == "PUBLISH" 카드만 · QUARANTINE 제외 · 0건이면 폴백. 순수 함수(LLM·AWS 불필요), 이메일 클라이언트용 인라인 CSS.
@@ -99,7 +99,7 @@ def _trust_line(card: GatedCard) -> str:
 
 
 def _card_html(card: GatedCard, store: SourceStore | None, *, depth: str, lens: str, rank: int) -> str:
-    """카드 1개 — 원제목(순위·h2=기사 제목) · 출처줄 · [요약 · 관점] · [점선 + 나에게 왜 중요한가(해석)] · 검증줄. depth 로 밀도."""
+    """카드 1개 — 원제목(순위·h2=기사 제목) · 출처줄 · [요약 · 관점] · [점선 + 사실들을 엮으면(해석)] · 검증줄. depth 로 밀도."""
     c = card.card
     rank_html = f'<span style="{_MONO};color:{_CORAL};font-weight:700">{rank:02d}</span>  ' if rank else ""
     parts = [
@@ -111,7 +111,12 @@ def _card_html(card: GatedCard, store: SourceStore | None, *, depth: str, lens: 
     parts.append(f'<p style="{_MONO};font-size:12px;color:{_META};margin:8px 0 2px">요약 · 원문 사실</p>')
     parts.append(f'<p style="margin:0">{html.escape(c.summary)}</p>')
     if depth != "title-only" and c.why_it_matters:  # summary·full → 해석(title-only 만 생략, 시각 구분)
-        why_lbl = f"나에게 왜 중요한가 · {html.escape(lens)} 관점" if lens else "나에게 왜 중요한가"
+        # 라벨 = "사실들을 엮으면"(2026-07-28). 이전 "나에게 왜 중요한가"는 **지킬 수 없는 약속**이었다:
+        # 해석층이 독자에 대해 아는 것은 lens 하나뿐이고(캐시 키가 (source,lens) 코호트 공유라
+        # 개인 정보가 들어갈 수 없다), 그래서 산출의 75%가 일반론이었다(2026-07-28 감사, n=40).
+        # 새 라벨은 위 "요약 · 원문 사실"과 쌍을 이룬다 — 위는 사실을 나열, 아래는 그 사실을 엮는다.
+        # lens 는 남긴다: 어떤 관계를 고를지를 정하고, 제품의 핵심 사용자 대면 기능이다.
+        why_lbl = f"사실들을 엮으면 · {html.escape(lens)} 관점" if lens else "사실들을 엮으면"
         parts.append(f'<div style="border-top:1px dotted {_RULE};margin:8px 0"></div>')
         parts.append(
             f'<p style="font-size:12px;color:{_META};margin:0 0 2px">'

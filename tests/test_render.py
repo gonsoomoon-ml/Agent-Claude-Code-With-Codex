@@ -47,7 +47,7 @@ def test_subtitle_shows_count_lens_without_duplicating_verification():
 def test_full_depth_shows_summary_and_interpretation():
     out = render_email([_gated(summary="요약본문.", why="해석본문.")], _user(depth="full"), None)
     assert "요약본문." in out
-    assert "나에게 왜 중요한가" in out
+    assert "사실들을 엮으면" in out
     assert "해석본문." in out
 
 
@@ -55,7 +55,7 @@ def test_summary_depth_shows_summary_and_interpretation():
     # mockup §4: summary(standard) = 요약 + 왜 중요한가 (둘 다). title-only 만 해석 생략.
     out = render_email([_gated(summary="요약본문.", why="해석본문.")], _user(depth="summary"), None)
     assert "요약본문." in out
-    assert "나에게 왜 중요한가" in out
+    assert "사실들을 엮으면" in out
     assert "해석본문." in out
 
 
@@ -64,7 +64,7 @@ def test_title_only_depth_shows_summary_without_interpretation():
         [_gated(headline="헤드만", summary="요약본문.", why="해석본문.")], _user(depth="title-only"), None
     )
     assert "헤드만" in out and "요약본문." in out          # title-only 도 요약은 노출
-    assert "나에게 왜 중요한가" not in out and "해석본문." not in out  # 해석만 생략
+    assert "사실들을 엮으면" not in out and "해석본문." not in out  # 해석만 생략
 
 
 # ── 검증줄(다른 AI 에이전트 + 숫자 + 근거) ──────────────────
@@ -168,7 +168,7 @@ def test_footer_explains_decorrelation_plainly():
 def test_card_labels_split_fact_and_lens_interpretation():
     out = render_email([_gated()], _user(lens="engineer"), None)
     assert "요약 · 원문 사실" in out                       # 요약 라벨에서 lens 제거(공통 사실층)
-    assert "나에게 왜 중요한가 · engineer 관점" in out      # 개인화 재정박 = 해석 블록(UX 채택 조건)
+    assert "사실들을 엮으면 · engineer 관점" in out      # 개인화 재정박 = 해석 블록(UX 채택 조건)
 
 
 # ── 날짜 포맷터(헤더용) ──────────────────────────────────
