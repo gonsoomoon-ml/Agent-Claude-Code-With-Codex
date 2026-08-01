@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
   브리핑 에이전트 영속 계층 — card-cache(재계산 방지) · source-store(정본) · ledger(시간·사용자 history) · users(프로필).
   전부 PAY_PER_REQUEST(프로비저닝 0 → idle ≈ $0, 요청당 과금). 로컬 backend 와 *같은 Protocol* 을 DDB 가 만족.
-  내구성: cache 30일·source 7일 TTL(ephemeral) / ledger·users 는 durable(TTL 없음 + DeletionPolicy:Retain + PITR).
+  내구성: cache 만 30일 TTL(disposable) / source·ledger·users 는 durable(TTL 없음 + DeletionPolicy:Retain).
 
 Parameters:
   TablePrefix:
@@ -53,6 +53,8 @@ Resources:
   # ── source-store: 권위 페치 정본(raw text·url·title·media·date). source-of-record = 토대. ──
   SourceStoreTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain          # durable — 스택을 지워도 정본은 보존(2026-08-01 영구 보존 결정에 따름)
+    UpdateReplacePolicy: Retain
     Properties:
       TableName: !Sub '${TablePrefix}-source-store'
       BillingMode: PAY_PER_REQUEST
@@ -62,9 +64,13 @@ Resources:
       KeySchema:
         - AttributeName: source_id
           KeyType: HASH
-      TimeToLiveSpecification:               # 원문(저작권 민감) 7일 ephemeral — corpus 아님. ledger 가 source_id+headline 보존(앵커 유지).
+      # TTL 폐지(2026-08-01) — 정본을 영구 보존한다. 이전엔 7일 ephemeral 이었다.
+      # 왜: 7일 창을 넘는 소급 감사·재분석이 불가능했다(scripts/interp_audit/build_dataset.py 참조).
+      # ⚠️ 블록을 지우지 말고 Enabled:false 로 남길 것 — 속성을 제거하면 CFN 이 변경을 감지 못 할 수 있고,
+      #    DDB UpdateTimeToLive API 는 비활성화 시에도 AttributeName 을 요구한다. 이력도 함께 남는다.
+      TimeToLiveSpecification:
         AttributeName: ttl
-        Enabled: true
+        Enabled: false
       # 전문(상한 8000자) 저장 — DDB 400KB 한도 밑. 그 이상 긴 기사면 S3(blob)+여기(포인터) 분리(인터페이스 동일).
 
   # ── users: per-user 프로필(구독). PK=user_id. ④ Web UI(PUT /profile) 쓰기 ↔ load_user 읽기 seam(H4). ──

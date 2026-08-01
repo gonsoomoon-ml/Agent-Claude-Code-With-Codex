@@ -1,7 +1,7 @@
 """dynamo — 영속 계층의 DynamoDB 백엔드(v1.5). 로컬 backend 와 *완전히 같은 Protocol* 을 만족한다.
 
 ★ 각 Dynamo* 클래스가 Local* 과 같은 인터페이스를 구현 → wiring 한 줄만 바꾸면 Local ↔ Dynamo 를 갈아끼울 수 있다.
-- 테이블은 CloudFormation(infra/ddb.yaml)이 선언적으로 만든다 — PAY_PER_REQUEST. cache=TTL 30일, source=7일, ledger=durable(TTL 없음).
+- 테이블은 CloudFormation(infra/ddb.yaml)이 선언적으로 만든다 — PAY_PER_REQUEST. cache=TTL 30일, source·ledger·users=durable(TTL 없음).
 - 직렬화는 로컬 cache 의 _serialize/_deserialize 를 그대로 쓴다 — 카드를 JSON 문자열 한 속성으로 저장(DDB 의 중첩 map·빈 문자열 marshalling 함정을 피한다).
 - endpoint_url 옵션: 빈값이면 실제 AWS(기본), 값을 주면 DynamoDB Local(무료 에뮬레이터) — 코드는 같고 env 하나만 다르다.
 """
@@ -19,7 +19,9 @@ from .cache import _deserialize, _serialize
 from .source_store import FrozenSource, content_id, media_from_url, normalize
 
 _CACHE_TTL_DAYS = 30
-_SOURCE_TTL_DAYS = 7  # 원문은 저작권에 민감해서 7일만 두는 ephemeral — 말뭉치(corpus)가 아니다. 파생물인 ledger/card 는 durable
+# source-store 는 TTL 없음 — 정본은 durable(2026-08-01 결정: 7일 ephemeral 폐지, 영구 보존).
+# 왜: 감사·재분석이 7일 창을 넘어 소급되지 않았다(scripts/interp_audit/build_dataset.py 가 그때그때 떠야 했던 이유).
+# ⚠️ 저작권 포지션이 바뀐다 — 원문 전문을 무기한 보관하므로 "말뭉치(corpus)가 아니다"가 더는 구조로 증명되지 않는다.
 _SRC_FIELDS = ("source_id", "url", "title", "text", "fetched_at", "media")
 _USER_FIELDS = ("recipient", "type", "sources", "depth", "lens", "send_hour", "timezone")  # skill_md 는 뺀다 — 파일 오버레이(신뢰 경계)
 
@@ -107,7 +109,7 @@ class DynamoSourceStore:
         fs = FrozenSource(source_id=source_id, url=url, title=title, text=text,
                           fetched_at=fetched_at, media=media or media_from_url(url))
         item = asdict(fs)
-        item["ttl"] = int(time.time()) + _SOURCE_TTL_DAYS * 86400  # 7일 뒤 DDB 가 자동 삭제(ephemeral)
+        # ttl 속성 없음 — 정본은 영구 보존(durable). 넣으면 DDB 가 다시 자동 삭제한다.
         try:
             # 조건부 put — source_id 가 없을 때만 성공(원자적 first-wins). 동시 freeze 에도 첫 동결이 이긴다.
             self._t.put_item(Item=item, ConditionExpression="attribute_not_exists(source_id)")
