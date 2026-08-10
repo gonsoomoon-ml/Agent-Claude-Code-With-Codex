@@ -12,11 +12,13 @@ from __future__ import annotations
 import calendar
 import html as _html
 import re
+import threading
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import yaml
@@ -143,8 +145,48 @@ def _clean_text(raw_html: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+# ── 페치 시간 상한 ── 소스 하나가 멈춰도 브리핑 전체가 정지하지 않게 하는 두 층 ──
+_FETCH_TIMEOUT_S = 20    # 네트워크 요청 1건의 하드 데드라인(초). 실측 정상 0.2~1.2s 대비 ~17배 여유.
+_SOURCE_BUDGET_S = 180   # html 소스 1개의 총 수집 예산(초). 링크 39개 직렬 walk 가 이 값의 대상.
+
+
+def _with_deadline(fn: Callable[[], Any], timeout_s: float, label: str) -> Any:
+    """`fn()` 을 데몬 스레드에서 돌리고 timeout_s 안에 안 끝나면 포기(+warn) → None.
+
+    **왜 필요한가:** trafilatura 는 pycurl 이 없으면 urllib3 경로를 타는데, `create_pool(timeout=N)`
+    은 urllib3 에서 `Timeout(connect=N, read=N)` 이다 — read 는 *읽기 1회* 기준이라 매번 초기화된다
+    (총 시간 상한 없음). 서버가 조금씩 흘리면 영원히 안 끝나고, 파이프라인은 소스를 한 스레드에서
+    직렬 처리하므로 브리핑 전체가 무출력으로 멈춘다(2026-08-09 미발송의 원인).
+    라이브러리 자체 read 타임아웃(30s)보다 **낮게** 잡아야 항상 우리가 먼저 이겨 의미가 결정론적이다.
+
+    **왜 스레드인가:** `signal.alarm` 은 메인 스레드 전용인데 AgentCore 는 async task 스레드에서
+    파이프라인을 돌린다. 멈춘 스레드는 daemon 이라 프로세스 종료를 막지 않는다(결국 trafilatura
+    자체 read 타임아웃이 풀어준다).
+
+    ★ 예외는 삼키지 않고 그대로 재전파 — 침묵 실패 금지(listing 실패의 RuntimeError 계약 보존).
+    """
+    box: dict[str, Any] = {}
+
+    def _run() -> None:
+        try:
+            box["v"] = fn()
+        except BaseException as exc:  # noqa: BLE001 — 삼키지 않고 호출 스레드로 재전파
+            box["e"] = exc
+
+    worker = threading.Thread(target=_run, daemon=True)
+    worker.start()
+    worker.join(timeout_s)
+    if worker.is_alive():
+        _debug.warn("fetch timeout", f"{label}: {timeout_s:g}s 초과 — 포기")
+        return None
+    if "e" in box:
+        raise box["e"]
+    return box.get("v")
+
+
 def _fetch_feed(
-    feed_url: str, source_key: str, *, window_hours: int = 24, max_items: int = 5, full_text: bool = True
+    feed_url: str, source_key: str, *, window_hours: int = 24, max_items: int = 5, full_text: bool = True,
+    timeout_s: float = _FETCH_TIMEOUT_S,
 ) -> list[FetchedArticle]:
     """RSS/Atom 피드 → FetchedArticle 목록 (feedparser). fetch_clean_rss·제너릭 피드발견 공용.
 
@@ -154,7 +196,10 @@ def _fetch_feed(
     """
     import feedparser  # lazy — feedparser 미설치 환경에서도 sources 모듈 import 가능
 
-    feed = feedparser.parse(feed_url)
+    # ★ feedparser.parse(url) 는 *자체 네트워크 다운로드* — `_http_get` 과 같은 무제한 구멍이라 같은 상한.
+    feed = _with_deadline(lambda: feedparser.parse(feed_url), timeout_s, f"feed {feed_url}")
+    if feed is None:                                  # 시간초과(warn 은 _with_deadline 이 이미 냄)
+        return []
     now = time.time()
     out: list[FetchedArticle] = []
     stubs: list[str] = []
@@ -228,17 +273,21 @@ def _is_stub(text: str) -> bool:
     return len(text.strip()) < MIN_SOURCE_CHARS
 
 
-def discover_feed(url: str) -> str:
-    """사이트 URL → RSS/Atom 피드 URL 자동발견(없으면 ""). UI 가 URL 만 받아도 RSS 인식(kind:auto 토대)."""
+def discover_feed(url: str, *, timeout_s: float = _FETCH_TIMEOUT_S) -> str:
+    """사이트 URL → RSS/Atom 피드 URL 자동발견(없으면 ""). UI 가 URL 만 받아도 RSS 인식(kind:auto 토대).
+
+    ★ 시간초과도 ""(미발견) — 호출자가 리스팅 크롤 경로로 폴백하므로 소스를 잃지 않는다.
+      `fetch_generic_html` 의 첫 호출이라, 여기가 막히면 아래 소스 예산 검사에 도달조차 못 한다.
+    """
     from trafilatura import feeds  # lazy(무거운 import 회피)
-    found = feeds.find_feed_urls(url)
+    found = _with_deadline(lambda: feeds.find_feed_urls(url), timeout_s, f"discover_feed {url}")
     return found[0] if found else ""
 
 
-def _http_get(url: str) -> str:
-    """trafilatura.fetch_url — UA·재시도 처리된 평문 GET(접근통제 우회 없음). 실패 시 ""."""
+def _http_get(url: str, *, timeout_s: float = _FETCH_TIMEOUT_S) -> str:
+    """trafilatura.fetch_url — UA·재시도 처리된 평문 GET(접근통제 우회 없음). 실패·시간초과 시 ""."""
     import trafilatura
-    return trafilatura.fetch_url(url) or ""
+    return _with_deadline(lambda: trafilatura.fetch_url(url), timeout_s, url) or ""
 
 
 def _excerpt(text: str, limit: int = MAX_SOURCE_CHARS) -> str:
@@ -319,12 +368,19 @@ def _is_stale(published: str, window_hours: int) -> bool:
     return (time.time() - ts) / 3600.0 > window_hours
 
 
-def fetch_generic_html(source: Source, *, window_hours: int = 24, max_items: int = 5) -> list[FetchedArticle]:
+def fetch_generic_html(
+    source: Source, *, window_hours: int = 24, max_items: int = 5, budget_s: float = _SOURCE_BUDGET_S
+) -> list[FetchedArticle]:
     """제너릭 HTML/auto 출처 페치 — 피드 발견 시 RSS 경로 재사용, 없으면 리스팅 링크 + trafilatura 본문 추출.
 
     ★ 매체별 코드 0(UI 가 URL 만 받아도 동작). 권위 페치=fabric 소유. bounded excerpt 만(법적 자세).
     listing fetch 실패는 예외(curate 가 skip+warn); 개별 기사 실패는 그 기사만 skip.
+
+    budget_s = 이 소스 하나의 **총** 수집 시간 예산(진입 시점부터). 요청별 상한(`_FETCH_TIMEOUT_S`)만으론
+    링크 39개 × 20s = 13분까지 늘어나므로 두 층이 필요하다. 초과 시 남은 링크를 포기하고 확보분만 반환 —
+    예외가 아니라 `break` 다(한 소스 때문에 브리핑을 죽이지 않는다; 카드별 격리와 같은 원리).
     """
+    deadline = time.monotonic() + budget_s        # 예산 시계는 discover_feed·리스팅까지 포함해 진입 시점부터
     feed = discover_feed(source.url)
     if feed:
         return _fetch_feed(feed, source.key, window_hours=window_hours, max_items=max_items)
@@ -334,6 +390,10 @@ def fetch_generic_html(source: Source, *, window_hours: int = 24, max_items: int
     out: list[FetchedArticle] = []
     for url in _article_links(listing, source.url):
         if len(out) >= max_items:
+            break
+        if time.monotonic() >= deadline:
+            _debug.warn("fetch budget",
+                        f"{source.key}: {budget_s:g}s 초과 — 남은 링크 포기({len(out)}건 확보)")
             break
         page = _http_get(url)
         if not page:

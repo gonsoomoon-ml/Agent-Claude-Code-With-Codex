@@ -223,3 +223,100 @@ def test_extract_article_drops_stub(capsys):
         assert s._extract_article("<html/>", "https://x/a", "anthropic") is not None
     finally:
         s._extract_body = orig
+
+
+# ── 페치 시간 상한 ── 한 소스가 멈춰도 브리핑 전체가 정지하지 않아야 한다 ──
+# 배경(2026-08-09 미발송): trafilatura 는 pycurl 없으면 urllib3 경로 — `create_pool(timeout=N)` 은
+# urllib3 에서 Timeout(connect=N, read=N) 이라 **읽기마다 초기화**된다(총 시간 상한 없음).
+# 파이프라인은 소스를 직렬 처리하므로 한 URL 이 막히면 전체가 무출력으로 멈춘다.
+
+def test_http_get_hard_deadline_unblocks_stalled_fetch(capsys):
+    """멈춘 fetch 는 데드라인에서 포기하고 ""(+warn) — 호출자는 다음 링크로 넘어간다."""
+    import time as _t
+
+    import trafilatura
+
+    from briefing.core.retrieval import sources as s
+    orig = trafilatura.fetch_url
+    try:
+        trafilatura.fetch_url = lambda *a, **k: (_t.sleep(30), "never")[1]   # 응답 없는 서버
+        t0 = _t.monotonic()
+        out = s._http_get("https://stalled.example/a", timeout_s=0.3)
+        elapsed = _t.monotonic() - t0
+    finally:
+        trafilatura.fetch_url = orig
+    assert out == ""
+    assert elapsed < 5.0, f"데드라인을 무시하고 {elapsed:.1f}s 대기"
+    assert "fetch timeout" in capsys.readouterr().err          # non-silent
+
+
+def test_fetch_generic_html_abandons_source_when_budget_exhausted(capsys):
+    """소스 예산 초과 시 남은 링크를 포기 — 링크 수 x 데드라인만큼 끌지 않는다."""
+    import time as _t
+
+    from briefing.core.retrieval import sources as s
+    listing = "".join(f'<a href="/news/a{i}">A</a>' for i in range(30))
+    seen: list[str] = []
+
+    def slow_get(url):
+        seen.append(url)
+        if url.endswith("/news"):
+            return listing
+        _t.sleep(0.05)
+        return "<html/>"            # 추출 실패 → out 안 참 → 루프는 계속 돌려 한다
+
+    orig = s._http_get
+    try:
+        s._http_get = slow_get
+        s.discover_feed_orig = s.discover_feed
+        s.discover_feed = lambda _u: ""
+        arts = s.fetch_generic_html(_src(), window_hours=0, max_items=5, budget_s=0.2)
+    finally:
+        s._http_get = orig
+        s.discover_feed = s.discover_feed_orig
+    assert arts == []
+    assert len(seen) < 31, f"예산을 무시하고 링크 {len(seen)}건 전부 시도"
+    assert "fetch budget" in capsys.readouterr().err           # non-silent
+
+
+def test_fetch_feed_hard_deadline_on_feed_download(capsys):
+    """RSS 다운로드(feedparser.parse) 자체도 상한 — 여기도 막히면 소스가 통째로 정지한다."""
+    import time as _t
+
+    import feedparser
+
+    from briefing.core.retrieval import sources as s
+    orig = feedparser.parse
+    try:
+        feedparser.parse = lambda *a, **k: (_t.sleep(30), None)[1]
+        t0 = _t.monotonic()
+        arts = s._fetch_feed("https://stalled.example/rss", "x", timeout_s=0.3)
+        elapsed = _t.monotonic() - t0
+    finally:
+        feedparser.parse = orig
+    assert arts == []
+    assert elapsed < 5.0, f"데드라인을 무시하고 {elapsed:.1f}s 대기"
+    assert "fetch timeout" in capsys.readouterr().err
+
+
+def test_discover_feed_hard_deadline_falls_back_to_listing(capsys):
+    """피드 자동발견도 상한 — 여기가 막히면 예산 검사(루프 안)에 도달조차 못 한다.
+
+    타임아웃 = ""(미발견) → 호출자는 리스팅 크롤 경로로 폴백하므로 소스를 잃지 않는다.
+    """
+    import time as _t
+
+    from trafilatura import feeds
+
+    from briefing.core.retrieval import sources as s
+    orig = feeds.find_feed_urls
+    try:
+        feeds.find_feed_urls = lambda *a, **k: (_t.sleep(30), ["https://f/rss"])[1]
+        t0 = _t.monotonic()
+        out = s.discover_feed("https://stalled.example/", timeout_s=0.3)
+        elapsed = _t.monotonic() - t0
+    finally:
+        feeds.find_feed_urls = orig
+    assert out == ""
+    assert elapsed < 5.0, f"데드라인을 무시하고 {elapsed:.1f}s 대기"
+    assert "fetch timeout" in capsys.readouterr().err
