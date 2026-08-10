@@ -35,6 +35,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **런타임 하니스 격리 (runtime isolation) — 비협상.** headless author(`claude -p`)·certifier(`codex exec`)는 **반드시 깨끗한 작업 디렉토리에서 실행**한다 — 저장소의 `CLAUDE.md`/`AGENTS.md` 가 *자동 로드되면 안 된다*. author 는 `build_system_prompt` 로만 통제되어야 하고(repo 아키텍처 컨텍스트로 오염 금지), **certifier 는 envelope 4필드 외 어떤 프로젝트 컨텍스트도 보면 안 된다 — `AGENTS.md`/`CLAUDE.md` 자동 로드는 decorrelation 을 *조용히* 깬다.** AgentCore 컨테이너는 자연히 격리되고, 로컬 PoC/테스트는 `scratchpad` 같은 clean dir 에서 돌린다(스모크 테스트가 그 예). → 그래서 repo 에 `AGENTS.md` 를 두면 certifier 를 repo dir 에서 실행할 때 *footgun* 이다(반드시 clean dir).
 
+## 착수 전 승인 (Approval before implementation) — 비협상
+
+**Before implementation, tell me an idea here and be approved.** 구현에 들어가기 전에 **먼저 이 대화에 아이디어를 말하고 승인을 받는다.**
+
+- **적용 대상:** 저장소 파일을 바꾸는 모든 작업(구현·수정·리팩터링·테스트 추가 포함). 조사·읽기·로그 확인·진단·재현은 승인 없이 진행해도 된다.
+- **제시할 것:** 무엇을 왜 바꾸는지, 어디를(파일·함수), 버린 대안은 무엇인지 — 짧게. 코드 전문이 아니라 **아이디어**.
+- **승인 전까지 파일을 건드리지 않는다.** 이미 손댔으면 그 사실을 밝히고 되돌릴지 물어본다.
+- **왜:** 방향이 틀린 구현은 되돌리는 비용이 크고, 이 저장소의 결정은 `design/` 문서와 얽혀 있어 사람이 방향을 먼저 고정하는 편이 싸다.
+
 ## 무엇을 만들지의 제약 (Inclusion test — 범위를 지키는 가드레일)
 
 어떤 기능/제품 아이디어를 핵심으로 삼을지 판단할 때, 후보는 아래를 **모두** 통과해야 합니다:
