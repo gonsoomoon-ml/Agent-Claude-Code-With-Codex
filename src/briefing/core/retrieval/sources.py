@@ -112,10 +112,20 @@ def catalog_keys() -> tuple[str, ...]:
 
 
 def resolve_sources(selected: Sequence[str]) -> list[Source]:
-    """per-user 선택 키 → CATALOG 엔트리(catalog 순서·결정론). 빈 선택이면 전체(기본)."""
+    """per-user 선택 키 → CATALOG 엔트리(catalog 순서·결정론). 빈 선택이면 전체(기본).
+
+    ★ 미상 키는 **드롭하되 warn**(silent failure 금지). 드롭을 유지하는 이유: 키 하나가 오타거나
+      카탈로그에서 빠졌다고 그 사용자의 브리핑 전체를 막으면 안 된다(curate 의 소스별 degrade 와 동형).
+      경고를 붙이는 이유: 카탈로그에서 출처를 제거하면 그 키를 구독하던 사용자는 *모르는 채로*
+      기사를 덜 받는다 — 2026-09-13 에 `openai` 키가 발행처 재편 후 무음 드롭 중인 걸 발견했다.
+    """
     if not selected:
         return list(CATALOG)
     sel = set(selected)
+    if unknown := sorted(sel - set(catalog_keys())):
+        _debug.warn("resolve_sources",
+                    f"미상 출처 키 {unknown} 무시 — 카탈로그에 없음(제거됐거나 오타). "
+                    f"이 선택의 사용자는 해당 출처를 받지 못한다.")
     return [s for s in CATALOG if s.key in sel]
 
 

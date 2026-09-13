@@ -54,6 +54,25 @@ def test_resolve_sources_subset_and_unknown_dropped():
     assert [s.key for s in resolve_sources(["claude-blog", "badkey"])] == ["claude-blog"]
 
 
+def test_resolve_sources_warns_on_unknown_key(capsys):
+    """미상 키는 드롭하되 **조용히는 아니다** — 어떤 키가 빠졌는지 warn 으로 남긴다.
+
+    카탈로그에서 출처를 빼면 그 키를 구독 중이던 사용자는 *모르는 채로* 기사를 덜 받는다
+    (2026-09-13 실측: users/gonsoo 의 `openai` 키가 발행처 재편 후 무음 드롭되고 있었다).
+    드롭 자체는 유지한다(한 키 오타가 브리핑 전체를 막으면 안 됨) — 보이게만 만든다.
+    """
+    resolve_sources(["claude-blog", "badkey"])
+    err = capsys.readouterr().err
+    assert "badkey" in err
+    assert "claude-blog" not in err   # 정상 키는 경고에 안 들어간다(노이즈 방지)
+
+
+def test_resolve_sources_silent_when_all_keys_known(capsys):
+    """정상 경로는 조용해야 한다 — 경고가 흔해지면 경고가 아니게 된다."""
+    resolve_sources(["claude-blog", "aitimes"])
+    assert capsys.readouterr().err == ""
+
+
 def test_fetch_set_union_and_empty_is_all():
     assert {s.key for s in fetch_set([["claude-blog"], ["aitimes", "claude-blog"]])} == {"claude-blog", "aitimes"}
     assert {s.key for s in fetch_set([[]])} == set(catalog_keys())  # 빈 선택 = 전체
