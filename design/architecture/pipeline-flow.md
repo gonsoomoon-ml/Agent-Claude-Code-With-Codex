@@ -1,6 +1,8 @@
 # 파이프라인 흐름 — verify-before-publish (어떻게 한 카드가 만들어지나)
 
 > **이 문서 = 런타임 흐름의 *정본 그림*(빠른 참조용).** 왜 이렇게 설계했는지의 근거·소스 검증은 [`four-component-analysis.md §5.5`](./four-component-analysis.md) 참조.
+>
+> **이 문서는 카드 *한 장*의 클로즈업이다.** 배포 지형·스케줄러 체인·수집(curate)·2층 캐시·신뢰 경계까지 포함한 전경은 [`system-map.md`](./system-map.md) 참조.
 
 ## 한 줄 요약 (TL;DR)
 
