@@ -99,7 +99,7 @@ def _trust_line(card: GatedCard) -> str:
 
 
 def _card_html(card: GatedCard, store: SourceStore | None, *, depth: str, lens: str, rank: int) -> str:
-    """카드 1개 — 원제목(순위·h2=기사 제목) · 출처줄 · [요약 · 관점] · [점선 + 사실들을 엮으면(해석)] · 검증줄. depth 로 밀도."""
+    """카드 1개 — 원제목(순위·h2=기사 제목) · 출처줄 · [요약 · 원문 사실] · [점선 + 사실들을 엮으면(해석)] · 검증줄. depth 로 밀도."""
     c = card.card
     rank_html = f'<span style="{_MONO};color:{_CORAL};font-weight:700">{rank:02d}</span>  ' if rank else ""
     parts = [
