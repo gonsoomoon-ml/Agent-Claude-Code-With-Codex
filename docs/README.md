@@ -94,4 +94,9 @@
 |---|---|
 | (스펙 없음 — 인시던트 대응) deliveries `2026-08-10-fetch-timeout-delivery.md` | **SHIPPED·LIVE**(main `f1ce301`·`deploy_runtime` READY v45→v46·ECR `20260810-004316-753`) — 2026-08-09 미발송(**무통보 실패 2번째**). 원인 = trafilatura 가 pycurl 없으면 urllib3 경로, `create_pool(timeout=30)` 은 `Timeout(connect,read)` 이고 **read 는 매 읽기 초기화 = 총 시간 상한 없음**(+backoff 15s). 직렬 파이프라인이라 한 URL 정지 = 브리핑 전체 정지. 수정 = 시간 상한 2층(요청 **20s**/소스 **180s**, `_with_deadline` 를 `_http_get`·`feedparser.parse`·`discover_feed` 에 + 링크 루프 예산; 초과는 `raise` 아닌 `break` = 카드별 격리와 동형). 20s 는 라이브러리 read 30s 보다 **낮아야** 우리가 먼저 이겨 결정론적. ★재제안 금지 4종(`DOWNLOAD_TIMEOUT` 만 축소·`socket.setdefaulttimeout`·소스 병렬화·전역 3층 예산) — §5. **★포렌식 기법 §3**: DDB `ttl` 역산=쓰기 시각(단 source-store 는 `305ed18` TTL 폐지로 이제 불가, card-cache 는 유효)·꼬리 404=소스 통과 마커·**메트릭 flush 는 생존 신호 아님**(오추론 철회 기록). OPEN: silent-failure 통지(증거 2건)·데몬 스레드 잔존·배포가 main 보다 12일 지연이었음 |
 
+### article-identity-dedup (같은 기사 중복 발송 차단) — DRAFT (2026-10-16)
+| 문서 | 상태 |
+|---|---|
+| specs `2026-10-16-article-identity-dedup-design` | **DRAFT** — 감사: 07-08~10-15 8기사·초과 45장. 원인 3층(문서 페이지 오인·본문 해시 신원·7일 lookback) → ① canonical 호스트 검사 ② URL·제목 신원 키 ③ lookback 90일+pagination. DB 스키마·일일 흐름 ASCII 수록. 결정: source-store join + 90일(2026-10-16) |
+
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.
