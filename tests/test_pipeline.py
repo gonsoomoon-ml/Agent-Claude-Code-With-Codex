@@ -289,6 +289,39 @@ def test_dedup_meta_join_shared_across_users(tmp_path):
     assert len(store.meta_calls) == 1                     # 첫 사용자만 조회, 두 번째는 메모 히트
 
 
+class _FailingMetaStore(SourceStore):
+    """source-store 조회가 예외를 던지는 store — DDB ClientError(RequestLimitExceeded 등) 재현."""
+
+    def get_meta(self, source_ids):
+        raise RuntimeError("RequestLimitExceeded (simulated)")
+
+
+def test_dedup_join_failure_does_not_abort_briefing(tmp_path, capsys):
+    """dedup join 이 예외를 던져도 브리핑은 나간다 — 그 run 만 dedup off(fail-open) + warn. 빈 메일함보다 중복 1건이 낫다."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = _FailingMetaStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    ledger.append("2026-10-08", "u", "prev-sid", "k", "PUBLISH", "H")   # 과거 발행이 있어야 join 이 호출된다
+    d = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-09", **_dedup_kw())
+    assert d[0].published == 1
+    assert "dedup off" in capsys.readouterr().err
+
+
+def test_dedup_title_key_only_within_short_window(tmp_path):
+    """같은 매체가 같은 제목을 반복 쓰는 연재(월간 호 등)는 한 달 뒤 새 호를 막지 않는다 — 제목 키는 짧은 창만."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    title = "What's new in Amazon Bedrock this month"
+    run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-09-01",
+                 **_kw(_fetch_one("https://aws.amazon.com/blogs/ml/whats-new-2026-09/", title, "9월호. 직원 약 100명.")))
+    d = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-01",
+                     **_kw(_fetch_one("https://aws.amazon.com/blogs/ml/whats-new-2026-10/", title, "10월호. 직원 약 100명.")))
+    assert d[0].published == 1                    # 30일 뒤 같은 제목·다른 URL·다른 본문 = 새 호 → 보낸다
+
+
 # ── 2층화: 사실층 공유 + lens 해석층 (card-layering §5) ─────────────────
 
 

@@ -90,7 +90,11 @@ def run_briefing(
         #   의미론 3결정(PUBLISH 만 · strictly-earlier · run_date 빈값이면 off)은 published_keys 가 보존.
         seen: frozenset[str] = frozenset()
         if ledger is not None and run_date:
-            seen = published_keys(ledger, store, u.id, run_date, lookback_days, meta_memo)
+            try:
+                seen = published_keys(ledger, store, u.id, run_date, lookback_days, meta_memo)
+            except Exception as e:  # noqa: BLE001 — dedup 은 보조 장치: DDB 오류가 전 사용자 브리핑을 막으면 안 된다
+                _debug.warn("pipeline dedup", f"{u.id}: 이전 발행 조회 실패 — 이번 run 은 dedup off(fail-open): "
+                                              f"{type(e).__name__}: {e}")   # 빈 메일함보다 중복 1건이 낫다
         # ★ 카드별 격리(비협상): 한 카드의 author/certify 실패(TimeoutExpired·throttle rc≠0·네트워크)가
         #   *브리핑 전체*를 무너뜨리지 않게 각 카드를 개별 try 로 감싼다 — 실패 카드만 드롭하고 나머지는 발행.
         #   (fs↔category 를 카드와 *묶어서* 유지 → 카드 드롭 시 positional zip 오정렬 방지.)

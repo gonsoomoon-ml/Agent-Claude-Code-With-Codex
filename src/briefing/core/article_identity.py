@@ -19,6 +19,8 @@ from urllib.parse import urlparse
 from .stores.source_store import SourceMeta
 
 MIN_TITLE_KEY_CHARS = 15  # 정규화 후 이보다 짧은 제목은 키 없음 — "Release notes" 류 일반 제목 오탐 방지
+TITLE_KEY_WINDOW_DAYS = 14  # 제목 키는 이 기간 안의 이전 발행에만 — 같은 제목 연재(월간 호 등)의 새 호를 막지 않게.
+#                            실측 제목 일치는 slug 수정 1일 간격뿐(2026-10 감사). 해시·URL 키는 lookback 전체(90일).
 
 _NON_WORD = re.compile(r"\W+")
 
@@ -77,20 +79,26 @@ def published_keys(ledger: Any, store: Any, user_id: str, run_date: str, lookbac
     """
     try:
         since = (date.fromisoformat(run_date) - timedelta(days=lookback_days)).isoformat()
+        title_since = (date.fromisoformat(run_date) - timedelta(days=TITLE_KEY_WINDOW_DAYS)).isoformat()
     except ValueError:
-        since = ""  # 형식 밖 run_date — 전체 조회(기존 동작 유지)
-    ids = {r["source_id"] for r in ledger.query(user_id, since_date=since)
-           if r.get("decision") == "PUBLISH" and r.get("run_date", "") < run_date}
-    missing = [i for i in ids if i not in memo]
+        since = title_since = ""  # 형식 밖 run_date — 전체 조회(기존 동작 유지)
+    latest: dict[str, str] = {}  # source_id → 가장 최근 PUBLISH run_date (제목 키 창 판단용)
+    for r in ledger.query(user_id, since_date=since):
+        if r.get("decision") == "PUBLISH" and r.get("run_date", "") < run_date:
+            latest[r["source_id"]] = max(latest.get(r["source_id"], ""), r["run_date"])
+    missing = [i for i in latest if i not in memo]
     if missing:
         found = store.get_meta(missing)
         for i in missing:
             memo[i] = found.get(i)
     keys: set[str] = set()
-    for i in ids:
+    for i, sent_on in latest.items():
         m = memo[i]
         if m is None:
             keys.add(f"sid:{i}")
-        else:
-            keys |= identity_keys(source_id=i, url=m.url, title=m.title, media=m.media)
+            continue
+        k = identity_keys(source_id=i, url=m.url, title=m.title, media=m.media)
+        if sent_on < title_since:  # 제목 키 창(14일) 밖 — 해시·URL 키만 남긴다
+            k = frozenset(x for x in k if not x.startswith("title:"))
+        keys |= k
     return frozenset(keys)
