@@ -9,16 +9,21 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterable
 from dataclasses import asdict
 
 import boto3
 from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.types import TypeDeserializer
 from botocore.exceptions import ClientError
 
+from .. import _debug
 from .cache import _deserialize, _serialize
-from .source_store import FrozenSource, content_id, media_from_url, normalize
+from .source_store import FrozenSource, SourceMeta, content_id, media_from_url, normalize
 
 _CACHE_TTL_DAYS = 30
+_BATCH_GET_MAX = 100     # BatchGetItem 한 번의 키 상한(AWS 고정값)
+_BATCH_GET_ROUNDS = 5    # UnprocessedKeys(스로틀) 재시도 상한 — 넘으면 남은 id 는 미해결(dedup 은 해시로만 비교)
 # source-store 는 TTL 없음 — 정본은 durable(2026-08-01 결정: 7일 ephemeral 폐지, 영구 보존).
 # 왜: 감사·재분석이 7일 창을 넘어 소급되지 않았다(scripts/interp_audit/build_dataset.py 가 그때그때 떠야 했던 이유).
 # ⚠️ 저작권 포지션이 바뀐다 — 원문 전문을 무기한 보관하므로 "말뭉치(corpus)가 아니다"가 더는 구조로 증명되지 않는다.
@@ -84,7 +89,14 @@ class DynamoLedger:
         cond = Key("user_id").eq(user_id)
         if since_date:
             cond = cond & Key("sk").gte(since_date)  # "2026-06-20" <= "2026-06-20#…" 이라 날짜 prefix 로 그날 이후를 range 질의
-        items = self._t.query(KeyConditionExpression=cond).get("Items", [])
+        kw: dict = {"KeyConditionExpression": cond}
+        items: list[dict] = []
+        while True:  # ★ 페이지 끝까지 — 첫 페이지(1MB)만 읽으면 조용히 잘린다(90일 lookback ≈ 사용자당 0.5MB, 2026-10)
+            resp = self._t.query(**kw)
+            items.extend(resp.get("Items", []))
+            if "LastEvaluatedKey" not in resp:
+                break
+            kw["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
         return [{
             "run_date": it.get("run_date", ""), "user_id": it.get("user_id", ""),
             "source_id": it.get("source_id", ""), "card_key": it.get("card_key", ""),
@@ -125,6 +137,36 @@ class DynamoSourceStore:
         if item is None:
             raise KeyError(f"source_id 없음: {source_id}")
         return _to_frozen(item)
+
+    def get_meta(self, source_ids: Iterable[str]) -> dict[str, SourceMeta]:
+        """BatchGetItem 100개씩 — url·title·media 만 투영(원문 제외). 없는 id 는 빠진다(SourceStore.get_meta 파리티).
+
+        UnprocessedKeys(스로틀)는 짧은 backoff 로 최대 _BATCH_GET_ROUNDS 회 재시도, 그래도 남으면 warn 후 미해결로 둔다
+        — dedup 은 미해결을 해시 비교로 fail-open 처리하므로 브리핑을 막지 않는다.
+        """
+        ids = list(dict.fromkeys(source_ids))
+        client, name, td = self._t.meta.client, self._t.name, TypeDeserializer()
+        out: dict[str, SourceMeta] = {}
+        for i in range(0, len(ids), _BATCH_GET_MAX):
+            req: dict = {name: {
+                "Keys": [{"source_id": {"S": s}} for s in ids[i:i + _BATCH_GET_MAX]],
+                "ProjectionExpression": "#s, #u, #t, #m",   # url 등 예약어 회피 — 전부 placeholder
+                "ExpressionAttributeNames": {"#s": "source_id", "#u": "url", "#t": "title", "#m": "media"},
+            }}
+            for attempt in range(_BATCH_GET_ROUNDS):
+                resp = client.batch_get_item(RequestItems=req)
+                for raw in resp.get("Responses", {}).get(name, []):
+                    it = {k: td.deserialize(v) for k, v in raw.items()}
+                    out[it["source_id"]] = SourceMeta(url=it.get("url", ""), title=it.get("title", ""),
+                                                      media=it.get("media", ""))
+                req = resp.get("UnprocessedKeys") or {}
+                if not req:
+                    break
+                time.sleep(0.05 * 2 ** attempt)
+            else:
+                left = len(req.get(name, {}).get("Keys", []))
+                _debug.warn("source meta", f"BatchGet 미처리 {left}건 — 미해결로 진행(dedup 은 해시로만 비교)")
+        return out
 
 
 class DynamoUserStore:

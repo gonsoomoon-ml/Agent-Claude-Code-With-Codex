@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import unicodedata
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -27,6 +28,14 @@ class FrozenSource:
     text: str        # 정규화된 정본 텍스트(정규화는 한 곳에서만 — author·certifier 가 같은 바이트를 본다)
     fetched_at: str  # ISO8601 시각(결정론을 위해 호출자가 바깥에서 넣어준다)
     media: str = ""  # 발행 매체(예: "AI Times"). 빈값이면 freeze 가 url 도메인에서 유도(→ aitimes.com)
+
+
+@dataclass(frozen=True)
+class SourceMeta:
+    """dedup 이 쓰는 기사 메타(원문 제외) — get_meta 반환값. 원문(text)을 안 읽어 일괄 조회가 가볍다."""
+    url: str
+    title: str
+    media: str = ""
 
 
 def normalize(text: str) -> str:
@@ -98,3 +107,17 @@ class SourceStore:
         if not p.exists():
             raise KeyError(f"source_id 없음: {source_id}")
         return FrozenSource(**json.loads(p.read_text(encoding="utf-8")))
+
+    def get_meta(self, source_ids: Iterable[str]) -> dict[str, SourceMeta]:
+        """여러 source_id 의 메타(url·title·media)를 한 번에. 없는 id 는 결과에서 빠진다(예외 아님).
+
+        ★ get_source 와 달리 미스가 정상이다 — 2026-08-01(`305ed18`) 이전 동결본은 7일 TTL 로 만료돼
+          ledger 포인터가 dangling 일 수 있다(07-24 이전 행의 72%). 호출자(dedup)가 미스를 해시 비교로 fail-open.
+        """
+        out: dict[str, SourceMeta] = {}
+        for sid in dict.fromkeys(source_ids):
+            p = self._path(sid)
+            if p.exists():
+                d = json.loads(p.read_text(encoding="utf-8"))
+                out[sid] = SourceMeta(url=d.get("url", ""), title=d.get("title", ""), media=d.get("media", ""))
+        return out

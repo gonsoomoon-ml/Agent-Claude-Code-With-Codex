@@ -72,3 +72,11 @@ def test_dynamo_source_roundtrip(backends):
     dup = store.freeze(url="https://other/y", title="다른", raw_text="같은 정본 텍스트",
                        fetched_at="t2", media="다른매체")
     assert dup == fs                                           # content-addressed 불변 → 최초 동결본(media "AI Times")
+
+
+def test_dynamo_source_get_meta(backends):
+    _, _, store = backends
+    from briefing.core.stores.source_store import SourceMeta
+    fs = store.freeze(url="https://x.com/meta", title="메타 제목", raw_text="get_meta 통합 본문",
+                      fetched_at="2026-10-01", media="X")
+    assert store.get_meta([fs.source_id, "nope"]) == {fs.source_id: SourceMeta("https://x.com/meta", "메타 제목", "X")}
