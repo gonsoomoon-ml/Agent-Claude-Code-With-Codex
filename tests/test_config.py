@@ -88,3 +88,18 @@ def test_env_example_documents_all_settings_keys():
         r"^#?\s*([A-Z_0-9]+)=", (root / ".env.example").read_text(encoding="utf-8"), re.M))
     missing = config_keys - documented
     assert not missing, f".env.example 에 누락된 설정 키(카탈로그 갱신 필요): {sorted(missing)}"
+
+
+def test_dedup_lookback_days_default_and_override(monkeypatch):
+    monkeypatch.delenv("DEDUP_LOOKBACK_DAYS", raising=False)
+    assert load_settings().dedup_lookback_days == 90
+    monkeypatch.setenv("DEDUP_LOOKBACK_DAYS", "30")
+    assert load_settings().dedup_lookback_days == 30
+
+
+@pytest.mark.parametrize("bad", ["0", "-5", "abc", ""])
+def test_dedup_lookback_days_rejects_non_positive(monkeypatch, bad):
+    """오설정이 dedup 을 조용히 끄면 안 된다 — 시작 시 크래시(catalog 로더와 같은 원칙)."""
+    monkeypatch.setenv("DEDUP_LOOKBACK_DAYS", bad)
+    with pytest.raises(ValueError, match="DEDUP_LOOKBACK_DAYS"):
+        load_settings()

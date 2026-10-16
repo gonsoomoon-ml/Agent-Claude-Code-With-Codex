@@ -64,6 +64,7 @@ def runtime_env(settings: Settings) -> dict[str, str]:
         # ★ ③ DB: 클라우드는 dynamo backend(영속 — microVM ephemeral FS 를 넘어 source/cache/ledger 공유).
         #   테이블명 default 가 CFN(briefing-*)과 일치하므로 그 외 env 불필요. region=settings.region(us-east-1) 일치 필수.
         "BACKEND": "dynamo",
+        "DEDUP_LOOKBACK_DAYS": str(settings.dedup_lookback_days),  # 발행 dedup 기간 — .env 값이 컨테이너로(컨테이너는 .env 미독)
         # SOURCE_STORE_PATH 는 local backend 폴백용(dynamo 경로는 미사용). 비-root writable 절대경로 유지.
         "SOURCE_STORE_PATH": CONTAINER_STORE_PATH,
         "USERS_DIR": settings.users_dir,

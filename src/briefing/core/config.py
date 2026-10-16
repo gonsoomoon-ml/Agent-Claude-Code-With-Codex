@@ -24,6 +24,9 @@ except ModuleNotFoundError:  # pragma: no cover
     yaml = None
 
 
+DEFAULT_DEDUP_LOOKBACK_DAYS = 90  # 발행 dedup 이 돌아보는 기간(일) — 최장 관측 재등장 43일(2026-10 감사)의 ~2배
+
+
 @dataclass(frozen=True)
 class Settings:
     region: str
@@ -52,6 +55,19 @@ class Settings:
     cognito_client_id: str      # M2M 앱 클라이언트 id
     cognito_client_secret: str  # ★ 비밀 — .env/로컬 전용(Runtime 은 Identity 사용; gitignore 확인됨)
     oauth_provider_name: str    # AgentCore Identity 자격증명 provider — *Runtime* 이 비밀 없이 토큰 받는 경로
+    # ── 발행 dedup(2026-10-16) — 같은 기사를 이 기간 안에 다시 보내지 않는다. 기본값이 있어 기존 생성자 무변경 ──
+    dedup_lookback_days: int = DEFAULT_DEDUP_LOOKBACK_DAYS
+
+
+def _positive_int(raw: str, name: str) -> int:
+    """양의 정수 env 파싱 — 아니면 시작 시 크래시(silent 오설정 금지; catalog 로더와 같은 원칙)."""
+    try:
+        v = int(raw.strip())
+    except ValueError:
+        raise ValueError(f"{name} 는 양의 정수여야 함 (got {raw!r})") from None
+    if v < 1:
+        raise ValueError(f"{name} 는 양의 정수여야 함 (got {raw!r})")
+    return v
 
 
 def load_settings() -> Settings:
@@ -84,6 +100,8 @@ def load_settings() -> Settings:
         cognito_client_id=g("COGNITO_CLIENT_ID", ""),
         cognito_client_secret=g("COGNITO_CLIENT_SECRET", ""),
         oauth_provider_name=g("OAUTH_PROVIDER_NAME", ""),
+        dedup_lookback_days=_positive_int(g("DEDUP_LOOKBACK_DAYS", str(DEFAULT_DEDUP_LOOKBACK_DAYS)),
+                                          "DEDUP_LOOKBACK_DAYS"),
     )
 
 

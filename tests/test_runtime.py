@@ -181,3 +181,8 @@ def test_trial_uses_same_production_fns_as_scheduled(tmp_path):
     src = pathlib.Path(rt.__file__).read_text(encoding="utf-8")
     trial_part = src[src.index('mode == "trial"'):src.index('if mode == "smoke"')]
     assert "_production_fns" in trial_part, "trial 경로가 production fns 를 주입하지 않는다"
+
+
+def test_runtime_env_forwards_dedup_lookback(tmp_path):
+    from briefing.runtime.deploy_runtime import runtime_env
+    assert runtime_env(_settings(tmp_path, dedup_lookback_days=45))["DEDUP_LOOKBACK_DAYS"] == "45"
