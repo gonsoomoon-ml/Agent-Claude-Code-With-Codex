@@ -229,7 +229,7 @@ def _fetch_feed(
         if full_text and link:  # 전문 추적(상한). 실패·부실 시 아래 피드 요약 폴백.
             page = _http_get(link)
             if page:
-                _t, body, _d = _extract_body(page)
+                _t, body, _d, _c = _extract_body(page)
                 text = body
         if len(text) < MIN_SOURCE_CHARS:
             # 전문 미확보 → 피드 요약 폴백. 피드가 전문을 싣는 경우도 있으므로 *더 긴 쪽*을 쓴다.
@@ -344,22 +344,51 @@ def _strip_boilerplate(text: str) -> str:
     return _BOILER_RE.sub("", text).strip()
 
 
-def _extract_body(html_text: str) -> tuple[str, str, str]:
-    """trafilatura 로 임의 HTML → (title, 본문(부트플레이트 제거 + 상한), date). 실패 시 ("","",""). RSS 전문·HTML 공용."""
+def _extract_body(html_text: str) -> tuple[str, str, str, str]:
+    """trafilatura 로 임의 HTML → (title, 본문(부트플레이트 제거 + 상한), date, canonical). 실패 시 빈값 4개.
+
+    canonical = `<link rel=canonical>`/`og:url`(trafilatura doc.url) — 없으면 "". RSS 전문·HTML 공용.
+    """
     import trafilatura
     doc = trafilatura.bare_extraction(html_text, with_metadata=True)
     if doc is None:
-        return ("", "", "")
+        return ("", "", "", "")
     title = (getattr(doc, "title", "") or "").strip()
     body = _excerpt(_strip_boilerplate((getattr(doc, "text", "") or "").strip()))
     date = (getattr(doc, "date", "") or "").strip()
-    return (title, body, date)
+    canonical = (getattr(doc, "url", "") or "").strip()
+    return (title, body, date, canonical)
 
 
-def _extract_article(html_text: str, url: str, source_key: str) -> FetchedArticle | None:
-    """HTML 기사 → FetchedArticle. title·본문 둘 다 있고 본문이 기사 길이여야 채택(`_is_stub`)."""
-    title, text, published = _extract_body(html_text)
+def _host(u: str) -> str:
+    """URL 호스트(소문자·`www.` 제거). 상대경로·빈값이면 ""."""
+    h = (urlparse(u).hostname or "").lower()
+    return h[4:] if h.startswith("www.") else h
+
+
+def _is_offsite(canonical: str, listing_url: str) -> bool:
+    """canonical 이 리스팅과 *다른 사이트*면 True — 블로그 리스팅에 남은 링크가 문서 등으로 옮겨간 경우.
+
+    ★ fail-open: canonical 없음·상대경로(판단 불가)와 서브도메인 관계(blog.x.com ↔ x.com)는 False(통과).
+    실측(2026-10-10): html 소스 4곳 링크 77개 중 True 는 best-practices(→ code.claude.com) 1건뿐.
+    """
+    c, home = _host(canonical), _host(listing_url)
+    if not (c and home):
+        return False
+    return not (c == home or c.endswith("." + home) or home.endswith("." + c))
+
+
+def _extract_article(html_text: str, url: str, source_key: str, listing_url: str = "") -> FetchedArticle | None:
+    """HTML 기사 → FetchedArticle. title·본문 둘 다 있고 본문이 기사 길이여야 채택(`_is_stub`).
+
+    listing_url 을 주면(html 리스팅 경로) canonical 이 다른 사이트인 페이지를 버린다 — 문서 페이지는
+    최종 수정일을 날짜로 내서 수정될 때마다 "새 글"로 보이기 때문(2026-10 감사: Best practices 14회 재발송).
+    """
+    title, text, published, canonical = _extract_body(html_text)
     if not (title and text):
+        return None
+    if listing_url and _is_offsite(canonical, listing_url):  # non-silent — 무엇을 왜 버렸나
+        _debug.warn("fetch offsite", f"{source_key}: canonical 이 다른 호스트 — 글이 아니라 건너뜀: {url} → {canonical}")
         return None
     if _is_stub(text):  # 리스팅/쿠키월/스켈레톤에서 부스러기만 추출된 경우 — non-silent
         _debug.warn("fetch stub", f"{source_key}: 본문 미확보({len(text)}자 < {MIN_SOURCE_CHARS}) — {title[:40]}")
@@ -408,7 +437,7 @@ def fetch_generic_html(
         page = _http_get(url)
         if not page:
             continue
-        art = _extract_article(page, url, source.key)
+        art = _extract_article(page, url, source.key, source.url)
         if art and not _is_stale(art.published_at, window_hours):
             out.append(art)
     return out

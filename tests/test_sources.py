@@ -173,7 +173,7 @@ def test_fetch_feed_full_text(monkeypatch):
     entry = {"title": "T", "link": "https://x/a", "summary": "짧은 피드 요약", "published_parsed": None}
     monkeypatch.setattr("feedparser.parse", lambda _u: types.SimpleNamespace(entries=[entry]))
     monkeypatch.setattr(s, "_http_get", lambda _u: "<html>full</html>")
-    monkeypatch.setattr(s, "_extract_body", lambda _h: ("T", _ARTICLE, "2026-06-27"))
+    monkeypatch.setattr(s, "_extract_body", lambda _h: ("T", _ARTICLE, "2026-06-27", ""))
     arts = _fetch_feed("https://feed", "openai", window_hours=0)
     assert len(arts) == 1 and arts[0].raw_text == _ARTICLE   # 피드 요약 아닌 *전문*
 
@@ -235,13 +235,63 @@ def test_extract_article_drops_stub(capsys):
     from briefing.core.retrieval import sources as s
     orig = s._extract_body
     try:
-        s._extract_body = lambda _h: ("T", "Enable JavaScript and cookies to continue", "")
+        s._extract_body = lambda _h: ("T", "Enable JavaScript and cookies to continue", "", "")
         assert s._extract_article("<html/>", "https://x/a", "anthropic") is None
         assert "본문 미확보" in capsys.readouterr().err
-        s._extract_body = lambda _h: ("T", _ARTICLE, "")
+        s._extract_body = lambda _h: ("T", _ARTICLE, "", "")
         assert s._extract_article("<html/>", "https://x/a", "anthropic") is not None
     finally:
         s._extract_body = orig
+
+
+# ── canonical 호스트 검사 — 블로그 리스팅의 *문서 페이지*를 새 글로 오인하지 않기(2026-10 감사: Best practices 28장) ──
+
+
+def test_is_offsite_rules():
+    from briefing.core.retrieval.sources import _is_offsite
+    listing = "https://www.anthropic.com/engineering"
+    assert _is_offsite("https://code.claude.com/docs/en/best-practices", listing) is True   # 실제 사례
+    assert _is_offsite("https://www.anthropic.com/engineering/x", listing) is False         # 같은 호스트
+    assert _is_offsite("https://anthropic.com/engineering/x", listing) is False             # www 무시
+    assert _is_offsite("", listing) is False                                                # canonical 없음 → 통과
+    assert _is_offsite("/engineering/x", listing) is False                                  # 상대경로 → 판단 불가 → 통과
+    assert _is_offsite("https://x.com/a", "https://blog.x.com/") is False                   # 서브도메인 관계 → 통과
+    assert _is_offsite("https://blog.x.com/a", "https://x.com/blog") is False
+
+
+def test_extract_body_reads_canonical_link():
+    html = _ARTICLE_HTML.replace(
+        "<head>", '<head><link rel="canonical" href="https://code.claude.com/docs/en/best-practices">')
+    from briefing.core.retrieval.sources import _extract_body
+    assert _extract_body(html)[3] == "https://code.claude.com/docs/en/best-practices"
+    assert _extract_body(_ARTICLE_HTML)[3] == ""                                            # canonical 없음 → ""
+
+
+def test_extract_article_drops_offsite_canonical(capsys):
+    from briefing.core.retrieval import sources as s
+    orig = s._extract_body
+    try:
+        s._extract_body = lambda _h: ("Best practices", _ARTICLE, "2026-10-06",
+                                      "https://code.claude.com/docs/en/best-practices")
+        assert s._extract_article("<html/>", "https://www.anthropic.com/engineering/claude-code-best-practices",
+                                  "anthropic-eng", "https://www.anthropic.com/engineering") is None
+        assert "다른 호스트" in capsys.readouterr().err
+        assert s._extract_article("<html/>", "https://x/a", "k") is not None   # listing_url 없으면 검사 안 함
+    finally:
+        s._extract_body = orig
+
+
+def test_fetch_generic_html_skips_offsite_page(monkeypatch):
+    """리스팅 링크가 다른 호스트의 문서로 넘어가면(canonical) 그 링크만 빠진다 — 정상 글은 그대로."""
+    from briefing.core.retrieval import sources as s
+    docs_page = _ARTICLE_HTML.replace(
+        "<head>", '<head><link rel="canonical" href="https://code.claude.com/docs/en/best-practices">')
+    pages = {"/news": '<a href="/news/opus">O</a><a href="/news/claude-code-best-practices">B</a>',
+             "/news/opus": _ARTICLE_HTML, "/news/claude-code-best-practices": docs_page}
+    monkeypatch.setattr(s, "discover_feed", lambda _u: "")
+    monkeypatch.setattr(s, "_http_get", lambda u: pages[u.replace("https://www.anthropic.com", "")])
+    arts = s.fetch_generic_html(_src(), window_hours=0, max_items=5)
+    assert [a.url for a in arts] == ["https://www.anthropic.com/news/opus"]
 
 
 # ── 페치 시간 상한 ── 한 소스가 멈춰도 브리핑 전체가 정지하지 않아야 한다 ──
