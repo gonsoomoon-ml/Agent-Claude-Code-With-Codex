@@ -36,3 +36,8 @@ __pycache__/
 
 # superpowers 작업 스크래치(SDD 레저·브레인스토밍 목업) — 미커밋
 .superpowers/
+
+# AI Day 세션 작업 노트 — 대용량 바이너리(참고 덱 170MB > GitHub 100MB 한도, PPTX 버전별 ~9MB)
+# md · 빌드 코드 · 렌더 이미지만 커밋한다.
+docs/work_note/260825-AI-Day-Session-Title/resource/*.pptx
+docs/work_note/260825-AI-Day-Session-Title/04-slides/**/*.pptx
