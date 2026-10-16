@@ -12,13 +12,13 @@ from __future__ import annotations
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, timedelta
 
 from . import _debug, render
+from .article_identity import identity_keys, match_kind, published_keys
 from .retrieval import sources as src
 from .authoring.author import INTERP_PROMPT_VERSION, PROMPT_VERSION
 from .stores.cache import CardCache, fact_card_key, interp_card_key
-from .config import Settings, UserConfig
+from .config import DEFAULT_DEDUP_LOOKBACK_DAYS, Settings, UserConfig
 from .retrieval.curation import FetchArticleFn, curate
 from .gate import GatedCard, interpret_card, produce_card
 from .lenses import DEFAULT_LENS, resolve_lens
@@ -78,31 +78,31 @@ def run_briefing(
     fact_memo: dict[str, GatedCard] = {}                 # run 내 사실층 공유 (source_id →)
     interp_memo: dict[tuple[str, str], GatedCard] = {}   # run 내 해석층 공유 ((source_id, lens) →)
     today = render.format_briefing_date(run_date)
+    lookback_days = getattr(settings, "dedup_lookback_days", DEFAULT_DEDUP_LOOKBACK_DAYS)
+    meta_memo: dict = {}   # source_id → SourceMeta | None — run 동안 사용자 간 공유(dedup join 은 사실상 run당 1회)
     for u in users:
         before = rec.total()
         t0 = time.monotonic()
         # (frozen, category) 쌍 — category 는 출처 카탈로그 Source.category (분야 그룹 키)
         fs_cat = [(fs, s.category) for s in src.resolve_sources(u.sources) for fs in by_key.get(s.key, [])]
-        # ★ cross-day 발행 dedup — 소스별 window(>24h, late-post 보정)가 만든 런 겹침에서 "사용자당 기사 1회"를
-        #   ledger 조회로 명시 보장(윈도우 산술의 암묵 보장 → 명시 불변식). 의미론 3결정:
-        #   PUBLISH 만(QUARANTINE 은 재도전 — 사용자 미수신) · strictly-earlier(같은 날 재실행=멱등 재발송 런북 보존)
-        #   · run_date 빈값이면 off(순서 비교 불가한 ad-hoc 경로는 현행 유지).
-        prior_published: set[str] = set()
+        # ★ cross-day 발행 dedup — "사용자당 기사 1회". 신원 = 해시·URL·(매체,제목) 키 3종(article_identity):
+        #   원문 수정(해시 변경)·slug 변경(URL 변경)에도 같은 기사로 본다. 과거 기사 메타는 source-store join.
+        #   의미론 3결정(PUBLISH 만 · strictly-earlier · run_date 빈값이면 off)은 published_keys 가 보존.
+        seen: frozenset[str] = frozenset()
         if ledger is not None and run_date:
-            try:
-                since = (date.fromisoformat(run_date) - timedelta(days=7)).isoformat()  # 겹침 최대 48h ≪ 7d
-            except ValueError:
-                since = ""  # 형식 밖 run_date — 전체 조회(per-user 볼륨 작음)
-            prior_published = {r["source_id"] for r in ledger.query(u.id, since_date=since)
-                               if r.get("decision") == "PUBLISH" and r.get("run_date", "") < run_date}
+            seen = published_keys(ledger, store, u.id, run_date, lookback_days, meta_memo)
         # ★ 카드별 격리(비협상): 한 카드의 author/certify 실패(TimeoutExpired·throttle rc≠0·네트워크)가
         #   *브리핑 전체*를 무너뜨리지 않게 각 카드를 개별 try 로 감싼다 — 실패 카드만 드롭하고 나머지는 발행.
         #   (fs↔category 를 카드와 *묶어서* 유지 → 카드 드롭 시 positional zip 오정렬 방지.)
         produced: list[tuple[GatedCard, str]] = []
         deduped = 0
         for fs, cat in fs_cat:
-            if fs.source_id in prior_published:
+            kind = match_kind(identity_keys(source_id=fs.source_id, url=fs.url, title=fs.title, media=fs.media),
+                              seen) if seen else ""
+            if kind:
                 deduped += 1
+                if kind != "sid":  # 새 신원 키로 막힌 건 항상 warn — 오탐이 있으면 여기서 보인다(해시 일치는 48h 겹침의 일상)
+                    _debug.warn("pipeline dedup", f"{u.id}: {kind} 키 일치 — 이전 발행 기사 제외: {fs.title[:50]}")
                 continue
             try:
                 g = _process(fs, u, settings, store, card_cache, ledger, run_date,
@@ -131,6 +131,9 @@ def run_briefing(
                 duration_ms=int((time.monotonic() - t0) * 1000),
             )
         )
+    unresolved = sum(1 for m in meta_memo.values() if m is None)
+    if unresolved:  # 07-24 이전 행(TTL 만료분)이 90일 창을 벗어나면 0 으로 수렴 — 다시 늘면 source-store 이상 신호
+        _debug.warn("pipeline dedup", f"source-store 에 원본 없는 이전 발행 {unresolved}건 — 해시로만 비교(fail-open)")
     return out
 
 

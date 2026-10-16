@@ -187,6 +187,108 @@ def test_run_briefing_quarantined_retries_next_day(tmp_path):
     assert d2[0].published == 1                              # 격리됐던 기사는 다음날 재도전 성공
 
 
+# ── 기사 신원 dedup (2026-10-16 — 해시·URL·제목 키 + source-store join + 90일) ──
+
+
+def _fetch_one(url, title, text):
+    """고정된 기사 1건을 내주는 fetch fake — 날마다 본문/URL 을 바꿔 원문 수정·slug 변경을 재현한다."""
+    def f(source, _w):
+        return [FetchedArticle(source.key, url, title, text, "2026-10-08T00:00:00Z")]
+    return f
+
+
+def _kw(fetch, verdict="VERIFIED"):
+    kw = _dedup_kw(verdict)
+    kw["fetch_article_fn"] = fetch
+    return kw
+
+
+_MLDRIFT_URL = "https://developers.googleblog.com/ml-drift-next-gen-gpu-aiml-inference-at-the-edge/"
+_MLDRIFT = "ML Drift: Next-Gen GPU AI/ML Inference at the Edge"
+_AWSKR = "Strands Agents와 Amazon Bedrock AgentCore을 이용한 발전설비진단 구현하기"
+
+
+def test_dedup_catches_edited_article_by_url(tmp_path, capsys):
+    """원문이 고쳐져 해시가 바뀌어도 URL 이 같으면 다음날 제외 — ML Drift(10-08→10-09) 재현."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    d1 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-08",
+                      **_kw(_fetch_one(_MLDRIFT_URL, _MLDRIFT, "원문 v1. 직원 약 100명.")))
+    d2 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-09",
+                      **_kw(_fetch_one(_MLDRIFT_URL, _MLDRIFT, "원문 v2(한 문단 수정). 직원 약 100명.")))
+    assert d1[0].published == 1 and d2[0].published == 0
+    assert "url 키 일치" in capsys.readouterr().err
+
+
+def test_dedup_catches_slug_change_by_title(tmp_path, capsys):
+    """slug 오타 수정으로 URL·해시가 둘 다 바뀌어도 같은 매체·같은 제목이면 제외 — AWS KR(09-22→09-23) 재현."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-09-22",
+                 **_kw(_fetch_one("https://aws.amazon.com/ko/blogs/tech/arae-energy/", _AWSKR, "arae 본문. 직원 약 100명.")))
+    d2 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-09-23",
+                      **_kw(_fetch_one("https://aws.amazon.com/ko/blogs/tech/narae-energy/", _AWSKR, "narae 본문. 직원 약 100명.")))
+    assert d2[0].published == 0
+    assert "title 키 일치" in capsys.readouterr().err
+
+
+def test_dedup_lookback_boundary(tmp_path):
+    """정확히 lookback 일 전 발행은 막고, 그 하루 뒤에는 다시 보낸다(창 밖)."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    s = SimpleNamespace(dedup_lookback_days=90)
+    assert run_briefing(s, store, users, ledger=ledger, run_date="2026-07-18", **_dedup_kw())[0].published == 1
+    assert run_briefing(s, store, users, ledger=ledger, run_date="2026-10-16", **_dedup_kw())[0].published == 0  # 90일 전 = 포함
+    assert run_briefing(s, store, users, ledger=ledger, run_date="2026-10-17", **_dedup_kw())[0].published == 1  # 91일 전 = 창 밖
+
+
+def test_dedup_meta_missing_falls_back_to_hash(tmp_path, capsys):
+    """source-store 에 원본이 없는 과거 발행(2026-08-01 이전 TTL 만료분)은 해시로만 비교 — fail-open."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    ledger.append("2026-10-08", "u", "gone-sid", "k", "PUBLISH", "H")     # 원본 없는(dangling) 포인터
+    d = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-09",
+                     **_kw(_fetch_one(_MLDRIFT_URL, _MLDRIFT, "원문. 직원 약 100명.")))
+    assert d[0].published == 1                                            # 막을 근거가 없으면 막지 않는다
+    assert "원본 없는 이전 발행 1건" in capsys.readouterr().err
+
+
+class _CountingStore(SourceStore):
+    """get_meta 호출을 세는 store — run 메모(사용자 간 공유)가 재조회를 막는지 확인."""
+
+    def __init__(self, root):
+        super().__init__(root)
+        self.meta_calls: list[list[str]] = []
+
+    def get_meta(self, source_ids):
+        ids = list(source_ids)
+        self.meta_calls.append(ids)
+        return super().get_meta(ids)
+
+
+def test_dedup_meta_join_shared_across_users(tmp_path):
+    """같은 기사를 받은 두 번째 사용자는 source-store 를 다시 읽지 않는다(run 메모)."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = _CountingStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    users = [_user("a", ["aws-ml"]), _user("b", ["aws-ml"])]
+    run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-08",
+                 **_kw(_fetch_one(_MLDRIFT_URL, _MLDRIFT, "원문 v1. 직원 약 100명.")))
+    store.meta_calls.clear()
+    d2 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-09",
+                      **_kw(_fetch_one(_MLDRIFT_URL, _MLDRIFT, "원문 v2. 직원 약 100명.")))
+    assert [b.published for b in d2] == [0, 0]
+    assert len(store.meta_calls) == 1                     # 첫 사용자만 조회, 두 번째는 메모 히트
+
+
 # ── 2층화: 사실층 공유 + lens 해석층 (card-layering §5) ─────────────────
 
 

@@ -12,7 +12,11 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Collection, Iterable
+from datetime import date, timedelta
+from typing import Any
 from urllib.parse import urlparse
+
+from .stores.source_store import SourceMeta
 
 MIN_TITLE_KEY_CHARS = 15  # 정규화 후 이보다 짧은 제목은 키 없음 — "Release notes" 류 일반 제목 오탐 방지
 
@@ -59,3 +63,34 @@ def match_kind(candidate: Iterable[str], seen: Collection[str]) -> str:
         if kind in hits:
             return kind
     return ""
+
+
+def published_keys(ledger: Any, store: Any, user_id: str, run_date: str, lookback_days: int,
+                   memo: dict[str, SourceMeta | None]) -> frozenset[str]:
+    """user 가 run_date 이전 lookback_days 안에 PUBLISH 로 받은 기사들의 신원 키 합집합.
+
+    의미론(선행 설계 2026-07-11, 재론 금지): PUBLISH 만(QUARANTINE 은 재도전) · strictly-earlier(run_date 미만 —
+    같은 날 재실행 = 강제 재발송 런북 보존). 경계: 정확히 lookback_days 일 전은 포함(sk >= since).
+    memo = run 동안 사용자 간 공유하는 {source_id: SourceMeta | None} — 같은 기사를 받은 두 번째 사용자부터는
+    source-store 를 다시 읽지 않는다. None = 원본 없음(2026-08-01 이전 TTL 만료분) → 해시 키만(fail-open).
+    ledger: `query(user_id, since_date)` · store: `get_meta(ids)` 를 가진 객체(Local·Dynamo 공통).
+    """
+    try:
+        since = (date.fromisoformat(run_date) - timedelta(days=lookback_days)).isoformat()
+    except ValueError:
+        since = ""  # 형식 밖 run_date — 전체 조회(기존 동작 유지)
+    ids = {r["source_id"] for r in ledger.query(user_id, since_date=since)
+           if r.get("decision") == "PUBLISH" and r.get("run_date", "") < run_date}
+    missing = [i for i in ids if i not in memo]
+    if missing:
+        found = store.get_meta(missing)
+        for i in missing:
+            memo[i] = found.get(i)
+    keys: set[str] = set()
+    for i in ids:
+        m = memo[i]
+        if m is None:
+            keys.add(f"sid:{i}")
+        else:
+            keys |= identity_keys(source_id=i, url=m.url, title=m.title, media=m.media)
+    return frozenset(keys)
