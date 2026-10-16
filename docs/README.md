@@ -98,5 +98,6 @@
 | 문서 | 상태 |
 |---|---|
 | specs `2026-10-16-article-identity-dedup-design` | **DRAFT** — 감사: 07-08~10-15 8기사·초과 45장. 원인 3층(문서 페이지 오인·본문 해시 신원·7일 lookback) → ① canonical 호스트 검사 ② URL·제목 신원 키 ③ lookback 90일+pagination. DB 스키마·일일 흐름 ASCII 수록. 결정: source-store join + 90일(2026-10-16) |
+| plans `2026-10-16-article-identity-dedup` | **DRAFT** — 7 Task(신원 키 → 스토어 get_meta·pagination → 설정 90일 → 파이프라인 → canonical 검사 → 재생 게이트(≤10-15 에서 45장·8기사·AI Times 0) → 출하) |
 
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.
