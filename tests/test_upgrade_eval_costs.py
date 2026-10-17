@@ -50,3 +50,14 @@ def test_parse_price_items_picks_scope_and_ignores_long_context():
     p = costs.parse_price_items(items, scope="standard", source="test")
     assert (p.input, p.output, p.cache_read, p.cache_write, p.verified) == (11.0, 55.0, 1.1, None, True)
     assert costs.parse_price_items(items, scope="global_standard", source="test") is None   # 출력 단가가 없으면 불완전
+
+
+def test_author_cost_uses_verified_list_price_over_cli_estimate():
+    # CLI 2.1.195 는 Sonnet 5 비용을 옛 단가표로 1.57배 높게 보고했다(Stage A 실측) — 확인된 단가가 있으면 사용량으로 다시 계산
+    usage = {"input_tokens": 1_000_000, "output_tokens": 100_000, "cache_read_input_tokens": 1_000_000,
+             "cache_creation_input_tokens": 1_000_000}
+    rec = {"model_id": "m", "author_runs": [{"cost_usd": 9.99, "usage": usage}], "codex_calls": []}
+    verified = {"m": costs.Price(2.0, 10.0, 0.2, True, "공식", cache_write=2.5)}
+    assert costs.card_cost(rec, verified, "gpt-6-sol") == (pytest.approx(2.0 + 1.0 + 0.2 + 2.5), True)
+    unverified = {"m": costs.Price(2.0, 10.0, 0.2, False, "2차", cache_write=2.5)}
+    assert costs.card_cost(rec, unverified, "gpt-6-sol")[0] == pytest.approx(9.99)   # 미확인 단가면 CLI 보고값을 쓴다

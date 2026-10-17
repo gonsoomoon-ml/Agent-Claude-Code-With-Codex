@@ -44,9 +44,26 @@ def load_prices(path: Path | None = None) -> dict[str, Price]:
     return prices
 
 
+def author_cost(record: dict, prices: dict[str, Price]) -> float:
+    """요약 AI 비용. 그 모델의 확인된 단가가 있으면 사용량 × 단가, 없으면 CLI envelope 이 보고한 값.
+    CLI 2.1.195 는 Sonnet 5 를 옛 단가표로 계산해 1.57배 높게 보고했다(Stage A 실측) — 보고값을 그대로 믿지 않는다."""
+    price = prices.get(record.get("model_id") or "")
+    total = 0.0
+    for run in record.get("author_runs", []):
+        u = run.get("usage") or {}
+        if not (price and price.verified and u):
+            total += run.get("cost_usd") or 0.0
+            continue
+        read = price.cache_read if price.cache_read is not None else price.input
+        write = price.cache_write if price.cache_write is not None else price.input
+        total += ((u.get("input_tokens") or 0) * price.input + (u.get("output_tokens") or 0) * price.output
+                  + (u.get("cache_read_input_tokens") or 0) * read + (u.get("cache_creation_input_tokens") or 0) * write) / 1e6
+    return total
+
+
 def card_cost(record: dict, prices: dict[str, Price], verifier: str) -> tuple[float, bool]:
-    """카드 1장 비용 = 요약 AI envelope 실비용 합 + 검증 AI 토큰 비용. bool = 검증 가격이 확인된 값인가."""
-    author = sum(r.get("cost_usd") or 0.0 for r in record.get("author_runs", []))
+    """카드 1장 비용 = 요약 AI 비용(author_cost) + 검증 AI 토큰 비용. bool = 검증 가격이 확인된 값인가."""
+    author = author_cost(record, prices)
     calls = record.get("codex_calls", [])
     if not calls:
         return author, True
