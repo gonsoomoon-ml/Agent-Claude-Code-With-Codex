@@ -277,32 +277,51 @@ def _view(d: dict) -> dict | None:
             "fidelity": _fidelity_ints(d["fidelity"]), "bypass": d.get("bypass", [])}
 
 
+def _disputed(main: dict, cross: dict) -> tuple[list[int], list[str], bool]:
+    return (fidelity_disagreements(main["fidelity"], cross["fidelity"]), align_disagreements(main["covered"], cross["covered"]),
+            main["first_sentence_new"] != cross["first_sentence_new"])
+
+
+def tiebreak_targets(grouped: dict, sel: dict, done: set) -> list[tuple]:
+    """주·교차가 갈린 카드 중 가림 판정(align·fidelity)이 아직 없는 것. 한쪽 판정이 없으면 판정 누락이라 가리지 않는다."""
+    out = []
+    for key, by_judge in sorted(grouped.items()):
+        main, cross = _view(by_judge.get(sel["main"], {})), _view(by_judge.get(sel["cross"], {}))
+        if not main or not cross or not any(_disputed(main, cross)):
+            continue
+        if not all((*key, sel["tiebreak"], k) in done for k in ("align", "fidelity")):
+            out.append(key)
+    return out
+
+
 def cmd_tiebreak() -> None:
     sel = _judges()
     store = _sources()
     facts_by = _keyfacts()
     records = {(r["arm"], r["source_id"], r["rep"]): r for r in scoring_targets(read_jsonl(STAGE_A))}
     grouped = _by_target(read_jsonl(SCORES))
-    done = done_ok(SCORES, ("arm", "source_id", "rep", "judge", "kind"))
+    pending = tiebreak_targets(grouped, sel, done_ok(SCORES, ("arm", "source_id", "rep", "judge", "kind")))
+    print(f"tiebreak: {len(pending)} cards to judge with {sel['tiebreak']}", flush=True)
+
+    def work(key):
+        res = _judge_summary(sel["tiebreak"], store.get_source(key[1]).text, records[key]["summary"], facts_by.get(key[1], []),
+                             [], ("align", "fidelity"))
+        for kind, (call, parsed) in res.items():
+            _write(SCORES, {"arm": key[0], "source_id": key[1], "rep": key[2], "judge": sel["tiebreak"], "kind": kind,
+                            "result": _result_json(kind, parsed), "error": call.error, "usage": call.usage})
+
+    with ThreadPoolExecutor(max_workers=6) as pool:              # 가림 판정자(Kimi)는 호출당 ≈60–100초 — 순차면 몇 시간
+        list(pool.map(work, pending))
+    ties = _by_target(read_jsonl(SCORES))
     disputes, finals = [], []
     for key, by_judge in sorted(grouped.items()):
         main, cross = _view(by_judge.get(sel["main"], {})), _view(by_judge.get(sel["cross"], {}))
         if not main or not cross:
             continue                                             # 판정 실패 — 집계에서 빼고 개수만 보고
-        fid = fidelity_disagreements(main["fidelity"], cross["fidelity"])
-        cov = align_disagreements(main["covered"], cross["covered"])
-        first_diff = main["first_sentence_new"] != cross["first_sentence_new"]
+        fid, cov, first_diff = _disputed(main, cross)
         tie = None
         if fid or cov or first_diff:
-            r = records[key]
-            if not all((*key, sel["tiebreak"], k) in done for k in ("align", "fidelity")):
-                res = _judge_summary(sel["tiebreak"], store.get_source(key[1]).text, r["summary"], facts_by.get(key[1], []),
-                                     [], ("align", "fidelity"))
-                for kind, (call, parsed) in res.items():
-                    _write(SCORES, {"arm": key[0], "source_id": key[1], "rep": key[2], "judge": sel["tiebreak"], "kind": kind,
-                                    "result": _result_json(kind, parsed), "error": call.error, "usage": call.usage})
-            tie = _view(_by_target([x for x in read_jsonl(SCORES) if (x["arm"], x["source_id"], x["rep"]) == key
-                                    and x["judge"] == sel["tiebreak"]]).get(key, {}).get(sel["tiebreak"], {}))
+            tie = _view(ties.get(key, {}).get(sel["tiebreak"], {}))
             disputes.append({"key": list(key), "fidelity_idx": fid, "facts": cov, "first": first_diff})
         final = merge_final(main, cross, tie)
         finals.append({"arm": key[0], "source_id": key[1], "rep": key[2], **final})

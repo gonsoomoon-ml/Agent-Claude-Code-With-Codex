@@ -60,3 +60,15 @@ def test_gate_omission_check_uses_short_fact_id():
 def test_bedrock_client_waits_for_slow_judges():
     from upgrade_eval import judge as J
     assert J._bedrock().meta.config.read_timeout >= 180              # 기본 60초는 Kimi 응답(≈60–100초)을 끊는다
+
+
+def test_tiebreak_targets_only_disputed_without_tie_results():
+    sel = {"main": "m", "cross": "c", "tiebreak": "t"}
+    same = {"align": {"covered": {"K1": True}, "first_sentence_new": True}, "fidelity": {}}
+    diff = {"align": {"covered": {"K1": False}, "first_sentence_new": True}, "fidelity": {}}
+    grouped = {("A0", "s1", 1): {"m": same, "c": same},            # 같음 → 가림 불필요
+               ("A0", "s2", 1): {"m": same, "c": diff},            # 갈림 → 가림
+               ("A0", "s3", 1): {"m": same, "c": diff},            # 갈렸지만 가림 결과가 이미 있음
+               ("A0", "s4", 1): {"m": same}}                       # 교차 판정 없음 → 판정 누락(가림 안 함)
+    done = {("A0", "s3", 1, "t", "align"), ("A0", "s3", 1, "t", "fidelity")}
+    assert judging.tiebreak_targets(grouped, sel, done) == [("A0", "s2", 1)]
