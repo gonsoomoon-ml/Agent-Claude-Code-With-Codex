@@ -1,0 +1,4 @@
+{"type":"thread.started","thread_id":"01a148d7-da4e-7a31-a785-f4d4f65d8798"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"{\"verdict\":\"BLOCKED\",\"evidence\":\"출처는 새 모델이 10월 15일 '프리뷰'로 공개되었고 정식 출시는 내년 상반기 예정이라고만 말해, 이미 정식 출시했다는 주장과 모순됩니다.\"}"}}
+{"type":"turn.completed","usage":{"input_tokens":7900,"cached_input_tokens":0,"output_tokens":127,"reasoning_output_tokens":61}}

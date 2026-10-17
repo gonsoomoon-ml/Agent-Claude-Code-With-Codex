@@ -1,0 +1,4 @@
+{"type":"thread.started","thread_id":"01a148d7-e10f-7180-b096-84d76aa2a03c"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"{\"verdict\":\"BLOCKED\",\"evidence\":\"발췌문은 새 모델이 프리뷰로 공개됐고, 정식 출시는 내년 상반기 예정이라고 명시한다.\"}"}}
+{"type":"turn.completed","usage":{"input_tokens":10964,"cached_input_tokens":0,"cache_write_input_tokens":10922,"output_tokens":88,"reasoning_output_tokens":39}}
