@@ -101,3 +101,9 @@ def test_select_judges_substitution():
         judge.select_judges("gpt-6-sol", bad, ["grok", "kimi"])
     one_bad = {**ok, "astra": judge.JudgeGate(.5, .3, False)}
     assert judge.select_judges("gpt-6-sol", one_bad, ["grok", "kimi"]) == ("sol61", "grok", "kimi")
+
+
+def test_fidelity_has_factual_error_label():
+    """원문과 다른 사실(수치·주체 등)이나 원문에 없는 내용 — 라벨이 없으면 판정자가 표시할 수 없다(판정자 검증의 '숫자 변경')."""
+    assert judge.parse_fidelity({"sentences": [{"idx": 0, "labels": ["사실 오류"], "evidence": "e"}]}, 2) == {0: ["사실 오류"]}
+    assert "사실 오류" in judge.fidelity_messages("원문", ["요약 문장이다."])[0]

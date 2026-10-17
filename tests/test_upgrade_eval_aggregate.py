@@ -63,7 +63,7 @@ def test_scorecard_basic_rates():
          "author_runs": [{"cost_usd": 0.3}], "codex_calls": [], "duration_ms": 300_000, "over_360": False},
     ]
     final = [{"arm": "A2", "source_id": "s0", "rep": 1, "covered": {"K1": True, "K2": False},
-              "first_sentence_new": True, "fidelity": {"1": ["부풀림-확신도"]}, "bypass": []}]
+              "first_sentence_new": True, "fidelity": {"1": ["부풀림-확신도"], "0": ["사실 오류"]}, "bypass": []}]
     facts = {"s0": [KeyFact("K1", "출시", "q", 0.1, "앞", "새 사실", True), KeyFact("K2", "단서", "q", 0.9, "뒤", "단서", False)]}
     src = {"s0": FrozenSource("s0", "https://www.aitimes.com/news/x", "가 출시", "원문 본문이다.", "2026-10-17T00:00:00Z")}
     card = aggregate.scorecard("A2", runs, final, {}, "gpt-6-sol", keyfacts=facts, sources=src)
@@ -71,6 +71,7 @@ def test_scorecard_basic_rates():
     assert card["coverage"] == pytest.approx(0.5) and card["coverage_by_tercile"] == {"앞": 1.0, "뒤": 0.0}
     assert card["ai_coverage"] == pytest.approx(1.0) and card["first_sentence_new_rate"] == pytest.approx(1.0)
     assert card["inflation_rate"] == pytest.approx(0.5)            # 2문장 중 1문장
+    assert card["factual_error_rate"] == pytest.approx(0.5) and card["fidelity"] == pytest.approx(1.0)
     assert card["cost_per_card"] == pytest.approx(0.2) and card["latency_p95"] == pytest.approx(200_000)
     assert card["first_pass_rate"] == pytest.approx(0.5) and card["claims_mean"] == pytest.approx(1.0)
 

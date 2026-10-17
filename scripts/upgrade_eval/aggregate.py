@@ -29,7 +29,7 @@ FAILURE_MARGIN = 0.05            # 발행 실패율이 A0 + 5%p 이상이면 탈
 DECISION_METRICS = ("bypass_rate", "quote_mismatch_rate", "fidelity", "coverage")
 SAFETY = (("bypass_rate", "검증 우회"), ("quote_mismatch_rate", "인용 불일치"))
 INFLATION = tuple(lab for lab in FIDELITY_LABELS if lab.startswith("부풀림"))
-_JUDGED_KEYS = ("bypass_rate", "fidelity", "inflation", "oversoftening", "attribution", "opinion",
+_JUDGED_KEYS = ("bypass_rate", "fidelity", "inflation", "oversoftening", "attribution", "opinion", "factual_error",
                 "coverage", "coverage_per_sentence", "first_sentence_new", "ai_coverage")
 
 
@@ -89,6 +89,7 @@ def rep_metrics(run: dict, judged: dict | None, facts: list[KeyFact], source) ->
         "oversoftening": share(lambda lab: lab == "지나친 흐림"),
         "attribution": share(lambda lab: lab == "귀속 누락"),
         "opinion": share(lambda lab: lab == "의견→사실"),
+        "factual_error": share(lambda lab: lab == "사실 오류"),
         "coverage": sum(hit) / len(hit) if hit else None,
         "coverage_per_sentence": sum(hit) / n if hit else None,
         "first_sentence_new": float(bool(judged.get("first_sentence_new"))),
@@ -189,7 +190,7 @@ def scorecard(arm: str, runs: list[dict], judged: list[dict], prices: dict, veri
         "quote_mismatch_rate": avg("quote_mismatch_rate"),
         # 충실도
         "fidelity": avg("fidelity"), "inflation_rate": avg("inflation"), "oversoftening_rate": avg("oversoftening"),
-        "attribution_rate": avg("attribution"), "opinion_rate": avg("opinion"),
+        "attribution_rate": avg("attribution"), "opinion_rate": avg("opinion"), "factual_error_rate": avg("factual_error"),
         # 커버리지
         "coverage": avg("coverage"), "coverage_by_tercile": _pooled(rows, keyfacts, "tercile"),
         "coverage_by_category": _pooled(rows, keyfacts, "category"),

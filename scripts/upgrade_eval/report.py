@@ -60,7 +60,7 @@ _QUALITY_ROWS = [
     ("검증 우회(문장당 항목)", "bypass_rate", lambda x: _num(x, 3)), ("검증 우회 — 코드 검사분", "code_bypass_rate", lambda x: _num(x, 3)),
     ("인용 불일치(카드 비율)", "quote_mismatch_rate", _pct),
     ("충실도 결함(라벨 문장 비율)", "fidelity", _pct), ("부풀림", "inflation_rate", _pct), ("지나친 흐림", "oversoftening_rate", _pct),
-    ("귀속 누락", "attribution_rate", _pct), ("의견→사실", "opinion_rate", _pct),
+    ("귀속 누락", "attribution_rate", _pct), ("의견→사실", "opinion_rate", _pct), ("사실 오류", "factual_error_rate", _pct),
     ("커버리지(핵심 사실)", "coverage", _pct), ("커버리지 — 문장당 사실", "coverage_per_sentence", _num),
     ("첫 문장이 새 사실", "first_sentence_new_rate", _pct), ("AI 관련 사실 커버리지", "ai_coverage", _pct),
     ("문장 수", "sentences_mean", lambda x: _num(x, 1)), ("150자 초과 문장", "long_sentence_ratio", _pct),
