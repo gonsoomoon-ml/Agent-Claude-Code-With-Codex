@@ -75,8 +75,10 @@
 
 - key: claude-blog
   name: Claude Blog
-  url: https://claude.com/blog
-  kind: html
+  # 2026-10-17: claude.com/blog → 308 → claude.com/resources/articles, 글은 claude.dev 로 이전 →
+  #   리스팅 경로로는 0건(조용한 실패) → claude.dev 공식 RSS 로 교체. robots Allow:/ · 5/5 본문 추출.
+  url: https://claude.dev/rss.xml
+  kind: rss
   lang: en
   category: Anthropic
   window_hours: 48   # date-only 메타데이터 — late-post 보정(claude-model-and-effort 유실 실증)

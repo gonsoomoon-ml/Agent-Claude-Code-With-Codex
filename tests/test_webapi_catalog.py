@@ -24,6 +24,7 @@ def test_homepage_rss_uses_hostname():
     # RSS 출처: url 이 XML 피드라 호스트명으로 파생(경로 없음)
     srcs = {s["key"]: s for g in build_catalog()["categories"] for s in g["sources"]}
     assert srcs["aitimes"]["homepage"] == "https://www.aitimes.com"    # aitimes.com/rss/allArticle.xml → root
+    assert srcs["claude-blog"]["homepage"] == "https://claude.dev"     # claude.dev/rss.xml → root(=블로그 리스팅)
 
 
 def test_homepage_html_uses_source_url():
@@ -31,7 +32,6 @@ def test_homepage_html_uses_source_url():
     srcs = {s["key"]: s for g in build_catalog()["categories"] for s in g["sources"]}
     assert srcs["anthropic"]["homepage"] == "https://www.anthropic.com/news"
     assert srcs["anthropic-eng"]["homepage"] == "https://www.anthropic.com/engineering"
-    assert srcs["claude-blog"]["homepage"] == "https://claude.com/blog"
     # 두 anthropic 카드가 서로 다른 발행처로 링크(충돌 해소)
     assert srcs["anthropic"]["homepage"] != srcs["anthropic-eng"]["homepage"]
 
