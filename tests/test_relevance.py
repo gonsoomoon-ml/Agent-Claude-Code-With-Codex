@@ -219,3 +219,82 @@ def test_ai_image_caption_strip_keeps_real_ai_signal():
     """캡션만 제거한다 — 본문의 진짜 AI 신호는 그대로 통과해야 한다(recall 우선 원칙 불변)."""
     text = "AI 생성 영상\n오픈에이아이가 새 언어모델을 공개했다고 밝혔다."
     assert is_ai_relevant("오픈AI 신모델 공개", text) is True
+
+
+class _FakeBedrockQueue(_FakeBedrock):
+    """호출마다 다른 응답(중복 판정 → 선별 2콜 검증용)."""
+
+    def __init__(self, texts):
+        super().__init__("")
+        self._texts = list(texts)
+
+    def converse(self, **kwargs):
+        self.calls.append(kwargs)
+        return {"output": {"message": {"content": [{"text": self._texts.pop(0)}]}}}
+
+
+def test_make_bedrock_headline_select_dedups_covered_then_picks_up_to_k(monkeypatch):
+    """1콜: 카드와 같은 사건 판정(교차 언어) → 코드가 제거. 2콜: 남은 제목에서 상한 이하 선별."""
+    from briefing.core.retrieval import relevance_bedrock as rb
+    from briefing.core.retrieval.sources import FetchedArticle
+
+    fake = _FakeBedrockQueue(["2번은 같은 발표다.\n[2]",
+                              '1번은 국내다. 예: {"global": [9]}\n{"global": [2, 9, 2], "domestic": [1]}'])  # 마지막 객체 · 범위 밖·중복 버림
+    monkeypatch.setattr(rb, "_client", lambda region: fake)
+    arts = [FetchedArticle("aitimes", f"u{i}", f"제목{i}", "", "") for i in range(1, 5)]
+    picked = rb.make_bedrock_headline_select(_min_settings())(arts, 15, ["Same story in English"])
+    # 제목2 제거 후 [제목1, 제목3, 제목4] → global 2번=제목3, domestic 1번=제목1 (해외 먼저)
+    assert [(a.title, g) for a, g in picked] == [("제목3", "해외"), ("제목1", "국내")]
+    dedup, select = fake.calls
+    assert "SAME specific event" in dedup["system"][0]["text"]
+    assert "Same story in English" in dedup["messages"][0]["content"][0]["text"]
+    assert "Same story in English" not in select["messages"][0]["content"][0]["text"]   # 선별엔 커버 목록 불필요
+    assert "Korean" in select["system"][0]["text"] and "15" in select["system"][0]["text"]
+    assert '"global"' in select["system"][0]["text"] and '"domestic"' in select["system"][0]["text"]
+    assert "Korean-language support" in select["system"][0]["text"]   # "한국어 억양" 오픈AI 기사를 국내로 잘못 분류(실측)
+    assert "2. 제목3" in select["messages"][0]["content"][0]["text"]
+    assert select["additionalModelRequestFields"] == {"thinking": {"type": "disabled"}}
+    # 47건 중 15건 선별은 JSON 만 내라 해도 텍스트로 추론하다 잘린다(실측 3회 중 2회 파싱 불가 → 폴백).
+    # 짧게 추론하고 마지막 줄에 배열을 쓰게 하고, 그만큼 토큰을 준다.
+    assert "last line" in select["system"][0]["text"] and select["inferenceConfig"]["maxTokens"] >= 1000
+
+
+def test_headline_select_skips_dedup_call_when_nothing_covered(monkeypatch):
+    from briefing.core.retrieval import relevance_bedrock as rb
+    from briefing.core.retrieval.sources import FetchedArticle
+
+    fake = _FakeBedrockQueue(["[1]"])
+    monkeypatch.setattr(rb, "_client", lambda region: fake)
+    arts = [FetchedArticle("aitimes", "u1", "AI 제목", "", "")]
+    assert [(a.url, g) for a, g in rb.make_bedrock_headline_select(_min_settings())(arts, 15, [])] == [("u1", "")]  # 배열만 오면 그룹 없음
+    assert len(fake.calls) == 1
+
+
+def test_headline_dedup_failure_keeps_all_candidates(monkeypatch, capsys):
+    """중복 판정 실패는 그 단계만 건너뛴다(warn) — 선별은 그대로 진행."""
+    from briefing.core.retrieval.headlines import llm_headline_select
+    from briefing.core.retrieval.sources import FetchedArticle
+
+    def invoke(system, user):
+        if "SAME specific event" in system:
+            raise RuntimeError("throttled")
+        return "[1, 2]"
+
+    arts = [FetchedArticle("aitimes", f"u{i}", f"AI 제목{i}", "", "") for i in range(1, 3)]
+    assert [a.url for a, _g in llm_headline_select(arts, 15, ["x"], invoke=invoke)] == ["u1", "u2"]
+    assert "WARN" in capsys.readouterr().err
+
+
+def test_make_bedrock_headline_select_falls_back_on_error(monkeypatch, capsys):
+    from briefing.core.retrieval import relevance_bedrock as rb
+    from briefing.core.retrieval.sources import FetchedArticle
+
+    class _Boom:
+        def converse(self, **_):
+            raise RuntimeError("throttled")
+
+    monkeypatch.setattr(rb, "_client", lambda region: _Boom())
+    arts = [FetchedArticle("aitimes", "u1", "목포 도시기본계획", "", ""),
+            FetchedArticle("aitimes", "u2", "딥시크 AI 모델 공개", "", "")]
+    assert [a.url for a, _g in rb.make_bedrock_headline_select(_min_settings())(arts, 15, [])] == ["u2"]
+    assert "WARN" in capsys.readouterr().err

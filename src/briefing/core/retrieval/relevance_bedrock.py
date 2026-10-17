@@ -11,6 +11,7 @@ IAM 은 기존 `bedrock:InvokeModel` 이 Converse 도 커버(같은 액션) → 
 from __future__ import annotations
 
 from ..config import Settings
+from .headlines import llm_headline_select
 from .relevance import RelevanceFn, llm_relevance
 from .selection import SelectFn, llm_select
 
@@ -65,3 +66,19 @@ def make_bedrock_select(settings: Settings) -> SelectFn:
         return _converse_text(client, model_id, system, user, 64)
 
     return lambda articles, k: llm_select(articles, k, invoke=_invoke)
+
+
+def make_bedrock_headline_select(settings: Settings):
+    """settings → (candidates,k,covered)->선택. 헤드라인 칸 전용 2콜(카드와 같은 사건 제거 → 상한 이하 선별, 제목만).
+
+    실패는 llm_headline_select 안에서 keyword_latest 로 폴백(non-silent) — 여기선 조립만.
+    """
+    client = _client(settings.region)
+    model_id = settings.relevance_model_id
+
+    def _invoke(system: str, user: str) -> str:
+        # 두 콜 모두 "짧게 추론 → 마지막 줄 배열"(실측 출력 380~730 토큰) — 상한에 잘리면 폴백이라 넉넉히
+        return _converse_text(client, model_id, system, user, 2000)
+
+    return lambda cands, k, covered: llm_headline_select(cands, k, covered, invoke=_invoke)
+

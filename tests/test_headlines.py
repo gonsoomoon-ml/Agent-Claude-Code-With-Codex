@@ -32,6 +32,7 @@ def test_catalog_marks_aitimes_headlines_only():
     assert by_key["aitimes"].headlines_only is True
     # 제목별 관련성 판정 없이 Haiku 가 8건만 고른다 — 제목만으론 신제품명을 AI 로 못 알아본다(30일 소급: 4.5 오판 13건)
     assert by_key["aitimes"].require_ai is False and by_key["aitimes"].select == "llm"
+    assert by_key["aitimes"].max_items == 15   # 메일 맨 위 칸 — 실무 핵심 + 국내 소식이 함께 들어가는 크기
     assert by_key["the-decoder"].headlines_only is False   # 기본값 = 기존 카드 경로
 
 
@@ -51,12 +52,12 @@ def test_ai_judges_receive_titles_only_never_body():
         seen.append(text)
         return True
 
-    def sel(arts, k):
+    def sel(arts, k, _covered):
         seen.extend(a.raw_text for a in arts)
-        return list(arts)[:k]
+        return [(a, "") for a in list(arts)[:k]]
 
     out = H.collect_headlines([_src(max_items=2, select="llm")], window_hours=24,
-                              fetch_fn=lambda s, w: _arts(4), relevance_fn=rel, select_fn=sel)
+                              fetch_fn=lambda s, w: _arts(4), relevance_fn=rel, headline_select_fn=sel)
     assert seen and all(t == "" for t in seen)   # fetch 가 본문을 돌려줘도 판정자엔 빈 문자열
     assert len(out["aitimes"]) == 2
 
@@ -72,6 +73,43 @@ def test_cap_defaults_to_eight_latest_without_select():
     out = H.collect_headlines([_src()], window_hours=24, fetch_fn=lambda s, w: _arts(12),
                               relevance_fn=lambda t, x: True)
     assert [h.url for h in out["aitimes"]] == [f"https://a/{i}" for i in range(8)]
+
+
+# ── 헤드라인 전용 선별자: 제목 + "이미 카드로 다룬 기사 제목"만 받고, 상한 이하로 고른다 ──
+def test_headline_select_gets_titles_and_covered_titles_only():
+    seen = {}
+
+    def hsel(cands, k, covered):
+        seen.update(texts=[a.raw_text for a in cands], k=k, covered=list(covered), n=len(cands))
+        return [(a, "해외") for a in list(cands)[:3]]   # 상한(k) 미만도 허용 — 비AI 를 억지로 채우지 않는다
+
+    out = H.collect_headlines([_src(require_ai=False, max_items=15, select="llm")], window_hours=24,
+                              fetch_fn=lambda s, w: _arts(60), headline_select_fn=hsel,
+                              covered_titles=["카드 기사 제목"])
+    assert seen["texts"] and all(t == "" for t in seen["texts"])   # 본문은 판정자에 닿지 않는다
+    assert seen["covered"] == ["카드 기사 제목"] and seen["k"] == 15
+    assert seen["n"] == 50                                          # 후보 풀 = 피드 전체(최대 50)
+    assert len(out["aitimes"]) == 3
+
+
+def test_headline_select_fallback_is_keyword_titles_then_latest():
+    arts = [FetchedArticle("aitimes", f"https://a/{i}", t, "", "2026-10-17T00:00:00+00:00")
+            for i, t in enumerate(["이탈리아 태양광 82GW 전망", "딥시크 AI 모델 공개", "목포 도시기본계획", "엔비디아 AI 칩 출시"])]
+    out = H.collect_headlines([_src(require_ai=False, max_items=15, select="llm")], window_hours=24,
+                              fetch_fn=lambda s, w: arts)   # 선별자 미주입(로컬·테스트) = 결정론 폴백
+    assert [h.url for h in out["aitimes"]] == ["https://a/1", "https://a/3"]   # 비AI 제목 제외, 최신순
+    assert {h.group for h in out["aitimes"]} == {""}                            # 폴백은 해외/국내를 모른다 → 그룹 없음
+
+
+def test_headline_group_is_carried_from_selector():
+    arts = _arts(3)
+
+    def hsel(cands, k, _covered):
+        return [(cands[2], "해외"), (cands[0], "국내")]
+
+    out = H.collect_headlines([_src(require_ai=False, max_items=15, select="llm")], window_hours=24,
+                              fetch_fn=lambda s, w: arts, headline_select_fn=hsel)
+    assert [(h.url, h.group) for h in out["aitimes"]] == [("https://a/2", "해외"), ("https://a/0", "국내")]
 
 
 def test_headline_carries_media_title_url_and_date():

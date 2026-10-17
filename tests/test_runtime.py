@@ -157,7 +157,7 @@ def test_production_fns_wires_judge_when_enabled(tmp_path):
     from briefing.runtime.agentcore_runtime import _production_fns
 
     fns = _production_fns(_settings(tmp_path, relevance_llm_enabled=True))
-    assert "relevance_fn" in fns and "select_fn" in fns
+    assert "relevance_fn" in fns and "select_fn" in fns and "headline_select_fn" in fns
 
 
 def test_production_fns_empty_when_disabled(tmp_path):

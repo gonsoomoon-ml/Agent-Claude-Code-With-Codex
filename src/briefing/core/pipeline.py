@@ -20,7 +20,7 @@ from .authoring.author import INTERP_PROMPT_VERSION, PROMPT_VERSION
 from .stores.cache import CardCache, fact_card_key, interp_card_key
 from .config import DEFAULT_DEDUP_LOOKBACK_DAYS, Settings, UserConfig
 from .retrieval.curation import FetchArticleFn, curate
-from .retrieval.headlines import HeadlineFetchFn, collect_headlines
+from .retrieval.headlines import HeadlineFetchFn, HeadlineSelectFn, collect_headlines
 from .gate import GatedCard, interpret_card, produce_card
 from .lenses import DEFAULT_LENS, resolve_lens
 from .stores.ledger import Ledger
@@ -55,6 +55,7 @@ def run_briefing(
     window_hours: int = 24,
     fetch_article_fn: FetchArticleFn | None = None,
     headline_fetch_fn: HeadlineFetchFn | None = None,
+    headline_select_fn: HeadlineSelectFn | None = None,
     relevance_fn=None,
     select_fn=None,
     draft_fn=None,
@@ -75,8 +76,11 @@ def run_briefing(
     by_key = curate(store, fetch_targets, window_hours=window_hours,
                     fetch_article_fn=fetch_article_fn, relevance_fn=relevance_fn, select_fn=select_fn)
     # 제목·링크 전용 소스(headlines_only) — 본문 미수집·카드 없음. 판정자(Haiku)는 제목만 받는다(headlines.py).
+    # covered = 이번 run 카드 소스의 동결본 제목(전 사용자 합집합) → 메일 맨 위 칸이 카드와 같은 소식을 반복하지 않게.
+    covered = [fs.title for fss in by_key.values() for fs in fss]
     headlines = collect_headlines(fetch_targets, window_hours=window_hours, fetch_fn=headline_fetch_fn,
-                                  relevance_fn=relevance_fn, select_fn=select_fn)
+                                  relevance_fn=relevance_fn, headline_select_fn=headline_select_fn,
+                                  covered_titles=covered)
 
     out: list[UserBriefing] = []
     rec = recorder if recorder is not None else UsageRecorder()

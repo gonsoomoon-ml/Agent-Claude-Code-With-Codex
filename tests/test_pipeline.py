@@ -432,3 +432,21 @@ def test_run_briefing_never_fetches_bodies_for_headlines_only(tmp_path):
         verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
     )
     assert calls == ["aws-ml"]                                   # aitimes 본문 fetch 0회
+
+
+def test_run_briefing_passes_card_source_titles_as_covered(tmp_path):
+    store = SourceStore(str(tmp_path / "store"))
+    seen = {}
+
+    def hsel(cands, k, covered):
+        seen["covered"] = list(covered)
+        return [(a, "해외") for a in list(cands)[:k]]
+
+    run_briefing(
+        SimpleNamespace(), store, [_user("u", ["aws-ml", "aitimes"])], window_hours=0,
+        fetch_article_fn=_fetch, headline_fetch_fn=_headline_feed, headline_select_fn=hsel,
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "H", "S", "W",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert seen["covered"] == ["제목"]   # aws-ml 동결본 제목(_fetch) — 헤드라인이 카드와 겹치지 않게

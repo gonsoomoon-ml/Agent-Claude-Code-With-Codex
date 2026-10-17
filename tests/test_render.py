@@ -184,17 +184,30 @@ def test_format_briefing_date_empty_or_invalid_is_blank():
 
 
 # ── 헤드라인 칸(제목·링크 전용 소스): 검증 카드 아래, "요약·검증 없음" 명시 ──────
-def _hl(title="국내 AI <칩> 공개", url="https://www.aitimes.com/a?x=1&y=2"):
-    return Headline("aitimes", "AI Times", title, url, "2026-10-17T01:00:00+00:00")
+def _hl(title="국내 AI <칩> 공개", url="https://www.aitimes.com/a?x=1&y=2", group=""):
+    return Headline("aitimes", "AI Times", title, url, "2026-10-17T01:00:00+00:00", group)
 
 
-def test_headlines_section_below_cards_and_labelled_unverified():
+def test_headlines_section_on_top_and_labelled_unverified():
     out = render_email([_gated()], _user(), None, headlines=[_hl()])
     assert "요약·검증 없음" in out
     assert 'href="https://www.aitimes.com/a?x=1&amp;y=2"' in out     # URL 이스케이프
     assert "국내 AI &lt;칩&gt; 공개" in out                          # 제목 이스케이프(원제목 그대로)
-    assert out.index("요약·검증 없음") > out.index("요약문장.")      # 카드 아래
+    assert out.index("요약·검증 없음") < out.index("요약문장.")      # 카드 위(아침에 먼저 훑는 칸)
     assert "소식 1개" in out                                         # 헤더 개수 = 검증 카드만
+
+
+def test_headlines_show_media_once_in_section_title():
+    out = render_email([_gated()], _user(), None, headlines=[_hl(), _hl(title="두 번째 AI 소식")])
+    assert out.count("AI Times") == 1                                # 줄마다 반복하지 않고 칸 제목에 한 번
+
+
+def test_seal_and_footer_scope_verification_to_cards_when_headlines_present():
+    out = render_email([_gated()], _user(), None, headlines=[_hl()])
+    assert "아래 카드는 AI 에이전트 원문 대조" in out                # 인장이 헤드라인까지 검증한 것처럼 읽히지 않게
+    assert "맨 위 헤드라인은 요약·검증 없이" in out
+    plain = render_email([_gated()], _user(), None)
+    assert "아래 카드는" not in plain and "맨 위 헤드라인" not in plain   # 헤드라인 없는 메일은 기존 그대로
 
 
 def test_headlines_not_rendered_without_published_cards():
@@ -205,3 +218,14 @@ def test_headlines_not_rendered_without_published_cards():
 def test_headline_with_non_http_url_is_dropped():
     out = render_email([_gated()], _user(), None, headlines=[_hl(url="javascript:alert(1)")])
     assert "javascript:" not in out
+
+
+def test_headlines_grouped_overseas_then_domestic():
+    out = render_email([_gated()], _user(), None,
+                       headlines=[_hl("국내 소식 A", group="국내"), _hl("해외 소식 B", group="해외"), _hl("해외 소식 C", group="해외")])
+    assert out.index("해외 2") < out.index("해외 소식 B") < out.index("해외 소식 C") < out.index("국내 1") < out.index("국내 소식 A")
+
+
+def test_headlines_empty_group_is_hidden():
+    out = render_email([_gated()], _user(), None, headlines=[_hl("해외 소식", group="해외")])
+    assert "해외 1" in out and "국내 0" not in out and "국내 " not in out.split("요약·검증 없음")[1].split("</div>")[0]

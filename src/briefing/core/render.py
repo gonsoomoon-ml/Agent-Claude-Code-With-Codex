@@ -141,25 +141,42 @@ def _band(category: str, count: int) -> str:
 
 
 def _headlines_html(headlines: Sequence[Headline]) -> str:
-    """헤드라인 칸 — 제목·링크 전용 소스(본문 미수집). 검증 카드가 아님을 칸 머리에 명시한다.
+    """헤드라인 칸 — 제목·링크 전용 소스(본문 미수집). 메일 맨 위, 검증 카드와 상자로 구분한다.
 
     원제목을 그대로 싣는다(재작성·요약 없음). http(s) 가 아닌 링크는 버린다(javascript: 등).
+    매체가 하나면 칸 제목에 한 번만 쓰고, 여럿일 때만 줄마다 붙인다. 그룹(해외/국내)이 있으면 소제목으로 나눈다.
     """
-    items = [
-        f'<li style="margin:4px 0"><a href="{html.escape(h.url, quote=True)}" style="color:{_INK}">'
-        f'{html.escape(h.title)}</a> <span style="{_MONO};font-size:11px;color:{_META}">'
-        f"{html.escape(h.media)}</span></li>"
-        for h in headlines
-        if urlparse(h.url).scheme in ("http", "https")
-    ]
-    if not items:
+    ok = [h for h in headlines if urlparse(h.url).scheme in ("http", "https")]
+    if not ok:
         return ""
+    media = list(dict.fromkeys(h.media for h in ok))
+    per_row = len(media) > 1
+
+    def _ul(rows: Sequence[Headline]) -> str:
+        items = "".join(
+            f'<li style="margin:3px 0"><a href="{html.escape(h.url, quote=True)}" style="color:{_INK}">'
+            f"{html.escape(h.title)}</a>"
+            + (f' <span style="{_MONO};font-size:11px;color:{_META}">{html.escape(h.media)}</span>' if per_row else "")
+            + "</li>"
+            for h in rows
+        )
+        return f'<ul style="margin:4px 0 0;padding-left:18px;font-size:13px;line-height:1.5">{items}</ul>'
+
+    if any(h.group for h in ok):   # 해외 먼저, 국내 다음 — 빈 그룹은 소제목째 숨김
+        body = ""
+        for g in ("해외", "국내"):
+            rows = [h for h in ok if (h.group or "해외") == g]
+            if rows:
+                body += (f'<p style="font-size:12px;font-weight:700;color:{_META};margin:8px 0 0">'
+                         f"{g} {len(rows)}</p>" + _ul(rows))
+    else:
+        body = _ul(ok)
+    label = f"{html.escape(media[0])} " if not per_row else ""
     return (
-        f'<p style="font-weight:700;font-size:15px;margin:22px 0 0">◇ 헤드라인 '
+        f'<div style="border:1px solid {_RULE};border-radius:8px;padding:8px 12px;margin:12px 0 4px">'
+        f'<p style="font-weight:700;font-size:14px;margin:0">◇ {label}헤드라인 '
         f'<span style="{_MONO};font-weight:400;color:{_META};font-size:12px">'
-        f"{len(items)}건 · 요약·검증 없음 — 제목과 원문 링크만</span></p>"
-        f'<div style="border-top:1px solid {_RULE};margin:4px 0 0"></div>'
-        f'<ul style="margin:6px 0 0;padding-left:18px;font-size:14px">{"".join(items)}</ul>'
+        f"{len(ok)}건 · 요약·검증 없음 — 제목과 원문 링크만</span></p>{body}</div>"
     )
 
 
@@ -177,7 +194,7 @@ def render_email(
 
     source_categories: source_id → 분야(category). 발행 카드가 **2개 이상 분야**에 걸치면 밴드로 그룹(번호 분야별 리셋),
     아니면 평평(전역 번호). today: 헤더 날짜(없으면 생략). 0건이면 폴백.
-    headlines: 제목·링크 전용 소스의 헤드라인 — 카드 아래 별도 칸. 카드가 0건이면 싣지 않는다(헤드라인만으론 브리핑 아님).
+    headlines: 제목·링크 전용 소스의 헤드라인 — 맨 위 별도 상자(아침에 먼저 훑는 칸). 카드가 0건이면 싣지 않는다(헤드라인만으론 브리핑 아님).
     """
     published = [c for c in cards if c.decision == "PUBLISH"]
     lens = getattr(user, "lens", "") or ""
@@ -194,9 +211,12 @@ def render_email(
 
     # ── 헤더(인장 · 날짜; user.id 비노출) ──
     title = "오늘의 브리핑" + (f" · {html.escape(today)}" if today else "")
+    heads_html = _headlines_html(headlines) if published else ""
+    # 헤드라인 칸(검증 없음)이 맨 위에 오면 인장이 그것까지 검증한 것처럼 읽히지 않게 범위를 밝힌다
+    seal_text = ("✓ 아래 카드는 AI 에이전트 원문 대조" if heads_html else "✓ AI 에이전트 원문 대조")
     seal = (
         f'<span style="{_MONO};font-size:12px;color:{_OK};border:1px solid {_RULE};'
-        'border-radius:6px;padding:2px 8px;white-space:nowrap">✓ AI 에이전트 원문 대조</span>'
+        f'border-radius:6px;padding:2px 8px;white-space:nowrap">{seal_text}</span>'
     )
     header = (
         '<div style="display:flex;flex-wrap:wrap;gap:4px 10px;'
@@ -233,8 +253,7 @@ def render_email(
             _card_html(g, store, depth=depth, lens=lens, rank=i) for i, g in enumerate(published, 1)
         )
 
-    heads_html = _headlines_html(headlines)
-    heads_note = (" 맨 아래 헤드라인은 요약·검증 없이 제목과 원문 링크만 옮긴 것입니다." if heads_html else "")
+    heads_note = (" 맨 위 헤드라인은 요약·검증 없이 제목과 원문 링크만 옮긴 것입니다." if heads_html else "")
     send_hour = getattr(user, "send_hour", 7)
     footer = (
         f'<div style="border-top:2px solid {_RULE};margin:22px 0 0;padding-top:10px;'
@@ -245,4 +264,4 @@ def render_email(
         f"확인되지 않은 내용은 보내지 않습니다.{heads_note}</p>"
         f'<p style="margin:0">다음 브리핑 내일 {int(send_hour):02d}:00 · 관점 바꾸기 · 구독 해지</p></div>'
     )
-    return _WRAP + header + subtitle + coral_rule + body + heads_html + footer + "</div>"
+    return _WRAP + header + subtitle + coral_rule + heads_html + body + footer + "</div>"

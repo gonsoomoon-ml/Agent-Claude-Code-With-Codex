@@ -32,9 +32,14 @@ def _production_fns(settings) -> dict:
         from ..core.retrieval.gateway_client import gateway_fetch_factory
         fns["fetch_article_fn"] = gateway_fetch_factory(settings)
     if settings.relevance_llm_enabled:   # curate-stage Haiku 사전 필터 2종(같은 플래그): 관련성 + top-K 선별
-        from ..core.retrieval.relevance_bedrock import make_bedrock_relevance, make_bedrock_select
+        from ..core.retrieval.relevance_bedrock import (
+            make_bedrock_headline_select,
+            make_bedrock_relevance,
+            make_bedrock_select,
+        )
         fns["relevance_fn"] = make_bedrock_relevance(settings)   # require_ai 소스(키워드 폴백)
-        fns["select_fn"] = make_bedrock_select(settings)         # select=llm 소스(최신순 폴백)
+        fns["select_fn"] = make_bedrock_select(settings)         # select=llm 카드 소스(최신순 폴백)
+        fns["headline_select_fn"] = make_bedrock_headline_select(settings)   # 헤드라인 칸(키워드·최신순 폴백)
     return fns
 
 app = BedrockAgentCoreApp()
