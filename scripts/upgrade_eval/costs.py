@@ -44,26 +44,22 @@ def load_prices(path: Path | None = None) -> dict[str, Price]:
     return prices
 
 
-def author_cost(record: dict, prices: dict[str, Price]) -> float:
-    """요약 AI 비용. 그 모델의 확인된 단가가 있으면 사용량 × 단가, 없으면 CLI envelope 이 보고한 값.
-    CLI 2.1.195 는 Sonnet 5 를 옛 단가표로 계산해 1.57배 높게 보고했다(Stage A 실측) — 보고값을 그대로 믿지 않는다."""
-    price = prices.get(record.get("model_id") or "")
-    total = 0.0
-    for run in record.get("author_runs", []):
-        u = run.get("usage") or {}
-        if not (price and price.verified and u):
-            total += run.get("cost_usd") or 0.0
-            continue
-        read = price.cache_read if price.cache_read is not None else price.input
-        write = price.cache_write if price.cache_write is not None else price.input
-        total += ((u.get("input_tokens") or 0) * price.input + (u.get("output_tokens") or 0) * price.output
-                  + (u.get("cache_read_input_tokens") or 0) * read + (u.get("cache_creation_input_tokens") or 0) * write) / 1e6
-    return total
+# CLI 가 envelope 비용을 계산하는 단가표가 AWS 공식 단가와 다른 (CLI 버전, 모델) — 공식 단가 대비 배수.
+# 2.1.195 는 Sonnet 5 를 $3/$15(옛 Sonnet 4.x 표)로 계산한다: probe modelUsage costUSD $0.8926 = 1.5000 × 공식 단가 $0.5951.
+# 새 CLI(2.1.301)는 modelUsage.costBasis = 'list' 이고 Stage A 216건에서 사용량×공식 단가와 일치했다.
+STALE_CLI_PRICE = {("2.1.195", "global.anthropic.claude-sonnet-5"): 1.5}
+
+
+def author_cost(record: dict) -> float:
+    """요약 AI 비용 = envelope total_cost_usd 합 ÷ 옛 단가표 배수. 2.1.195 의 top-level usage 는 토큰 일부를 빠뜨려
+    (입력 28 vs modelUsage 1,987) 사용량으로 다시 계산하면 오히려 낮게 나온다 — envelope 을 배수로 바로잡는다."""
+    factor = STALE_CLI_PRICE.get((record.get("cli_version"), record.get("model_id")), 1.0)
+    return sum(r.get("cost_usd") or 0.0 for r in record.get("author_runs", [])) / factor
 
 
 def card_cost(record: dict, prices: dict[str, Price], verifier: str) -> tuple[float, bool]:
     """카드 1장 비용 = 요약 AI 비용(author_cost) + 검증 AI 토큰 비용. bool = 검증 가격이 확인된 값인가."""
-    author = author_cost(record, prices)
+    author = author_cost(record)
     calls = record.get("codex_calls", [])
     if not calls:
         return author, True

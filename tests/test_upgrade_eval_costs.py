@@ -52,12 +52,10 @@ def test_parse_price_items_picks_scope_and_ignores_long_context():
     assert costs.parse_price_items(items, scope="global_standard", source="test") is None   # 출력 단가가 없으면 불완전
 
 
-def test_author_cost_uses_verified_list_price_over_cli_estimate():
-    # CLI 2.1.195 는 Sonnet 5 비용을 옛 단가표로 1.57배 높게 보고했다(Stage A 실측) — 확인된 단가가 있으면 사용량으로 다시 계산
-    usage = {"input_tokens": 1_000_000, "output_tokens": 100_000, "cache_read_input_tokens": 1_000_000,
-             "cache_creation_input_tokens": 1_000_000}
-    rec = {"model_id": "m", "author_runs": [{"cost_usd": 9.99, "usage": usage}], "codex_calls": []}
-    verified = {"m": costs.Price(2.0, 10.0, 0.2, True, "공식", cache_write=2.5)}
-    assert costs.card_cost(rec, verified, "gpt-6-sol") == (pytest.approx(2.0 + 1.0 + 0.2 + 2.5), True)
-    unverified = {"m": costs.Price(2.0, 10.0, 0.2, False, "2차", cache_write=2.5)}
-    assert costs.card_cost(rec, unverified, "gpt-6-sol")[0] == pytest.approx(9.99)   # 미확인 단가면 CLI 보고값을 쓴다
+def test_author_cost_corrects_stale_cli_price_table():
+    # CLI 2.1.195 는 Sonnet 5 를 $3/$15(옛 표)로 계산한다 — 공식 단가($2/$10)의 정확히 1.5배(probe modelUsage 실측).
+    # 그 CLI 의 top-level usage 는 토큰 일부를 빠뜨리므로(입력 28 vs modelUsage 1,987) 사용량으로 다시 계산하지 않는다.
+    rec = {"cli_version": "2.1.195", "model_id": "global.anthropic.claude-sonnet-5",
+           "author_runs": [{"cost_usd": 0.9, "usage": {"output_tokens": 1}}, {"cost_usd": 0.3}], "codex_calls": []}
+    assert costs.card_cost(rec, {}, "gpt-6-sol") == (pytest.approx(0.8), True)
+    assert costs.card_cost({**rec, "cli_version": "2.1.301"}, {}, "gpt-6-sol")[0] == pytest.approx(1.2)   # 새 CLI = 공식 단가
