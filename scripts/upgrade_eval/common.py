@@ -1,0 +1,60 @@
+"""실험 공통 유틸 — 실험 디렉토리, JSONL 기록·재개 키, 소스 종류·언어 분류.
+
+원문·원시 출력은 저장소가 아니라 EXP_ROOT(기본 ~/upgrade-eval)에만 쌓는다(저작권·용량).
+유료 호출은 재실행 때 중복되면 안 되므로, 모든 실행기는 done_keys 로 이미 끝난 키를 건너뛴다.
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from urllib.parse import urlparse
+
+EXP_ROOT = Path(os.environ.get("UPGRADE_EVAL_ROOT") or Path.home() / "upgrade-eval")
+SEED = 20261017
+
+
+def append_jsonl(path: Path, record: dict) -> None:
+    """레코드 한 줄을 덧붙인다(부모 디렉토리 자동 생성, 한글은 그대로)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def read_jsonl(path: Path) -> list[dict]:
+    """파일이 없으면 빈 목록. 빈 줄은 건너뛴다."""
+    if not path.exists():
+        return []
+    with path.open(encoding="utf-8") as f:
+        return [json.loads(line) for line in f if line.strip()]
+
+
+def done_keys(path: Path, fields: tuple[str, ...]) -> set[tuple]:
+    """이미 기록된 레코드의 키 튜플 집합 — 레코드에 없는 필드는 None."""
+    return {tuple(r.get(k) for k in fields) for r in read_jsonl(path)}
+
+
+def source_kind(url: str) -> str:
+    """소스 종류(criteria-application-audit.md 의 측정 방법과 같은 규칙)."""
+    parsed = urlparse(url)
+    host, path = parsed.netloc.lower(), parsed.path.lower()
+    if "aitimes" in host or "the-decoder" in host:
+        return "뉴스"
+    if "pytorch.kr" in host:
+        return "커뮤니티"
+    if "anthropic.com" in host and "/engineering" in path:
+        return "기술·연구"
+    if ("research.google" in host or "developers.googleblog" in host
+            or "/blogs/machine-learning" in path or "/ko/blogs/tech" in path):
+        return "기술·연구"
+    if any(x in host for x in ("anthropic.com", "claude.com", "blog.google", "deepmind", "aws.amazon.com")):
+        return "기업 발표"
+    return "미상"
+
+
+def source_lang(url: str) -> str:
+    """원문 언어 — 한국어 소스(AI Times·PyTorch KR·AWS 한국 블로그)만 ko."""
+    parsed = urlparse(url)
+    if "aitimes" in parsed.netloc or "pytorch.kr" in parsed.netloc or "/ko/" in parsed.path:
+        return "ko"
+    return "en"
