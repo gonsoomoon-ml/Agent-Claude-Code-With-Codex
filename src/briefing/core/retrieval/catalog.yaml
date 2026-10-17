@@ -75,15 +75,26 @@
 
 - key: claude-blog
   name: Claude Blog
-  # 2026-10-17: claude.com/blog → 308 → claude.com/resources/articles, 글은 claude.dev 로 이전 →
-  #   리스팅 경로로는 0건(조용한 실패) → claude.dev 공식 RSS 로 교체. robots Allow:/ · 5/5 본문 추출.
-  url: https://claude.dev/rss.xml
-  kind: rss
+  # 2026-10-17: claude.com/blog 가 10-06 무렵 `/resources/articles` 로 이전(308) → `_article_links` 는
+  #   리스팅 경로 바로 아래 링크만 인정하므로 옛 url 로는 0건(조용한 실패) → 새 리스팅 경로로 교체.
+  #   제품 발표·고객 사례 스트림. 개발자 글은 claude.dev 로 분리됨(아래 claude-dev). 실측 6/6 추출.
+  url: https://claude.com/resources/articles
+  kind: html
   lang: en
   category: Anthropic
   window_hours: 48   # date-only 메타데이터 — late-post 보정(claude-model-and-effort 유실 실증)
   # 공식 RSS 없음(표준 경로 404) → 리스팅+trafilatura 평문(anthropic 소스 동형, fragile 아님).
-  # robots Allow:/ · 제품 아닌 공개 블로그. last-verified: 2026-07-07
+  # robots Allow:/ · 제품 아닌 공개 블로그. last-verified: 2026-10-17
+
+- key: claude-dev
+  name: Claude Developer Blog
+  # claude.dev = Claude Code·개발자 대상 블로그(claude.com 블로그와 별개 스트림). 공식 RSS.
+  # robots Allow:/ · 16편 전부 본문 추출(대부분 8000자 상한). ~0.6/주. last-verified: 2026-10-17
+  url: https://claude.dev/rss.xml
+  kind: rss
+  lang: en
+  category: Anthropic
+  window_hours: 48   # pubDate 가 12:00 GMT 고정(사실상 날짜만) — late-post 보정
 
 # ── OpenAI ───────────────────────────────────────────────────
 # ⚠️ 2026-07-17 비활성화(주석 처리) — **본문 수집 불가**. 피드(rss.xml)는 200 이지만 기사 본문 URL 이

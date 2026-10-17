@@ -42,8 +42,8 @@ def test_catalog_window_hours_default_and_html_override():
     by_key = {s.key: s for s in CATALOG}
     assert by_key["aitimes"].window_hours == 0            # RSS — 현행 24h 그대로
     assert by_key["aws-kr-tech"].window_hours == 0        # RSS — 현행 24h 그대로
-    for k in ("anthropic", "anthropic-eng", "claude-blog", "google-dev"):
-        assert by_key[k].window_hours == 48               # late-post(오후 PT 발행) 보정
+    for k in ("anthropic", "anthropic-eng", "claude-blog", "claude-dev", "google-dev"):
+        assert by_key[k].window_hours == 48               # late-post(오후 PT 발행) 보정 — claude-dev 는 RSS 지만 pubDate 가 12:00 고정
 
 
 def test_resolve_sources_empty_is_all():
