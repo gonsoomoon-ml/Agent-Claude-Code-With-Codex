@@ -14,7 +14,14 @@
   kind: rss
   lang: ko
   category: 뉴스·미디어
-  require_ai: true   # allArticle = 종합지 피드(지역·행정 기사 섞임) → AI 관련 기사만 통과(relevance v1)
+  require_ai: false  # 헤드라인 전용: 제목별 판정 대신 Haiku 가 8건 선별(select) — 제목만으론 신제품명을 AI 로
+                     #   못 알아본다(30일 소급: Haiku 4.5 오판 13건). 선별 실패 시 최신 8건(비AI 섞일 수 있음)
+  # 2026-10-17 적법성 점검: 기사마다 "무단전재 및 재배포, AI학습 및 활용 금지" 고지 → 본문 수집·LLM 요약(카드) 중단.
+  #   RSS 의 제목·링크만 메일 하단 "헤드라인" 칸에(요약·검증 없음). Haiku 판정·선별엔 **제목만**(headlines.py).
+  #   피드 요약문 = 본문 앞 300자 원문 → 싣지 않음. 근거: docs/work_note/Oct-2026/261017-find-new-articles/
+  headlines_only: true
+  max_items: 8       # 헤드라인 상한
+  select: llm        # 캡 초과 시 Haiku 가 제목으로 8건 선별(폴백=최신순)
 
 - key: the-decoder
   name: The Decoder

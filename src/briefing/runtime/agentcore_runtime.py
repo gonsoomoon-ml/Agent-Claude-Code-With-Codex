@@ -76,8 +76,9 @@ async def briefing_entrypoint(payload, context):
 
         def _bg():
             try:
+                # ★ production fns(Haiku 판정·선별) — 2026-10-17 까지 누락돼 정기 발송만 키워드·최신순으로 돌았다
                 dispatch(settings, store, s_users, now, deliver_fn=deliver_fn, run_date=rd,
-                         card_cache=card_cache, ledger=ledger, sent_log=sent)
+                         card_cache=card_cache, ledger=ledger, sent_log=sent, **_production_fns(settings))
             except Exception as e:  # noqa: BLE001 — 백그라운드 실패는 보수적으로 로깅(이미 accepted 반환)
                 _debug.warn("scheduled bg", f"{type(e).__name__}: {e}")
             finally:

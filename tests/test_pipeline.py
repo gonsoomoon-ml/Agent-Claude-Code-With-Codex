@@ -52,7 +52,7 @@ def test_run_briefing_degrades_blocked_supporting(tmp_path):
 
 def _fetch_distinct(source, _w):
     # 출처별 *다른 본문* → content-addressed source_id 가 출처마다 달라진다(분야 그룹 검증용).
-    # "AI" 포함 → require_ai 소스(aitimes)의 relevance 필터를 통과(이 테스트 주제는 그룹핑).
+    # "AI" 포함 → require_ai 소스(aws-kr-tech)의 relevance 필터를 통과(이 테스트 주제는 그룹핑).
     return [FetchedArticle(source.key, f"https://x/{source.key}", f"{source.key} AI 제목",
                            f"{source.key} 고유 AI 본문.", "2026-06-27T00:00:00Z")]
 
@@ -66,7 +66,7 @@ def test_run_briefing_isolates_failing_card(tmp_path):
     import subprocess
 
     store = SourceStore(str(tmp_path / "store"))
-    users = [_user("u", ["aitimes", "claude-blog"])]   # 2개 출처 → 2개 카드
+    users = [_user("u", ["the-decoder", "claude-blog"])]   # 2개 출처 → 2개 카드
 
     calls = {"n": 0}
 
@@ -90,7 +90,7 @@ def test_run_briefing_threads_relevance_fn_to_curate(tmp_path):
     """run_briefing 이 relevance_fn 을 curate 로 넘긴다 → require_ai 소스의 판정을 LLM-as-Judge 로 대체."""
     store = SourceStore(str(tmp_path / "store"))
     out = run_briefing(
-        SimpleNamespace(), store, [_user("u", ["aitimes"])], window_hours=0,
+        SimpleNamespace(), store, [_user("u", ["aws-kr-tech"])], window_hours=0,   # require_ai 카드 소스
         fetch_article_fn=_fetch_distinct,                       # "AI" 포함 → 키워드로는 통과할 기사
         relevance_fn=lambda _t, _x: False,                      # 판정자가 전부 컷
         draft_fn=lambda source, *_a: DraftCard(source.source_id, "H", "S", "W",
@@ -119,7 +119,7 @@ def test_run_briefing_threads_select_fn_to_curate(tmp_path):
 
 def test_run_briefing_groups_by_area_and_dates_header(tmp_path):
     store = SourceStore(str(tmp_path / "store"))
-    users = [_user("alice", ["aitimes", "claude-blog"])]   # 뉴스·미디어 + Anthropic = 2개 분야(발행처 기준)
+    users = [_user("alice", ["the-decoder", "claude-blog"])]   # 뉴스·미디어 + Anthropic = 2개 분야(발행처 기준)
     out = run_briefing(
         SimpleNamespace(), store, users, window_hours=0, fetch_article_fn=_fetch_distinct,
         draft_fn=lambda source, *_a: DraftCard(source.source_id, "헤드라인", "요약", "왜중요",
@@ -393,3 +393,42 @@ def test_layered_interp_failure_falls_back_to_fact_why(tmp_path):
     )
     assert out[0].published == 1
     assert "일반 해석" in out[0].email                          # 폴백 = 사실층(일반) why
+
+
+# ── 헤드라인 전용 소스(aitimes): 본문 미수집 · 구독자 메일에만 제목·링크 칸 ──
+def _headline_feed(source, _w):
+    return [FetchedArticle(source.key, "https://www.aitimes.com/n/1", "국내 AI 반도체 신제품 공개", "",
+                           "2026-10-17T00:00:00+00:00")]
+
+
+def test_run_briefing_attaches_headlines_only_to_subscribers(tmp_path):
+    store = SourceStore(str(tmp_path / "store"))
+    users = [_user("alice", ["aws-ml", "aitimes"]), _user("bob", ["aws-ml"])]
+    out = run_briefing(
+        SimpleNamespace(), store, users, window_hours=0, fetch_article_fn=_fetch,
+        headline_fetch_fn=_headline_feed,
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "H", "S", "W",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert "국내 AI 반도체 신제품 공개" in out[0].email           # aitimes 구독자 → 헤드라인 칸
+    assert "국내 AI 반도체 신제품 공개" not in out[1].email       # 비구독자 → 없음
+    assert out[0].published == 1                                 # aitimes 는 카드를 만들지 않는다(aws-ml 1건뿐)
+
+
+def test_run_briefing_never_fetches_bodies_for_headlines_only(tmp_path):
+    store = SourceStore(str(tmp_path / "store"))
+    calls: list[str] = []
+
+    def fetch(source, w):
+        calls.append(source.key)
+        return _fetch(source, w)
+
+    run_briefing(
+        SimpleNamespace(), store, [_user("u", ["aws-ml", "aitimes"])], window_hours=0,
+        fetch_article_fn=fetch, headline_fetch_fn=lambda _s, _w: [],
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "H", "S", "W",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert calls == ["aws-ml"]                                   # aitimes 본문 fetch 0회

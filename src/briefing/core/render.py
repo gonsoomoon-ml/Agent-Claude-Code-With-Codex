@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 
 from .config import Settings, UserConfig
 from .gate import GatedCard
+from .retrieval.headlines import Headline
 from .stores.source_store import SourceStore
 
 # ── 검증 명세서 토큰 ──
@@ -139,6 +140,29 @@ def _band(category: str, count: int) -> str:
     )
 
 
+def _headlines_html(headlines: Sequence[Headline]) -> str:
+    """헤드라인 칸 — 제목·링크 전용 소스(본문 미수집). 검증 카드가 아님을 칸 머리에 명시한다.
+
+    원제목을 그대로 싣는다(재작성·요약 없음). http(s) 가 아닌 링크는 버린다(javascript: 등).
+    """
+    items = [
+        f'<li style="margin:4px 0"><a href="{html.escape(h.url, quote=True)}" style="color:{_INK}">'
+        f'{html.escape(h.title)}</a> <span style="{_MONO};font-size:11px;color:{_META}">'
+        f"{html.escape(h.media)}</span></li>"
+        for h in headlines
+        if urlparse(h.url).scheme in ("http", "https")
+    ]
+    if not items:
+        return ""
+    return (
+        f'<p style="font-weight:700;font-size:15px;margin:22px 0 0">◇ 헤드라인 '
+        f'<span style="{_MONO};font-weight:400;color:{_META};font-size:12px">'
+        f"{len(items)}건 · 요약·검증 없음 — 제목과 원문 링크만</span></p>"
+        f'<div style="border-top:1px solid {_RULE};margin:4px 0 0"></div>'
+        f'<ul style="margin:6px 0 0;padding-left:18px;font-size:14px">{"".join(items)}</ul>'
+    )
+
+
 def render_email(
     cards: Sequence[GatedCard],
     user: UserConfig,
@@ -147,11 +171,13 @@ def render_email(
     *,
     source_categories: Mapping[str, str] | None = None,
     today: str | None = None,
+    headlines: Sequence[Headline] = (),
 ) -> str:
     """PUBLISH 카드만 → 검증 명세서 HTML 이메일.
 
     source_categories: source_id → 분야(category). 발행 카드가 **2개 이상 분야**에 걸치면 밴드로 그룹(번호 분야별 리셋),
     아니면 평평(전역 번호). today: 헤더 날짜(없으면 생략). 0건이면 폴백.
+    headlines: 제목·링크 전용 소스의 헤드라인 — 카드 아래 별도 칸. 카드가 0건이면 싣지 않는다(헤드라인만으론 브리핑 아님).
     """
     published = [c for c in cards if c.decision == "PUBLISH"]
     lens = getattr(user, "lens", "") or ""
@@ -207,6 +233,8 @@ def render_email(
             _card_html(g, store, depth=depth, lens=lens, rank=i) for i, g in enumerate(published, 1)
         )
 
+    heads_html = _headlines_html(headlines)
+    heads_note = (" 맨 아래 헤드라인은 요약·검증 없이 제목과 원문 링크만 옮긴 것입니다." if heads_html else "")
     send_hour = getattr(user, "send_hour", 7)
     footer = (
         f'<div style="border-top:2px solid {_RULE};margin:22px 0 0;padding-top:10px;'
@@ -214,7 +242,7 @@ def render_email(
         f'<p style="margin:0 0 6px">이 브리핑은 어떻게 만드나요? — AI 에이전트가 원문 기사를 '
         "요약하면, 요약을 만들지 않은 다른 AI 에이전트가 그 요약을 원문과 대조해 확인하고, "
         f"확인된 요약 위에 {html.escape(lens)} 관점의 해석을 덧붙입니다. "
-        "확인되지 않은 내용은 보내지 않습니다.</p>"
+        f"확인되지 않은 내용은 보내지 않습니다.{heads_note}</p>"
         f'<p style="margin:0">다음 브리핑 내일 {int(send_hour):02d}:00 · 관점 바꾸기 · 구독 해지</p></div>'
     )
-    return _WRAP + header + subtitle + coral_rule + body + footer + "</div>"
+    return _WRAP + header + subtitle + coral_rule + body + heads_html + footer + "</div>"

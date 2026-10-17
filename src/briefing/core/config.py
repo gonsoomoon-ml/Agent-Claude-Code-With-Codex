@@ -77,9 +77,10 @@ def load_settings() -> Settings:
         region=g("AWS_REGION", "us-east-1"),
         author_model_id=author_model_id,
         supervisor_model_id=g("SUPERVISOR_MODEL_ID", author_model_id),  # 따로 설정 안 하면 author 모델을 그대로 쓴다
-        # ★ 전체 inference-profile id 필수 — bare 'global.anthropic.claude-haiku-4-5' 는 Bedrock 이
-        #   ValidationException(Converse·invoke_model 공통 — 둘 다 live 검증 2026-07-10).
-        relevance_model_id=g("RELEVANCE_MODEL_ID", "global.anthropic.claude-haiku-4-5-20251001-v1:0"),
+        # ★ `aws bedrock list-inference-profiles` 에 등록된 문자열 그대로 — Haiku 4.5 는 날짜 접미사형
+        #   ('…-20251001-v1:0', bare 는 400), Haiku 5.5 는 접미사 없음. 5.5 는 2026-10-17 소급 비교에서
+        #   제목 판정 오판 13→2 (relevance_bedrock._converse_text 의 thinking off·temperature 미지정 필수).
+        relevance_model_id=g("RELEVANCE_MODEL_ID", "global.anthropic.claude-haiku-5-5"),
         relevance_llm_enabled=g("RELEVANCE_LLM_ENABLED", "").strip().lower() in ("1", "true", "yes", "on"),
         ses_sender=g("SES_SENDER", ""),
         backend=g("BACKEND", "local"),

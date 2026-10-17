@@ -58,6 +58,8 @@ def curate(
     by_key: dict[str, list[FrozenSource]] = {}
     seen: set[str] = set()
     for source in fetch_targets:
+        if source.headlines_only:   # 제목·링크 전용(본문 수집 금지 고지) → 카드 경로 밖. headlines.py 가 담당
+            continue
         try:
             articles = fetch(source, window_hours)
         except Exception as err:  # 출처 1개 실패(fragile NotImplementedError·네트워크·파싱)가 전체 브리핑을 죽이면 안 됨

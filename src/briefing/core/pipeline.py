@@ -20,6 +20,7 @@ from .authoring.author import INTERP_PROMPT_VERSION, PROMPT_VERSION
 from .stores.cache import CardCache, fact_card_key, interp_card_key
 from .config import DEFAULT_DEDUP_LOOKBACK_DAYS, Settings, UserConfig
 from .retrieval.curation import FetchArticleFn, curate
+from .retrieval.headlines import HeadlineFetchFn, collect_headlines
 from .gate import GatedCard, interpret_card, produce_card
 from .lenses import DEFAULT_LENS, resolve_lens
 from .stores.ledger import Ledger
@@ -53,6 +54,7 @@ def run_briefing(
     *,
     window_hours: int = 24,
     fetch_article_fn: FetchArticleFn | None = None,
+    headline_fetch_fn: HeadlineFetchFn | None = None,
     relevance_fn=None,
     select_fn=None,
     draft_fn=None,
@@ -72,6 +74,9 @@ def run_briefing(
     fetch_targets = src.fetch_set(u.sources for u in users)  # 모든 사용자 선택의 합집합 1회
     by_key = curate(store, fetch_targets, window_hours=window_hours,
                     fetch_article_fn=fetch_article_fn, relevance_fn=relevance_fn, select_fn=select_fn)
+    # 제목·링크 전용 소스(headlines_only) — 본문 미수집·카드 없음. 판정자(Haiku)는 제목만 받는다(headlines.py).
+    headlines = collect_headlines(fetch_targets, window_hours=window_hours, fetch_fn=headline_fetch_fn,
+                                  relevance_fn=relevance_fn, select_fn=select_fn)
 
     out: list[UserBriefing] = []
     rec = recorder if recorder is not None else UsageRecorder()
@@ -127,7 +132,8 @@ def run_briefing(
                 recipient=u.recipient,
                 cards=cards,
                 email=render.render_email(
-                    cards, u, settings, store, source_categories=source_categories, today=today
+                    cards, u, settings, store, source_categories=source_categories, today=today,
+                    headlines=[h for s in src.resolve_sources(u.sources) for h in headlines.get(s.key, [])],
                 ),
                 published=sum(1 for c in cards if c.decision == "PUBLISH"),
                 quarantined=sum(1 for c in cards if c.decision == "QUARANTINE"),

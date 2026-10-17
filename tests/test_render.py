@@ -5,6 +5,7 @@ from briefing.core.authoring.author import Claim, DraftCard
 from briefing.core.verification.certifier import CertVerdict
 from briefing.core.gate import GatedCard
 from briefing.core.render import format_briefing_date, render_email
+from briefing.core.retrieval.headlines import Headline
 
 
 def _user(depth="full", lens="engineer", send_hour=7):
@@ -180,3 +181,27 @@ def test_format_briefing_date_korean():
 def test_format_briefing_date_empty_or_invalid_is_blank():
     assert format_briefing_date("") == ""
     assert format_briefing_date("nope") == ""
+
+
+# ── 헤드라인 칸(제목·링크 전용 소스): 검증 카드 아래, "요약·검증 없음" 명시 ──────
+def _hl(title="국내 AI <칩> 공개", url="https://www.aitimes.com/a?x=1&y=2"):
+    return Headline("aitimes", "AI Times", title, url, "2026-10-17T01:00:00+00:00")
+
+
+def test_headlines_section_below_cards_and_labelled_unverified():
+    out = render_email([_gated()], _user(), None, headlines=[_hl()])
+    assert "요약·검증 없음" in out
+    assert 'href="https://www.aitimes.com/a?x=1&amp;y=2"' in out     # URL 이스케이프
+    assert "국내 AI &lt;칩&gt; 공개" in out                          # 제목 이스케이프(원제목 그대로)
+    assert out.index("요약·검증 없음") > out.index("요약문장.")      # 카드 아래
+    assert "소식 1개" in out                                         # 헤더 개수 = 검증 카드만
+
+
+def test_headlines_not_rendered_without_published_cards():
+    out = render_email([], _user(), None, headlines=[_hl()])
+    assert "요약·검증 없음" not in out and "없습니다" in out       # 헤드라인만으로는 브리핑이 아니다
+
+
+def test_headline_with_non_http_url_is_dropped():
+    out = render_email([_gated()], _user(), None, headlines=[_hl(url="javascript:alert(1)")])
+    assert "javascript:" not in out

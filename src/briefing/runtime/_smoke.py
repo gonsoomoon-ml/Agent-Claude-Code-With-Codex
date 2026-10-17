@@ -81,6 +81,7 @@ def smoke_fns() -> dict:
     """run_briefing 에 주입할 DI seam 5종(fetch/draft/revise/verify/interp) — 전부 fake."""
     return {
         "fetch_article_fn": smoke_fetch_fn,
+        "headline_fetch_fn": smoke_fetch_fn,   # 헤드라인 전용 소스도 네트워크 0(본문은 collect_headlines 가 지움)
         "draft_fn": smoke_draft_fn,
         "revise_fn": smoke_revise_fn,
         "verify_fn": smoke_verify_fn,
@@ -95,7 +96,7 @@ def harness_fns() -> dict:
     "컨테이너에서 claude·codex 가 실제로 실행되는가" 만 본다. draft/revise/verify 키를 *안* 넣으므로
     gate 가 기본값(실제 하니스)으로 배선된다(합성 source 1건 → 진짜 author→certify).
     """
-    return {"fetch_article_fn": smoke_fetch_fn}
+    return {"fetch_article_fn": smoke_fetch_fn, "headline_fetch_fn": smoke_fetch_fn}
 
 
 def smoke_users(settings: Settings) -> list[UserConfig]:
@@ -105,7 +106,8 @@ def smoke_users(settings: Settings) -> list[UserConfig]:
     ids = list_users(settings)
     if ids:
         return [load_user(uid, settings) for uid in ids]
-    key = src.CATALOG[0].key if src.CATALOG else ""
+    # 카드를 만드는 첫 출처 — 헤드라인 전용(headlines_only)은 카드가 없어 "결정론 1카드" 계약을 못 지킨다
+    key = next((s.key for s in src.CATALOG if not s.headlines_only), "")
     return [
         UserConfig(
             id="smoke",

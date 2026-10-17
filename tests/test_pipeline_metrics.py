@@ -45,7 +45,7 @@ def test_run_briefing_populates_duration_zero_cost_without_recorder(tmp_path):
     (fake draft/verify 는 recorder 를 전혀 안 건드리므로 델타는 항상 0 — '계측 없음 = 비용 0' 계약).
     """
     store = SourceStore(str(tmp_path / "store"))
-    users = [_user("alice", ["aws-ml"]), _user("bob", ["aws-ml", "aitimes"])]
+    users = [_user("alice", ["aws-ml"]), _user("bob", ["aws-ml", "the-decoder"])]
     out = run_briefing(
         SimpleNamespace(), store, users, window_hours=0, fetch_article_fn=_fetch,
         draft_fn=_draft_ok, verify_fn=_verify_ok,

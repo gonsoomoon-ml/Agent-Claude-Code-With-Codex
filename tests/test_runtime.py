@@ -122,7 +122,8 @@ def test_harness_fns_fakes_only_fetch(tmp_path):
     """
     from briefing.runtime._smoke import harness_fns
 
-    assert set(harness_fns()) == {"fetch_article_fn"}   # draft/revise/verify 키 *없음* → 실제 CLI
+    # 수집 seam 2종(본문·헤드라인)만 fake — draft/revise/verify 키 *없음* → 실제 CLI
+    assert set(harness_fns()) == {"fetch_article_fn", "headline_fetch_fn"}
 
 
 def test_smoke_users_synthesizes_when_no_real_users(tmp_path):
@@ -183,6 +184,42 @@ def test_trial_uses_same_production_fns_as_scheduled(tmp_path):
     assert "_production_fns" in trial_part, "trial 경로가 production fns 를 주입하지 않는다"
 
 
+def test_scheduled_uses_production_fns(tmp_path):
+    """★ 정기 발송(scheduled)도 production fns(Haiku 판정·선별)를 넘겨야 한다.
+
+    2026-10-17 실측 결함: scheduled 분기의 dispatch(...) 가 fns 를 안 넘겨, 7월 판정자 배포 후 100일간
+    매일 밤 run 의 Haiku(global 프로필) 호출이 0건 — require_ai·select:llm 소스가 키워드·최신순으로만 돌았다.
+    trial 테스트와 같은 구조 불변식(소스 검사)으로 지킨다.
+    """
+    import pathlib
+
+    import briefing.runtime.agentcore_runtime as rt
+
+    src = pathlib.Path(rt.__file__).read_text(encoding="utf-8")
+    scheduled_part = src[src.index('mode == "scheduled"'):src.index('mode == "trial"')]
+    assert "_production_fns" in scheduled_part, "scheduled 경로가 production fns 를 주입하지 않는다"
+
+
 def test_runtime_env_forwards_dedup_lookback(tmp_path):
     from briefing.runtime.deploy_runtime import runtime_env
     assert runtime_env(_settings(tmp_path, dedup_lookback_days=45))["DEDUP_LOOKBACK_DAYS"] == "45"
+
+
+def test_smoke_fns_never_touch_network_for_headline_sources(tmp_path, monkeypatch):
+    """smoke = 네트워크 0 계약 — 헤드라인 전용 소스(aitimes)를 구독해도 실 피드를 부르지 않는다."""
+    from briefing.core.pipeline import run_briefing
+    from briefing.core.retrieval import headlines
+    from briefing.core.stores.source_store import SourceStore
+    from types import SimpleNamespace
+
+    from briefing.runtime._smoke import smoke_fns
+
+    real_calls: list[str] = []   # raise 대신 기록 — collect_headlines 는 fetch 예외를 삼키므로(degradation) 기록으로 판정
+
+    monkeypatch.setattr(headlines, "fetch_headline_feed", lambda s, _w: real_calls.append(s.key) or [])
+    settings = _settings(tmp_path)
+    user = SimpleNamespace(id="u", recipient="u@x", sources=("aws-ml", "aitimes"), depth="full",
+                           lens="general", skill_md="", send_hour=7)
+    out = run_briefing(settings, SourceStore(settings.source_store_path), [user], window_hours=24, **smoke_fns())
+    assert real_calls == []
+    assert out[0].published >= 1

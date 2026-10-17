@@ -40,6 +40,7 @@ class Source:
     window_hours: int = 0  # 소스별 수집 윈도우 오버라이드(0=글로벌 기본). html(date-only 메타데이터) 소스는 48 — W≥U(24h)+P(24h), late-post(오후 PT 발행) 유실 보정
     max_items: int = 0     # 소스별 캡 오버라이드(0=글로벌 기본 5). 고볼륨 소스의 브리핑 편중/비용 상한
     select: str = ""       # 캡 초과 시 선별 방식: ""|"latest"(최신순 잘림=현행) | "llm"(Haiku pick-K — curate 가 select_fn 주입 시)
+    headlines_only: bool = False  # True = 제목·링크만(본문 미수집·카드 없음) — 기사별 "AI 활용 금지" 고지 소스(headlines.py)
 
 
 _KINDS = frozenset({"rss", "html", "auto"})
@@ -77,6 +78,9 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
         sel = e.get("select", "")
         if sel not in ("", "latest", "llm"):
             raise ValueError(f"catalog[{i}] '{e['key']}': select 는 ''|'latest'|'llm' (got {sel!r})")
+        ho = e.get("headlines_only", False)
+        if not isinstance(ho, bool):  # 'yes' 같은 문자열이 조용히 True 가 되면 본문 수집 여부가 뒤바뀐다
+            raise ValueError(f"catalog[{i}] '{e['key']}': headlines_only 는 true|false (got {ho!r})")
         out.append(
             Source(
                 key=e["key"],
@@ -91,6 +95,7 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
                 window_hours=w,
                 max_items=mi,
                 select=sel,
+                headlines_only=ho,
             )
         )
     return tuple(out)

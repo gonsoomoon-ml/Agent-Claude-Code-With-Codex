@@ -21,6 +21,24 @@ def _client(region: str):
     return boto3.client("bedrock-runtime", region_name=region)
 
 
+def _converse_text(client, model_id: str, system: str, user: str, max_tokens: int) -> str:
+    """Converse 1콜 → 첫 텍스트 블록. 판정은 짧은 답(YES/NO·인덱스 JSON)이라 thinking 을 끈다.
+
+    ★ Haiku 5.5(2026-10-17 실측): `temperature` 를 보내면 ValidationException("deprecated"), thinking 이
+      기본 on 이라 maxTokens 를 추론(reasoningContent)에 다 써 텍스트가 없다 — 둘 다 예외 → 키워드/최신순
+      폴백이라 **판정자가 조용히 꺼진다**. temperature 미지정 + thinking disabled(Haiku 4.5 도 수용) +
+      content[0] 고정 대신 텍스트 블록 탐색.
+    """
+    resp = client.converse(
+        modelId=model_id,
+        system=[{"text": system}],
+        messages=[{"role": "user", "content": [{"text": user}]}],
+        inferenceConfig={"maxTokens": max_tokens},
+        additionalModelRequestFields={"thinking": {"type": "disabled"}},
+    )
+    return next(b["text"] for b in resp["output"]["message"]["content"] if "text" in b)
+
+
 def make_bedrock_relevance(settings: Settings) -> RelevanceFn:
     """settings → (title, text)->bool 판정자. Haiku Converse 호출을 llm_relevance 에 주입.
 
@@ -30,13 +48,7 @@ def make_bedrock_relevance(settings: Settings) -> RelevanceFn:
     model_id = settings.relevance_model_id
 
     def _invoke(system: str, user: str) -> str:
-        resp = client.converse(
-            modelId=model_id,
-            system=[{"text": system}],
-            messages=[{"role": "user", "content": [{"text": user}]}],
-            inferenceConfig={"maxTokens": 8, "temperature": 0},
-        )
-        return resp["output"]["message"]["content"][0]["text"]
+        return _converse_text(client, model_id, system, user, 8)
 
     return lambda title, text: llm_relevance(title, text, invoke=_invoke)
 
@@ -50,12 +62,6 @@ def make_bedrock_select(settings: Settings) -> SelectFn:
     model_id = settings.relevance_model_id
 
     def _invoke(system: str, user: str) -> str:
-        resp = client.converse(
-            modelId=model_id,
-            system=[{"text": system}],
-            messages=[{"role": "user", "content": [{"text": user}]}],
-            inferenceConfig={"maxTokens": 64, "temperature": 0},
-        )
-        return resp["output"]["message"]["content"][0]["text"]
+        return _converse_text(client, model_id, system, user, 64)
 
     return lambda articles, k: llm_select(articles, k, invoke=_invoke)

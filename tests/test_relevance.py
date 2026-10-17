@@ -96,15 +96,50 @@ def test_make_bedrock_relevance_builds_converse_request_and_parses(monkeypatch):
     fake = _FakeBedrock("YES")
     monkeypatch.setattr(rb, "_client", lambda region: fake)   # boto3 미호출
 
-    settings = _min_settings(region="us-east-1", relevance_model_id="global.anthropic.claude-haiku-4-5-20251001-v1:0")
+    settings = _min_settings(region="us-east-1", relevance_model_id="global.anthropic.claude-haiku-5-5")
     judge = rb.make_bedrock_relevance(settings)
 
     assert judge("Oracle DB 가이드", "데이터센터 구성") is True     # 판정자 YES → keep
     call = fake.calls[0]
-    assert call["modelId"] == "global.anthropic.claude-haiku-4-5-20251001-v1:0"
-    assert call["inferenceConfig"] == {"maxTokens": 8, "temperature": 0}
+    assert call["modelId"] == "global.anthropic.claude-haiku-5-5"
+    # Haiku 5.5: temperature 는 ValidationException("deprecated"), thinking 기본 on 은 8토큰을 추론에 다 써 텍스트 0
+    #   → 둘 다 조용한 키워드 폴백이 된다(2026-10-17 실측). temperature 미지정 + thinking 끔.
+    assert call["inferenceConfig"] == {"maxTokens": 8}
+    assert call["additionalModelRequestFields"] == {"thinking": {"type": "disabled"}}
     assert "classifier" in call["system"][0]["text"]              # _JUDGE_SYSTEM → system 블록
     assert "Oracle DB 가이드" in call["messages"][0]["content"][0]["text"]   # 제목 → user 블록
+
+
+class _FakeBedrockWithReasoning(_FakeBedrock):
+    """thinking 이 켜진 모델처럼 reasoningContent 블록이 텍스트 앞에 오는 응답."""
+
+    def converse(self, **kwargs):
+        self.calls.append(kwargs)
+        return {"output": {"message": {"content": [{"reasoningContent": {"reasoningText": {"text": "..."}}},
+                                                   {"text": self._text}]}}}
+
+
+def test_make_bedrock_relevance_reads_text_block_after_reasoning(monkeypatch, capsys):
+    """content[0] 이 텍스트가 아니어도 판정을 읽는다 — KeyError 로 키워드 폴백에 빠지면 판정자가 조용히 꺼진다."""
+    from briefing.core.retrieval import relevance_bedrock as rb
+
+    monkeypatch.setattr(rb, "_client", lambda region: _FakeBedrockWithReasoning("NO"))
+    judge = rb.make_bedrock_relevance(_min_settings())
+    assert judge("AI 반도체 신제품", "AI 칩") is False     # 키워드였다면 True — 판정자 NO 가 적용됐다는 증거
+    assert "WARN" not in capsys.readouterr().err
+
+
+def test_make_bedrock_select_disables_thinking_and_reads_text_after_reasoning(monkeypatch):
+    from briefing.core.retrieval import relevance_bedrock as rb
+    from briefing.core.retrieval.sources import FetchedArticle
+
+    fake = _FakeBedrockWithReasoning("[3, 1]")
+    monkeypatch.setattr(rb, "_client", lambda region: fake)
+    arts = [FetchedArticle("s", f"u{i}", f"제목{i}", "", "") for i in range(1, 5)]
+    assert [a.title for a in rb.make_bedrock_select(_min_settings())(arts, 2)] == ["제목3", "제목1"]
+    call = fake.calls[0]
+    assert "temperature" not in call["inferenceConfig"]
+    assert call["additionalModelRequestFields"] == {"thinking": {"type": "disabled"}}
 
 
 def test_make_bedrock_relevance_falls_back_on_client_error(monkeypatch, capsys):
@@ -154,7 +189,7 @@ def test_make_bedrock_select_falls_back_to_latest_on_error(monkeypatch, capsys):
     assert "WARN" in capsys.readouterr().err
 
 
-def _min_settings(region="us-east-1", relevance_model_id="global.anthropic.claude-haiku-4-5-20251001-v1:0"):
+def _min_settings(region="us-east-1", relevance_model_id="global.anthropic.claude-haiku-5-5"):
     from briefing.core.config import Settings
     return Settings(
         region=region, author_model_id="x", supervisor_model_id="x",

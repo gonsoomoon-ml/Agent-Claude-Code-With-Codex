@@ -34,7 +34,7 @@ def test_catalog_max_items_and_select():
     by_key = {s.key: s for s in CATALOG}
     p = by_key["pytorch-kr-news"]
     assert p.max_items == 3 and p.select == "llm" and p.lang == "ko"
-    assert by_key["aitimes"].max_items == 0 and by_key["aitimes"].select == ""   # 기존 소스 무변경
+    assert by_key["the-decoder"].max_items == 0 and by_key["the-decoder"].select == ""   # 기존 소스 무변경
 
 
 def test_catalog_window_hours_default_and_html_override():
