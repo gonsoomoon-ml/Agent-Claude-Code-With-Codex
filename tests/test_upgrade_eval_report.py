@@ -64,3 +64,9 @@ def test_report_never_prints_nan_and_counts_missing_judgments():
     assert "비교 불가" in md                            # 짝이 없는 비교는 숫자 대신 그렇게 적는다
     assert "판정 누락" in md                            # 채점에서 빠진 실행 수를 보고(Review Focus 3)
     assert "사실 오류" in md
+
+
+def test_report_marks_tied_ranks_as_joint():
+    dec = DECISION | {"ranking": ["A2", "A0"], "ranks": {"A2": 1, "A0": 1}}
+    md = report.render_report(dec, CARDS, STAGE_B, COSTS_UNVERIFIED, META)
+    assert "공동 1위" in md and "A2 = A0" in md

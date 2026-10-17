@@ -72,7 +72,7 @@ _QUALITY_ROWS = [
 
 def _quality(decision: dict, cards: dict, meta: dict) -> list[str]:
     arms, base = list(cards), decision.get("baseline", "A0")
-    elim, ranking = decision.get("eliminated", {}), decision.get("ranking", [])
+    elim = decision.get("eliminated", {})
     out = ["## 요약 품질", "", "### 조건", "", "| 조건 | 모델 | CLI | effort |", "|---|---|---|---|"]
     for a in arms:
         arm = meta.get("arms", {}).get(a, {})
@@ -83,7 +83,7 @@ def _quality(decision: dict, cards: dict, meta: dict) -> list[str]:
         if a == base:
             continue
         c = decision.get("comparisons", {}).get(a, {})
-        result = ("탈락 — " + "; ".join(elim[a])) if a in elim else (f"{ranking.index(a) + 1}위" if a in ranking else "–")
+        result = ("탈락 — " + "; ".join(elim[a])) if a in elim else _rank_label(decision, a)
         out.append(f"| {a} | {_diff(c.get('bypass_rate'), as_pct=False)} | {_diff(c.get('quote_mismatch_rate'), as_pct=True)} | "
                    f"{_diff(c.get('fidelity'), as_pct=True)} | {_diff(c.get('coverage'), as_pct=True)} | {result} |")
     out += ["", "### 성적표 — 실행 평균(품질은 발행된 실행만)", "", "| 지표 | " + " | ".join(arms) + " |",
@@ -151,6 +151,31 @@ def _latency(cards: dict) -> list[str]:
     return out + [""]
 
 
+def _ranks(decision: dict) -> dict[str, int]:
+    ranking = decision.get("ranking", [])
+    return decision.get("ranks") or {a: i + 1 for i, a in enumerate(ranking)}
+
+
+def _rank_label(decision: dict, arm: str) -> str:
+    """'N위', 같은 순위를 나눈 조건이 있으면 '공동 N위'."""
+    ranks = _ranks(decision)
+    if arm not in ranks:
+        return "–"
+    shared = sum(1 for r in ranks.values() if r == ranks[arm]) > 1
+    return f"{'공동 ' if shared else ''}{ranks[arm]}위"
+
+
+def _ranking_line(decision: dict) -> str:
+    """'A2 = A3 > A4 > A1 > A0' — 같은 순위는 '='."""
+    ranking, ranks = decision.get("ranking", []), _ranks(decision)
+    out = ""
+    for i, a in enumerate(ranking):
+        if i:
+            out += " = " if ranks.get(a) == ranks.get(ranking[i - 1]) else " > "
+        out += a
+    return out or "–"
+
+
 def render_report(decision: dict, cards: dict, stage_b: dict, costs: dict, meta: dict) -> str:
     j = meta.get("judges", {})
     elim = decision.get("eliminated", {})
@@ -159,7 +184,7 @@ def render_report(decision: dict, cards: dict, stage_b: dict, costs: dict, meta:
              f"Stage A 검증 AI {meta.get('stage_a_verifier', '–')} · 판정자 주 {j.get('main', '–')} · 교차 {j.get('cross', '–')} · "
              f"가림 {j.get('tiebreak', '–')}", "",
              "## 결론", "", FILL, "",
-             f"- 순위(코드 규칙): {' > '.join(decision.get('ranking', [])) or '–'}",
+             f"- 순위(코드 규칙): {_ranking_line(decision)}",
              "- 탈락: " + ("; ".join(f"{a} — {', '.join(r)}" for a, r in elim.items()) or "없음"),
              f"- 검증 AI: 승인 규칙 그대로 {stage_b.get('winner') or '–'} / 건강 필터 {stage_b.get('winner_healthy') or '–'}", ""]
     lines += _quality(decision, cards, meta) + _stage_b(stage_b) + _costs(cards, stage_b, costs, meta) + _latency(cards)

@@ -141,13 +141,32 @@ def _by_article(rows: list[dict], metric: str) -> dict[str, list[float]]:
     return out
 
 
-def per_article(arm: str, runs: list[dict], judged: list[dict], *, keyfacts: dict, sources: dict) -> dict[str, dict[str, float]]:
-    """기사마다 발행된 반복의 평균 — 결정(짝 비교)의 입력. 값이 없는 지표는 넣지 않는다(0 으로 채우지 않음)."""
+def _cost_latency_by_article(mine: list[dict], prices: dict | None, verifier: str | None) -> tuple[dict, dict]:
+    """기사마다 실행별 카드 비용(모든 실행 — 실패한 실행도 돈이 든다)과 순차 회차 처리 시간(동시 실행은 지연을 부풀린다)."""
+    cost: dict[str, list[float]] = {}
+    latency: dict[str, list[float]] = {}
+    for r in mine:
+        sid = r["source_id"]
+        if prices is not None and verifier:
+            cost.setdefault(sid, []).append(costs.card_cost(r, prices, verifier)[0])
+        if r.get("sequential") and r.get("duration_ms") is not None:
+            latency.setdefault(sid, []).append(float(r["duration_ms"]))
+    return cost, latency
+
+
+def per_article(arm: str, runs: list[dict], judged: list[dict], *, keyfacts: dict, sources: dict,
+                prices: dict | None = None, verifier: str | None = None) -> dict[str, dict[str, float]]:
+    """기사마다 발행된 반복의 평균 — 결정(짝 비교)의 입력. 값이 없는 지표는 넣지 않는다(0 으로 채우지 않음).
+    비용(cost_per_card)·순차 처리 시간(latency_seq)도 기사 짝으로 겨루도록 같이 담는다."""
     rows = _rep_rows(arm, runs, judged, keyfacts, sources)
     out: dict[str, dict[str, float]] = {}
     for metric in DECISION_METRICS:
         for sid, vals in _by_article(rows, metric).items():
             out.setdefault(sid, {})[metric] = statistics.fmean(vals)
+    cost, latency = _cost_latency_by_article(_latest_runs([r for r in runs if r.get("arm") == arm])[0], prices, verifier)
+    for key, by in (("cost_per_card", cost), ("latency_seq", latency)):
+        for sid, vals in by.items():
+            out.setdefault(sid, {})[key] = statistics.fmean(vals)
     return out
 
 
@@ -204,16 +223,13 @@ def scorecard(arm: str, runs: list[dict], judged: list[dict], prices: dict, veri
         # 속도·비용
         "latency_p50": _pct(seq, 50), "latency_p95": _pct(seq, 95), "n_sequential": len(seq),
         "cost_per_card": _mean(c for c, _ in card_costs), "cost_verified": all(v for _, v in card_costs),
-        # 결정용 — 같은 조건 반복 사이 표준편차('차이 없음' 문턱)
-        "rep_sd": {m: rep_sd(_by_article(rows, m)) for m in DECISION_METRICS},
+        # 결정용 — 같은 조건 반복 사이 표준편차('차이 없음' 문턱). 순차 처리 시간은 기사당 1회라 0(구간만 본다).
+        "rep_sd": {m: rep_sd(_by_article(rows, m)) for m in DECISION_METRICS}
+                  | dict(zip(("cost_per_card", "latency_seq"), map(rep_sd, _cost_latency_by_article(mine, prices, verifier)))),
     }
 
 
 # ── 결정 ──
-def _num(v) -> float:
-    return math.inf if v is None or (isinstance(v, float) and math.isnan(v)) else v
-
-
 def _compare(per: dict, cards: dict, x: str, y: str, metric: str) -> list:
     """x − y 를 기사마다 짝지어 [평균, 하한, 상한, 차이없음, 짝 수]. 문턱 = 두 조건 반복 표준편차의 평균."""
     diffs = {}
@@ -226,7 +242,8 @@ def _compare(per: dict, cards: dict, x: str, y: str, metric: str) -> list:
     return [ci[0], ci[1], ci[2], no_difference(ci, sd), len(diffs)]
 
 
-_STEPS = (("fidelity", -1), ("coverage", +1))   # -1: 낮을수록 좋다(결함), +1: 높을수록 좋다
+# -1: 낮을수록 좋다(결함·비용·시간), +1: 높을수록 좋다. 단계마다 '차이 없음'이면 다음 단계로(계획 Task 12).
+_STEPS = (("fidelity", -1), ("coverage", +1), ("cost_per_card", -1), ("latency_seq", -1))
 
 
 def _beats(x: str, y: str, cards: dict, per: dict) -> tuple[int, str]:
@@ -235,16 +252,12 @@ def _beats(x: str, y: str, cards: dict, per: dict) -> tuple[int, str]:
         mean, _, _, same, _ = _compare(per, cards, x, y, metric)
         if not same:
             return (1 if mean * sign > 0 else -1), metric
-    for key in ("cost_per_card", "latency_p95"):
-        a, b = _num(cards[x].get(key)), _num(cards[y].get(key))
-        if a != b and math.inf not in (a, b):
-            return (1 if a < b else -1), key
     return 0, ""
 
 
-def _rank(arms: list[str], cards: dict, per: dict) -> tuple[list[str], dict]:
+def _rank(arms: list[str], cards: dict, per: dict) -> tuple[list[str], dict, dict[str, int]]:
     """쌍마다 겨뤄 이긴 횟수(동률 0.5)로 순위 — '차이 없음'은 이행적이지 않아 정렬 비교함수 대신 쓴다.
-    같은 점수면 비용 → p95 → 입력 순서."""
+    같은 점수는 공동 순위(ranks 가 같은 번호) — 잡음 수준의 원시 비용으로 다시 가르지 않는다. 목록 순서는 입력 순서."""
     score = dict.fromkeys(arms, 0.0)
     pairs = {}
     for i, x in enumerate(arms):
@@ -258,9 +271,9 @@ def _rank(arms: list[str], cards: dict, per: dict) -> tuple[list[str], dict]:
                 score[x] += 0.5
                 score[y] += 0.5
             pairs[f"{x} vs {y}"] = {"winner": x if w > 0 else y if w < 0 else None, "by": step or "동률"}
-    order = sorted(arms, key=lambda a: (-score[a], _num(cards[a].get("cost_per_card")),
-                                        _num(cards[a].get("latency_p95")), arms.index(a)))
-    return order, pairs
+    order = sorted(arms, key=lambda a: (-score[a], arms.index(a)))
+    ranks = {a: 1 + sum(1 for b in arms if score[b] > score[a]) for a in arms}
+    return order, pairs, ranks
 
 
 def decide(cards: dict[str, dict], per_article: dict[str, dict[str, dict[str, float]]], *, baseline: str = "A0") -> dict:
@@ -285,8 +298,8 @@ def decide(cards: dict[str, dict], per_article: dict[str, dict[str, dict[str, fl
                 reasons.append(f"{kind}: {label} 악화 +{mean:.3f} (95% 구간 [{lo:.3f}, {hi:.3f}], 기사 {n}건)")
         if reasons:
             eliminated[arm] = reasons
-    ranking, pairwise = _rank([a for a in arms if a not in eliminated], cards, per_article)
-    return {"baseline": baseline, "eliminated": eliminated, "ranking": ranking, "comparisons": comparisons,
+    ranking, pairwise, ranks = _rank([a for a in arms if a not in eliminated], cards, per_article)
+    return {"baseline": baseline, "eliminated": eliminated, "ranking": ranking, "ranks": ranks, "comparisons": comparisons,
             "pairwise": pairwise}
 
 
@@ -313,7 +326,8 @@ def main(argv: list[str] | None = None) -> None:
     prices = costs.load_prices()
     arms = [a for a in ARMS if any(r.get("arm") == a for r in runs)]
     cards = {a: scorecard(a, runs, judged, prices, verifiers[0], keyfacts=keyfacts, sources=sources) for a in arms}
-    per = {a: per_article(a, runs, judged, keyfacts=keyfacts, sources=sources) for a in arms}
+    per = {a: per_article(a, runs, judged, keyfacts=keyfacts, sources=sources, prices=prices, verifier=verifiers[0])
+           for a in arms}
     decision = decide(cards, per)
     RESULTS.mkdir(parents=True, exist_ok=True)
     (RESULTS / "scorecards.json").write_text(json.dumps({"verifier": verifiers[0], "cards": cards, "per_article": per},

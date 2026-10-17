@@ -91,6 +91,29 @@ def gate_uncovered(result: dict | None, item: J.PlantedSummary) -> set[str]:
     return {item.removed_fact} if (result or {}).get("covered", {}).get(_GATE_FACT_ID) is False else set()
 
 
+def apply_overrides(finals: list[dict], overrides: list[dict]) -> tuple[list[dict], int]:
+    """사람 확인(설계자 대체 포함)이 바로잡은 판정을 합친 판정 위에 다시 얹는다 — tiebreak 를 다시 돌려도 사라지지 않게.
+    override = {arm, source_id, rep, field: fidelity|covered|first_sentence_new, key: 문장 번호·사실 id, value, reason}.
+    fidelity 의 빈 value 는 그 문장의 라벨을 지운다. 반환 = (finals, 적용 건수) — 대상 카드가 없는 것은 세지 않는다."""
+    index = {(f["arm"], f["source_id"], f["rep"]): f for f in finals}
+    applied = 0
+    for o in overrides:
+        f = index.get((o["arm"], o["source_id"], o["rep"]))
+        if f is None:
+            continue
+        if o["field"] == "first_sentence_new":
+            f["first_sentence_new"] = bool(o["value"])
+        else:
+            d = {str(k): v for k, v in f[o["field"]].items()}
+            if o["field"] == "fidelity" and not o["value"]:
+                d.pop(str(o["key"]), None)
+            else:
+                d[str(o["key"])] = o["value"]
+            f[o["field"]] = d
+        applied += 1
+    return finals, applied
+
+
 # ── 입출력 도우미 ──
 def _sources() -> SourceStore:
     return SourceStore(str(EXP_ROOT / "sources"))
@@ -325,9 +348,14 @@ def cmd_tiebreak() -> None:
             disputes.append({"key": list(key), "fidelity_idx": fid, "facts": cov, "first": first_diff})
         final = merge_final(main, cross, tie)
         finals.append({"arm": key[0], "source_id": key[1], "rep": key[2], **final})
+    ov_path = JUDGE_DIR / "final_overrides.json"
+    overrides = json.loads(ov_path.read_text(encoding="utf-8")) if ov_path.exists() else []
+    finals, applied = apply_overrides(finals, overrides)
+    if applied != len(overrides):
+        print(f"warning: 사람 확인 수정 {len(overrides) - applied}건의 대상 카드가 없다", flush=True)
     FINAL.write_text("".join(json.dumps(f, ensure_ascii=False) + "\n" for f in finals), encoding="utf-8")
     (JUDGE_DIR / "disputes.json").write_text(json.dumps(disputes, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"final {len(finals)}, disputes {len(disputes)}")
+    print(f"final {len(finals)}, disputes {len(disputes)}, overrides applied {applied}/{len(overrides)}")
 
 
 def cmd_export_human_2(n: int) -> None:

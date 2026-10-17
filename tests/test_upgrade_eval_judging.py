@@ -72,3 +72,16 @@ def test_tiebreak_targets_only_disputed_without_tie_results():
                ("A0", "s4", 1): {"m": same}}                       # 교차 판정 없음 → 판정 누락(가림 안 함)
     done = {("A0", "s3", 1, "t", "align"), ("A0", "s3", 1, "t", "fidelity")}
     assert judging.tiebreak_targets(grouped, sel, done) == [("A0", "s2", 1)]
+
+
+def test_overrides_reapply_after_merge():
+    finals = [{"arm": "A4", "source_id": "s1", "rep": 1, "covered": {"K1": True}, "first_sentence_new": True,
+               "fidelity": {2: ["사실 오류"]}, "bypass": []}]
+    ov = [{"arm": "A4", "source_id": "s1", "rep": 1, "field": "fidelity", "key": 5, "value": ["부풀림-범위"],
+           "reason": "사람 확인 2 #10"},
+          {"arm": "A4", "source_id": "s1", "rep": 1, "field": "covered", "key": "K1", "value": False, "reason": "x"},
+          {"arm": "A4", "source_id": "s1", "rep": 9, "field": "first_sentence_new", "value": False, "reason": "없는 카드"}]
+    out, applied = judging.apply_overrides(finals, ov)
+    assert applied == 2                                                   # 대상 없는 1건은 세지 않는다(보고용)
+    assert out[0]["fidelity"] == {"2": ["사실 오류"], "5": ["부풀림-범위"]}  # 다른 문장의 판정은 그대로
+    assert out[0]["covered"] == {"K1": False}

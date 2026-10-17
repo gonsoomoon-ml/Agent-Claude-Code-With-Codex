@@ -35,11 +35,12 @@ def test_decide_eliminates_failure_rate_and_worse_fidelity():
 
 
 def test_decide_ranks_with_ties_falling_through():
-    cards = {"A0": _card(cost=0.05), "A2": _card(cost=0.20), "A3": _card(cost=0.10)}
-    per = {"A0": _per_article(), "A2": _per_article(coverage=0.80), "A3": _per_article()}
+    cards = {"A0": _card(), "A2": _card(), "A3": _card()}
+    per = {"A0": _per_article(cost_per_card=0.05), "A2": _per_article(coverage=0.80, cost_per_card=0.20),
+           "A3": _per_article(cost_per_card=0.10)}
     out = aggregate.decide(cards, per)
     assert out["ranking"][0] == "A2"   # 충실도 동률(차이 없음) → 커버리지 우위
-    assert out["ranking"][1:] == ["A0", "A3"]                     # 그다음은 비용이 낮은 순
+    assert out["ranking"][1:] == ["A0", "A3"]                     # 그다음은 기사 짝 비용이 낮은 순(차이 있음)
     assert out["comparisons"]["A2"]["coverage"][3] is False       # 차이 있음
     assert out["comparisons"]["A3"]["fidelity"][3] is True        # 차이 없음
 
@@ -84,3 +85,38 @@ def test_scorecard_uses_latest_non_infra_record_per_key():
     card = aggregate.scorecard("A2", runs, [], {}, "gpt-6-luna", keyfacts={}, sources={})
     assert card["n_runs"] == 1 and card["failure_rate"] == 0.0     # 재시도 전 인프라 오류는 발행 실패가 아니다
     assert card["infra_only"] == 1                                 # 인프라 오류만 남은 키는 빠진 것으로 보고
+
+
+def test_cost_step_uses_no_difference_and_ties_share_rank():
+    # 품질이 같고 기사별 비용 차이가 반복 표준편차보다 작으면 동률 — 카드당 $0.0014 로 순위를 가르지 않는다(계획 Task 12)
+    cards = {"A0": _card(), "A2": _card(), "A3": _card()}
+    for c in cards.values():
+        c["rep_sd"]["cost_per_card"] = 0.004
+    per = {"A0": _per_article(cost_per_card=0.10), "A2": _per_article(cost_per_card=0.0499),
+           "A3": _per_article(cost_per_card=0.0485)}
+    out = aggregate.decide(cards, per)
+    assert out["pairwise"]["A2 vs A3"]["winner"] is None                       # 차이 없음 → 끝까지 동률
+    assert out["pairwise"]["A0 vs A2"] == {"winner": "A2", "by": "cost_per_card"}  # 차이 $0.05 > 문턱
+    assert out["ranks"] == {"A2": 1, "A3": 1, "A0": 3}                          # 공동 1위
+
+
+def test_latency_step_uses_paired_sequential_durations():
+    cards = {"A0": _card(), "A2": _card(), "A3": _card()}
+    per = {"A0": _per_article(latency_seq=60_000), "A2": _per_article(latency_seq=20_000),
+           "A3": _per_article(latency_seq=25_000)}
+    out = aggregate.decide(cards, per)
+    assert out["pairwise"]["A2 vs A3"] == {"winner": "A2", "by": "latency_seq"}   # 비용이 같으면 기사마다 더 빠른 쪽
+
+
+def test_per_article_and_rep_sd_carry_cost_and_sequential_latency():
+    def run(rep, seq, ms, cost):
+        return {"arm": "A2", "source_id": "s0", "rep": rep, "sequential": seq, "decision": "PUBLISH", "attempts": 1,
+                "summary": "가는 출시했다.", "why": "", "claims": [], "verdicts": [], "author_runs": [{"cost_usd": cost}],
+                "codex_calls": [], "duration_ms": ms, "over_360": False}
+    runs = [run(1, True, 20_000, 0.04), run(2, False, 50_000, 0.06)]
+    src = {"s0": FrozenSource("s0", "https://www.aitimes.com/news/x", "가 출시", "원문 본문이다.", "2026-10-17T00:00:00Z")}
+    per = aggregate.per_article("A2", runs, [], keyfacts={}, sources=src, prices={}, verifier="gpt-6-luna")
+    assert per["s0"]["cost_per_card"] == pytest.approx(0.05)
+    assert per["s0"]["latency_seq"] == pytest.approx(20_000)                    # 순차 회차만(동시 실행은 지연을 부풀린다)
+    card = aggregate.scorecard("A2", runs, [], {}, "gpt-6-luna", keyfacts={}, sources=src)
+    assert card["rep_sd"]["cost_per_card"] == pytest.approx(0.0141421356, rel=1e-6)
