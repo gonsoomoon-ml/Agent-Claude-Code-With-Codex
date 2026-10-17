@@ -29,6 +29,8 @@ from .common import EXP_ROOT
 
 # Task 1 프로브 A: env(CLAUDE_CODE_EFFORT_LEVEL)가 -p 에서 적용됨(low→thinking 0, high→380) — 운영 코드 무변경.
 EFFORT_VIA = "env"
+# 요약 지시의 '오늘 날짜' — 조건마다 실행일이 달라지면 지시가 달라져 비교가 흔들린다. 모든 실행에 같은 날짜를 준다.
+EVAL_TODAY = "2026-10-17"
 
 _CLAUDE_CONFIG = Path(__file__).resolve().parents[2] / "src" / "briefing" / "runtime" / "container" / "claude_config.json"
 
@@ -136,11 +138,11 @@ def make_author_fns(
         return build_system_prompt(lens_guidance=resolve_lens(user.lens).guidance, skill_md=user.skill_md)
 
     def draft_fn(source, user, settings) -> DraftCard:
-        text = _call("draft", _system(user), build_user_prompt(source))
+        text = _call("draft", _system(user), build_user_prompt(source, today=EVAL_TODAY))
         return _to_draft_card(source.source_id, source.title, _parse_card_json(text))
 
     def revise_fn(source, user, settings, *, prior, failed_ids) -> DraftCard:
-        text = _call("revise", _system(user), _build_revise_prompt(source, prior, failed_ids))
+        text = _call("revise", _system(user), _build_revise_prompt(source, prior, failed_ids, today=EVAL_TODAY))
         return _to_draft_card(source.source_id, source.title, _parse_card_json(text))
 
     return draft_fn, revise_fn

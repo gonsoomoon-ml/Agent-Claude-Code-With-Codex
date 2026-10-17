@@ -40,3 +40,22 @@ def test_source_kind_and_lang():
     assert common.source_lang("https://www.aitimes.com/news/x") == "ko"
     assert common.source_lang("https://discuss.pytorch.kr/t/x/1") == "ko"
     assert common.source_lang("https://the-decoder.com/x/") == "en"
+
+
+def test_read_jsonl_skips_truncated_tail_and_append_starts_new_line(tmp_path, capsys):
+    p = tmp_path / "r.jsonl"
+    common.append_jsonl(p, {"k": 1})
+    with p.open("a", encoding="utf-8") as f:
+        f.write('{"k": 2, "trunc')                     # 실행이 쓰는 도중 죽은 경우
+    assert common.read_jsonl(p) == [{"k": 1}]
+    assert "1" in capsys.readouterr().err               # 건너뛴 줄 수를 알린다
+    common.append_jsonl(p, {"k": 3})                    # 잘린 줄에 이어 붙지 않는다
+    assert common.read_jsonl(p) == [{"k": 1}, {"k": 3}]
+
+
+def test_done_keys_where_filters_records(tmp_path):
+    p = tmp_path / "r.jsonl"
+    common.append_jsonl(p, {"model": "m", "claim": "c1", "error": None})
+    common.append_jsonl(p, {"model": "m", "claim": "c2", "error": "rc=1: throttled"})
+    keys = common.done_keys(p, ("model", "claim"), where=lambda r: r["error"] is None)
+    assert keys == {("m", "c1")}

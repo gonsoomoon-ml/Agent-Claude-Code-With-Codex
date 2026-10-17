@@ -57,3 +57,50 @@ def test_codex_env_is_allowlisted(monkeypatch, tmp_path):
     assert env["AWS_REGION"] == "us-east-1"
     assert "ANTHROPIC_API_KEY" not in env and "CLAUDECODE" not in env
     assert str(model.codex_bin.parent) in env["PATH"].split(":")
+
+
+def test_certify_accepts_lowercase_verdict_like_production():
+    run = CodexRun('{"verdict":"Verified","evidence":"e"}', {}, 5, 0, None)    # 운영은 .upper() 로 받는다
+    v, _ = codex_runner.certify_entailment_json("C1", ENV, VERIFIERS["gpt-6-sol"], runner=lambda *a, **k: run)
+    assert (v.verdict, v.model) == ("VERIFIED", "codex:gpt-6-sol")
+
+
+def _fake_codex(root: Path, body: str) -> codex_runner.CodexModel:
+    model = codex_runner.CodexModel("fake", "test", "x")
+    bin_ = root / "bin" / "codex-test" / "node_modules" / ".bin" / "codex"
+    bin_.parent.mkdir(parents=True)
+    bin_.write_text("#!/bin/sh\n" + body, encoding="utf-8")
+    bin_.chmod(0o755)
+    return model
+
+
+def _alive(pid: int) -> bool:
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text()
+    except FileNotFoundError:
+        return False
+    return stat.rsplit(")", 1)[1].split()[0] != "Z"      # 좀비는 이미 죽은 것
+
+
+def test_timeout_kills_wrapper_children(monkeypatch, tmp_path):
+    """node 래퍼만 죽이면 네이티브 codex 가 고아로 남아 토큰을 계속 쓴다 — 프로세스 그룹째 꺼야 한다."""
+    import time
+    monkeypatch.setattr(codex_runner, "EXP_ROOT", tmp_path)
+    pidfile = tmp_path / "child.pid"
+    model = _fake_codex(tmp_path, f"sleep 300 &\necho $! > {pidfile}\nwait\n")
+    run = codex_runner.run_codex_json("p", model, timeout_s=1)
+    assert run.error == "timeout"
+    pid = int(pidfile.read_text())
+    deadline = time.monotonic() + 5
+    while _alive(pid) and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert not _alive(pid)
+
+
+def test_effort_read_from_codex_home_config(monkeypatch, tmp_path):
+    monkeypatch.setattr(codex_runner, "EXP_ROOT", tmp_path)
+    model = codex_runner.CodexModel("fake", "test", "x")
+    assert model.effort is None
+    model.codex_home.mkdir(parents=True)
+    (model.codex_home / "config.toml").write_text('model_reasoning_effort = "medium"\nmodel = "x"\n', encoding="utf-8")
+    assert model.effort == "medium"

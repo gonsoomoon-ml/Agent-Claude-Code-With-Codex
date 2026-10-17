@@ -8,10 +8,13 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import signal
 import subprocess
 import tempfile
 import time
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -40,6 +43,14 @@ class CodexModel:
     @property
     def codex_home(self) -> Path:
         return EXP_ROOT / "codex-home" / self.name
+
+    @property
+    def effort(self) -> str | None:
+        """이 검증기 CODEX_HOME 의 `model_reasoning_effort` — 호출마다 기록해 사후 감사가 가능하게(§6)."""
+        cfg = self.codex_home / "config.toml"
+        if not cfg.exists():
+            return None
+        return tomllib.loads(cfg.read_text(encoding="utf-8")).get("model_reasoning_effort")
 
 
 VERIFIERS: dict[str, CodexModel] = {
@@ -93,26 +104,48 @@ def build_codex_env(model: CodexModel, *, home_dir: Path) -> dict[str, str]:
     }
 
 
+def _kill_group(proc: subprocess.Popen) -> None:
+    """타임아웃 — `.bin/codex` 는 네이티브 codex 를 띄우는 node 래퍼라, 래퍼만 죽이면 네이티브가 고아로 남아
+    토큰을 계속 쓰고 동시 실행 수를 늘린다. 새 세션으로 띄운 프로세스 그룹 전체에 SIGTERM → 3초 뒤 SIGKILL."""
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+        proc.wait(timeout=3)
+    except (ProcessLookupError, subprocess.TimeoutExpired):
+        pass
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)                       # 래퍼가 먼저 끝나도 그룹에 남은 자식까지
+    except ProcessLookupError:
+        pass
+    try:
+        proc.communicate(timeout=10)                              # 파이프를 비워 좀비·열린 fd 를 남기지 않는다
+    except subprocess.TimeoutExpired:                             # 그룹을 벗어난 자손이 파이프를 잡고 있어도 멈추지 않는다
+        pass
+
+
 def run_codex_json(prompt: str, model: CodexModel, *, timeout_s: int = 120) -> CodexRun:
     """빈 cwd·빈 HOME·stdin 닫음으로 `codex exec --skip-git-repo-check --json` 1회 실행."""
     home = Path(tempfile.mkdtemp(prefix="ue-codex-home-"))
     cwd = Path(tempfile.mkdtemp(prefix="ue-codex-cwd-"))
     t0 = time.monotonic()
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             [str(model.codex_bin), "exec", "--skip-git-repo-check", "--json", prompt],
-            cwd=cwd, env=build_codex_env(model, home_dir=home), capture_output=True, text=True,
-            timeout=timeout_s, stdin=subprocess.DEVNULL, check=False,
+            cwd=cwd, env=build_codex_env(model, home_dir=home), stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
+            start_new_session=True,
         )
-    except subprocess.TimeoutExpired:
-        return CodexRun(None, {}, int((time.monotonic() - t0) * 1000), None, "timeout")
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            _kill_group(proc)
+            return CodexRun(None, {}, int((time.monotonic() - t0) * 1000), None, "timeout")
     finally:
         shutil.rmtree(home, ignore_errors=True)
         shutil.rmtree(cwd, ignore_errors=True)
     duration = int((time.monotonic() - t0) * 1000)
-    final, usage = parse_codex_jsonl(proc.stdout)
+    final, usage = parse_codex_jsonl(stdout)
     if proc.returncode != 0:
-        return CodexRun(final, usage, duration, proc.returncode, f"rc={proc.returncode}: {proc.stderr.strip()[:200]}")
+        return CodexRun(final, usage, duration, proc.returncode, f"rc={proc.returncode}: {stderr.strip()[:200]}")
     return CodexRun(final, usage, duration, proc.returncode, None)
 
 
@@ -124,7 +157,7 @@ def certify_entailment_json(
     if run.error or not run.final_text:
         return CertVerdict(claim_id, "DEMOTED", f"검증기 실행 실패(보수적 미확인): {run.error or '빈 응답'}", "codex-error"), run
     obj = _last_json_object(run.final_text)
-    verdict = (obj or {}).get("verdict")
+    verdict = str((obj or {}).get("verdict", "")).upper()          # 운영 certifier 와 같은 정규화
     if verdict not in _VERDICTS:
         return CertVerdict(claim_id, "DEMOTED", f"검증기 출력 파싱 불가(보수적 미확인): {run.final_text[:80]!r}", "codex-error"), run
     return CertVerdict(claim_id, verdict, str(obj.get("evidence", "")), f"codex:{model.name}"), run

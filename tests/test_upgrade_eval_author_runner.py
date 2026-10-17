@@ -53,3 +53,18 @@ def test_runner_error_raises_after_logging():
     with pytest.raises(RuntimeError):
         draft(SRC, FACT_USER, SETTINGS)
     assert log[0].error == "timeout"
+
+
+def test_prompts_pin_today_across_runs():
+    """요약 지시에 '오늘 날짜'가 들어간다 — 조건마다 실행일이 달라도 같은 날짜를 줘야 비교가 공정하다."""
+    seen = []
+
+    def fake(system_prompt, user_prompt, arm, timeout_s):
+        seen.append(user_prompt)
+        return AuthorRun("", CARD, 0.01, {}, "end_turn", 10, 0, None)
+
+    draft, revise = author_runner.make_author_fns(author_runner.ARMS["A2"], log=[], runner=fake)
+    d = draft(SRC, FACT_USER, SETTINGS)
+    revise(SRC, FACT_USER, SETTINGS, prior=d, failed_ids=("C1",))
+    assert author_runner.EVAL_TODAY == "2026-10-17"
+    assert all(f"오늘 날짜: {author_runner.EVAL_TODAY}" in u for u in seen) and len(seen) == 2

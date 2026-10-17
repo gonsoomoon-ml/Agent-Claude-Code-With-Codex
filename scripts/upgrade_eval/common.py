@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -15,23 +17,41 @@ SEED = 20261017
 
 
 def append_jsonl(path: Path, record: dict) -> None:
-    """레코드 한 줄을 덧붙인다(부모 디렉토리 자동 생성, 한글은 그대로)."""
+    """레코드 한 줄을 덧붙인다(부모 디렉토리 자동 생성, 한글은 그대로).
+    앞선 실행이 쓰다 죽어 마지막 줄이 잘렸으면 새 줄에서 시작한다 — 잘린 줄에 이어 붙어 두 줄이 함께 깨지지 않게."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    with path.open("a+b") as f:
+        f.seek(0, os.SEEK_END)
+        if f.tell():
+            f.seek(-1, os.SEEK_END)
+            if f.read(1) != b"\n":
+                f.write(b"\n")
+        f.write((json.dumps(record, ensure_ascii=False) + "\n").encode("utf-8"))
 
 
 def read_jsonl(path: Path) -> list[dict]:
-    """파일이 없으면 빈 목록. 빈 줄은 건너뛴다."""
+    """파일이 없으면 빈 목록. 빈 줄은 건너뛴다. 깨진 줄(쓰다 죽은 실행)은 건너뛰고 몇 줄인지 stderr 로 알린다 —
+    긴 유료 실행의 재개가 손으로 고치기 전까지 막히지 않게."""
     if not path.exists():
         return []
+    out, bad = [], 0
     with path.open(encoding="utf-8") as f:
-        return [json.loads(line) for line in f if line.strip()]
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                out.append(json.loads(line))
+            except ValueError:
+                bad += 1
+    if bad:
+        print(f"warning: {path}: 깨진 줄 {bad}개 건너뜀", file=sys.stderr)
+    return out
 
 
-def done_keys(path: Path, fields: tuple[str, ...]) -> set[tuple]:
-    """이미 기록된 레코드의 키 튜플 집합 — 레코드에 없는 필드는 None."""
-    return {tuple(r.get(k) for k in fields) for r in read_jsonl(path)}
+def done_keys(path: Path, fields: tuple[str, ...], *, where: Callable[[dict], bool] | None = None) -> set[tuple]:
+    """이미 기록된 레코드의 키 튜플 집합 — 레코드에 없는 필드는 None. where 를 주면 그 조건을 만족하는 레코드만
+    '끝남'으로 친다(예: 인프라 오류 레코드는 다시 돌리도록 뺀다)."""
+    return {tuple(r.get(k) for k in fields) for r in read_jsonl(path) if where is None or where(r)}
 
 
 def source_kind(url: str) -> str:
