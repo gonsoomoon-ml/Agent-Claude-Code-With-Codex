@@ -19,6 +19,7 @@ import sys
 from . import costs, metrics
 from .common import EXP_ROOT, read_jsonl
 from .judge import FIDELITY_LABELS, KeyFact
+from .stage_a import is_infra_error
 from .stats import no_difference, paired_bootstrap, rep_sd
 
 RESULTS = EXP_ROOT / "results"
@@ -95,10 +96,22 @@ def rep_metrics(run: dict, judged: dict | None, facts: list[KeyFact], source) ->
     }
 
 
+def _latest_runs(runs: list[dict]) -> tuple[list[dict], int]:
+    """(조건, 기사, 회차)마다 인프라 오류가 아닌 마지막 기록 + 인프라 오류만 남은 키 수(빠진 것으로 보고)."""
+    latest: dict[tuple, dict] = {}
+    keys = set()
+    for r in runs:
+        k = (r.get("arm"), r.get("source_id"), r.get("rep"))
+        keys.add(k)
+        if not is_infra_error(r):
+            latest[k] = r
+    return list(latest.values()), len(keys - set(latest))
+
+
 def _rep_rows(arm: str, runs: list[dict], judged: list[dict], keyfacts: dict, sources: dict) -> list[dict]:
     jmap = {(j["arm"], j["source_id"], j["rep"]): j for j in judged}
     rows = []
-    for r in runs:
+    for r in _latest_runs(runs)[0]:
         if r.get("arm") != arm or r.get("decision") != "PUBLISH":
             continue
         sid = r["source_id"]
@@ -154,7 +167,7 @@ def _pooled(rows: list[dict], keyfacts: dict, attr: str) -> dict[str, float]:
 def scorecard(arm: str, runs: list[dict], judged: list[dict], prices: dict, verifier: str, *,
               keyfacts: dict, sources: dict) -> dict:
     """조건 하나의 성적표. 발행·속도·비용은 모든 실행, 품질은 발행된 실행의 평균(판정 지표는 판정된 것만)."""
-    mine = [r for r in runs if r.get("arm") == arm]
+    mine, infra_only = _latest_runs([r for r in runs if r.get("arm") == arm])
     rows = _rep_rows(arm, mine, judged, keyfacts, sources)
     n = len(mine) or 1
     seq = sorted(float(r["duration_ms"]) for r in mine if r.get("sequential") and r.get("duration_ms") is not None)
@@ -165,6 +178,7 @@ def scorecard(arm: str, runs: list[dict], judged: list[dict], prices: dict, veri
 
     return {
         "arm": arm, "n_runs": len(mine), "n_published": len(rows), "n_judged": sum(1 for r in rows if r["judged"]),
+        "infra_only": infra_only,
         # 발행
         "failure_rate": sum(_failed(r, f2_adjusted=False) for r in mine) / n,
         "failure_rate_f2_adjusted": sum(_failed(r, f2_adjusted=True) for r in mine) / n,

@@ -73,3 +73,13 @@ def test_scorecard_basic_rates():
     assert card["inflation_rate"] == pytest.approx(0.5)            # 2문장 중 1문장
     assert card["cost_per_card"] == pytest.approx(0.2) and card["latency_p95"] == pytest.approx(200_000)
     assert card["first_pass_rate"] == pytest.approx(0.5) and card["claims_mean"] == pytest.approx(1.0)
+
+
+def test_scorecard_uses_latest_non_infra_record_per_key():
+    base = {"arm": "A2", "source_id": "s0", "rep": 1, "sequential": False, "attempts": 1, "summary": "가는 출시했다.",
+            "why": "", "claims": [], "verdicts": [], "author_runs": [], "codex_calls": [], "duration_ms": 1, "over_360": False}
+    runs = [base | {"decision": "ERROR", "error": "rc=1: throttled"}, base | {"decision": "PUBLISH", "error": None},
+            base | {"rep": 2, "decision": "ERROR", "error": "rc=1: throttled"}]
+    card = aggregate.scorecard("A2", runs, [], {}, "gpt-6-luna", keyfacts={}, sources={})
+    assert card["n_runs"] == 1 and card["failure_rate"] == 0.0     # 재시도 전 인프라 오류는 발행 실패가 아니다
+    assert card["infra_only"] == 1                                 # 인프라 오류만 남은 키는 빠진 것으로 보고
