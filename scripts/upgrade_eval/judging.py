@@ -67,6 +67,30 @@ def merge_final(main: dict, cross: dict, tie: dict | None) -> dict:
     return {"covered": covered, "first_sentence_new": first, "fidelity": fidelity, "bypass": list(main.get("bypass", []))}
 
 
+def is_infra_error(row: dict) -> bool:
+    """호출 자체가 실패한 기록(쓰로틀·네트워크·읽기 시간 초과) — 판정자 실패가 아니므로 다시 돌린다."""
+    return str(row.get("error") or "").startswith("호출 실패")
+
+
+def done_ok(path, fields: tuple[str, ...]) -> set[tuple]:
+    """'끝남' 키 — 호출 실패 기록은 빼서 다음 실행에서 다시 돈다(Stage A·B 의 인프라 오류 규칙과 같다)."""
+    return done_keys(path, fields, where=lambda r: not is_infra_error(r))
+
+
+_GATE_FACT_ID = "F1"
+
+
+def gate_fact(item: J.PlantedSummary) -> J.KeyFact:
+    """'뒤쪽 사실 삭제' 검사용 핵심 사실. 판정자가 id 를 JSON 키로 되받아 적으므로 짧은 id 를 쓴다
+    (66–109자 문장을 키로 쓰면 글자 하나만 달라도 스키마 위반 → 놓침으로 세어졌다)."""
+    return J.KeyFact(_GATE_FACT_ID, item.removed_fact, "", None, None, "새 사실", False)
+
+
+def gate_uncovered(result: dict | None, item: J.PlantedSummary) -> set[str]:
+    """align 결과 → 빠졌다고 본 사실. score_gate 는 removed_fact 문장으로 대조한다."""
+    return {item.removed_fact} if (result or {}).get("covered", {}).get(_GATE_FACT_ID) is False else set()
+
+
 # ── 입출력 도우미 ──
 def _sources() -> SourceStore:
     return SourceStore(str(EXP_ROOT / "sources"))
@@ -130,14 +154,14 @@ def cmd_gate(judges: list[str], score_only: bool) -> None:
     store = _sources()
     raw = JUDGE_DIR / "gate_raw.jsonl"
     if not score_only:
-        done = done_keys(raw, ("judge", "item_id", "kind"))
+        done = done_ok(raw, ("judge", "item_id", "kind"))
         tasks = [(j, it, k) for j in judges for it in items
                  for k in (("fidelity", "align") if it.defect == "뒤쪽 사실 삭제" else ("fidelity",)) if (j, it.item_id, k) not in done]
 
         def work(t):
             j, it, kind = t
             src = store.get_source(it.source_id).text
-            facts = [J.KeyFact(it.removed_fact, it.removed_fact, "", None, None, "새 사실", False)] if kind == "align" else []
+            facts = [gate_fact(it)] if kind == "align" else []
             call, parsed = _judge_summary(j, src, it.summary, facts, [], (kind,))[kind]
             _write(raw, {"judge": j, "item_id": it.item_id, "kind": kind, "result": _result_json(kind, parsed),
                          "error": call.error, "usage": call.usage})
@@ -151,8 +175,8 @@ def cmd_gate(judges: list[str], score_only: bool) -> None:
     for j in judges:
         mine = [r for r in rows if r["judge"] == j]
         flags = {r["item_id"]: _fidelity_ints(r["result"] or {}) for r in mine if r["kind"] == "fidelity"}
-        uncovered = {r["item_id"]: {k for k, v in (r["result"] or {}).get("covered", {}).items() if not v}
-                     for r in mine if r["kind"] == "align"}
+        by_id = {it.item_id: it for it in items}
+        uncovered = {r["item_id"]: gate_uncovered(r["result"], by_id[r["item_id"]]) for r in mine if r["kind"] == "align"}
         gates[j] = J.score_gate(flags, uncovered, items, adjudicated_ok=adjudicated)
         for it in items:
             for idx, labels in flags.get(it.item_id, {}).items():
@@ -179,7 +203,7 @@ def cmd_keyfacts() -> None:
     sel = _judges()
     store = _sources()
     kf_path, review_path = JUDGE_DIR / "keyfacts.jsonl", JUDGE_DIR / "keyfacts_review.jsonl"
-    have = {r["source_id"] for r in read_jsonl(kf_path)}
+    have = {r["source_id"] for r in read_jsonl(kf_path) if not is_infra_error(r)}
     for a in load_manifest():
         sid = a["source_id"]
         if sid in have:
@@ -219,7 +243,7 @@ def cmd_score() -> None:
     store = _sources()
     facts_by = _keyfacts()
     targets = scoring_targets(read_jsonl(STAGE_A))
-    done = done_keys(SCORES, ("arm", "source_id", "rep", "judge", "kind"))
+    done = done_ok(SCORES, ("arm", "source_id", "rep", "judge", "kind"))
     tasks = [(r, j, k) for r in targets for j in (sel["main"], sel["cross"]) for k in ("align", "fidelity", "bypass")
              if (r["arm"], r["source_id"], r["rep"], j, k) not in done]
     random.Random(SEED).shuffle(tasks)
@@ -259,7 +283,7 @@ def cmd_tiebreak() -> None:
     facts_by = _keyfacts()
     records = {(r["arm"], r["source_id"], r["rep"]): r for r in scoring_targets(read_jsonl(STAGE_A))}
     grouped = _by_target(read_jsonl(SCORES))
-    done = done_keys(SCORES, ("arm", "source_id", "rep", "judge", "kind"))
+    done = done_ok(SCORES, ("arm", "source_id", "rep", "judge", "kind"))
     disputes, finals = [], []
     for key, by_judge in sorted(grouped.items()):
         main, cross = _view(by_judge.get(sel["main"], {})), _view(by_judge.get(sel["cross"], {}))
@@ -321,7 +345,7 @@ def cmd_pairwise() -> None:
     store = _sources()
     recs = read_jsonl(STAGE_A)
     out = JUDGE_DIR / "pairwise.jsonl"
-    done = done_keys(out, ("arm", "source_id", "judge", "order"))
+    done = done_ok(out, ("arm", "source_id", "judge", "order"))
     groups: dict[tuple, list[dict]] = {}
     for r in recs:
         groups.setdefault((r["arm"], r["source_id"]), []).append(r)

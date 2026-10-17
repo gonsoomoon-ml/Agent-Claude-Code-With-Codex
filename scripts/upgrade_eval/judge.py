@@ -70,8 +70,11 @@ class GateStop(Exception):
 
 def _bedrock():
     import boto3
+    from botocore.config import Config
 
-    return boto3.client("bedrock-runtime", region_name="us-east-1")
+    # 기본 읽기 대기 60초는 느린 판정자(Kimi 응답 ≈60–100초)를 끊는다 — 끊긴 호출은 판정 실패로 남아 검출률을 깎는다.
+    return boto3.client("bedrock-runtime", region_name="us-east-1",
+                        config=Config(read_timeout=180, connect_timeout=10, retries={"max_attempts": 2, "mode": "standard"}))
 
 
 def _call(client, model_id: str, system: str, user: str, max_tokens: int) -> tuple[str, dict, int]:
