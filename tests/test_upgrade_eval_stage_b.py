@@ -216,3 +216,17 @@ def test_pick_winner_healthy_filter_closes_the_hole():
 def test_pick_winner_refuses_nan():
     with pytest.raises(ValueError, match="NaN"):
         stage_b.pick_winner({"gpt-5.5": ms(.85, .05, math.nan, 9000), "a": ms(.88, .06, .03, 8000)})
+
+
+def test_partial_pass2_is_balanced_across_models():
+    """예산 상한으로 2차가 모델마다 다른 claim 에서 끊기면, 검출·오탐·비용에는 모든 모델에 2차가 있는 claim 의 2차만 쓴다
+    (실측: 1차 검출이 5종 모두 같았는데 일부 2차를 섞자 77.5–80.3% 로 갈려 승자가 바뀌었다)."""
+    claims = ORIGINALS[:2] + _planted({PLANTED_TYPES[0]: 2})
+    recs = []
+    for m in MODELS5:
+        recs += [_rec(m, 1, c.key, "VERIFIED") for c in claims[:2]] + [_rec(m, 1, c.key, "BLOCKED") for c in claims[2:]]
+        recs.append(_rec(m, "seq", claims[0].key, "VERIFIED"))
+    recs.append(_rec("m2", 2, claims[2].key, "VERIFIED"))                           # m2 만 2차가 있고, 거기서 놓쳤다
+    s = stage_b.score_stage_b(recs, claims, PRICES5, models=MODELS5)
+    assert s["m2"].catch_rate == s["m3"].catch_rate == 1.0                           # 공통이 아닌 2차는 검출률에 넣지 않는다
+    assert s["m2"].consistency == 0.0 and s["m2"].n_pairs == 1                       # 2회 일치는 있는 짝으로 그대로 잰다

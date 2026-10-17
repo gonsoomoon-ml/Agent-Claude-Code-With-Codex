@@ -141,10 +141,16 @@ def _latest(records: list[dict]) -> dict[tuple, dict]:
     return out
 
 
+def shared_pass2(latest: dict[tuple, dict], keys, models: list[str]) -> set[str]:
+    """모든 모델에 2차 기록이 있는 claim — 예산 상한으로 2차가 모델마다 다른 claim 에서 끊겨도 같은 세트로 비교하게."""
+    return {k for k in keys if all((m, 2, k) in latest for m in models)}
+
+
 def score_stage_b(records: list[dict], claims: list[ClaimItem], prices: dict[str, costs.Price], *,
                   models: list[str]) -> dict[str, ModelScore]:
     """models 는 실행한 검증기 목록을 명시 — 기록에 있는 모델로 정하면 빠진 모델이 기준(4/5)을 조용히 바꾼다.
-    1차가 하나라도 비면 채점하지 않는다(맞는 claim 합의가 무너진다). 2차는 일부여도 된다(예산 상한)."""
+    1차가 하나라도 비면 채점하지 않는다(맞는 claim 합의가 무너진다). 2차는 일부여도 된다(예산 상한) —
+    검출·오탐·오류율·비용에는 1차 전부 + 모든 모델에 공통인 claim 의 2차만 쓰고, 2회 일치는 있는 짝으로 잰다."""
     by_key = {c.key: c for c in claims}
     latest = _latest([r for r in records if r["model"] in models and r["claim_key"] in by_key])
     missing = [(m, k) for m in models for k in by_key if (m, 1, k) not in latest]
@@ -154,13 +160,15 @@ def score_stage_b(records: list[dict], claims: list[ClaimItem], prices: dict[str
     true_keys = {k for k, c in by_key.items() if c.origin == "original"
                  and sum(latest[(m, 1, k)]["verdict"] == "VERIFIED" for m in models) >= need}
     n_orig = sum(c.origin == "original" for c in claims)
+    common2 = shared_pass2(latest, by_key, models)
     scores = {}
     for m in models:
-        mine = [r for (mm, p, _), r in latest.items() if mm == m and p in (1, 2)]
+        both_passes = [r for (mm, p, _), r in latest.items() if mm == m and p in (1, 2)]
+        mine = [r for r in both_passes if r["pass"] == 1 or r["claim_key"] in common2]
         seq = [r for (mm, p, _), r in latest.items() if mm == m and p == "seq"]
         planted = [r for r in mine if by_key[r["claim_key"]].origin == "planted"]
         true = [r for r in mine if r["claim_key"] in true_keys]
-        v = {p: {r["claim_key"]: r["verdict"] for r in mine if r["pass"] == p and is_real_verdict(r)} for p in (1, 2)}
+        v = {p: {r["claim_key"]: r["verdict"] for r in both_passes if r["pass"] == p and is_real_verdict(r)} for p in (1, 2)}
         both = set(v[1]) & set(v[2])
         price = prices.get(m)
         cost_list = [costs.codex_cost(r["usage"], price) for r in mine if r.get("usage")] if price else []
@@ -418,8 +426,11 @@ def cmd_score(models: list[str]) -> None:
          "stage_a_certifier_cost_projection": projection, "entailment_claims_per_card": per_card},
         ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     any_s = next(iter(scores.values()))
+    keys = {c.key for c in originals + planted}
+    n2 = len(shared_pass2(_latest([r for r in records if r["model"] in models]), keys, models))
     lines = ["# Stage B 결과 — 검증 AI 비교", "",
              f"- 원본 claim {len(originals)}개(맞는 claim {any_s.n_true}, 불확실 {any_s.n_uncertain}), 심은 오류 {len(planted)}개, 모델당 2회",
+             f"- 검출·오탐·비용 = 1차 전부 + 모든 모델에 2차가 있는 claim {n2}/{len(keys)}개의 2차(2차가 일부만 돈 경우의 균형 기준)",
              f"- **승자(승인된 §6 규칙 그대로): {picks.get('literal')}** — 검출률 최고−5%p 이상·GPT-5.5 이상 → 오탐 최저+2%p 이내 → 비용·p95",
              f"- **승자(건강 필터 적용, 사용자 승인 필요): {picks.get('healthy')}** — 오류율 > 5% 또는 오탐 > GPT-5.5+10%p 인 모델을 먼저 뺌", "",
              "| 모델 | 검출률 | BLOCKED 로 검출 | 오탐률 | 오탐 BLOCKED | 오탐 DEMOTED | 2회 일치(n) | 오류율 | claim 당 비용 | p50 | p95(n) | 오류 |",
