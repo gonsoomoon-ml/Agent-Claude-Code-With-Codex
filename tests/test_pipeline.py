@@ -41,14 +41,16 @@ def test_run_briefing_multiuser_end_to_end(tmp_path):
     assert "요약의 사실" in out[0].email and out[0].recipient == "alice@example.com"
 
 
-def test_run_briefing_degrades_blocked_supporting(tmp_path):
+def test_run_briefing_flags_card_with_blocked_supporting_claim(tmp_path):
+    """F4: 핵심 아닌 claim 이 막혀도 카드는 ⚠ 표시로 실린다(QUARANTINE) — ✓ 카드에 확인 못 한 사실이 숨지 않게."""
     store = SourceStore(str(tmp_path / "store"))
     out = run_briefing(
         SimpleNamespace(), store, [_user("u", ["aws-ml"])], window_hours=0, fetch_article_fn=_fetch,
         draft_fn=lambda *_a: _card_two(), revise_fn=lambda *a, **k: _card_two(),
         verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"), CertVerdict("C2", "BLOCKED", "ev")),
     )
-    assert out[0].published == 1 and "제외" in out[0].email        # graceful degradation 이 드라이버 통과로도 동작
+    assert out[0].published == 0 and out[0].quarantined == 1
+    assert "⚠ 요약의 사실 1건을 원문에서 확인하지 못함" in out[0].email   # 카드는 메일에 그대로 실림(N5)
 
 
 def _fetch_distinct(source, _w):

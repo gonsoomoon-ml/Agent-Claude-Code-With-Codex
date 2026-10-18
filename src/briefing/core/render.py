@@ -118,7 +118,7 @@ def _trust_line(card: GatedCard) -> str:
     if n["DEMOTED"]:
         bits.append(f"미확인 {n['DEMOTED']}건")
     if n["BLOCKED"]:
-        bits.append(f"제외 {n['BLOCKED']}건")  # BLOCKED = 본문에서 제외(dropped, graceful degradation)
+        bits.append(f"제외 {n['BLOCKED']}건")  # F4 이전 캐시 카드(PUBLISH + BLOCKED 잔존)용 — 새 카드는 BLOCKED 가 남으면 QUARANTINE(⚠)
     color = _AMBER if (n["DEMOTED"] or n["BLOCKED"]) else _OK
     return f'<p style="font-size:12px;color:{color};margin:8px 0 0">{" · ".join(bits)}</p>'
 
