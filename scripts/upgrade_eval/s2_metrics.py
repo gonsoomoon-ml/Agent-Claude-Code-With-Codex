@@ -27,9 +27,13 @@ from .stats import paired_bootstrap
 _SENT_SPLIT = re.compile(r"(?<=[.!?])\s+")
 # 귀속 표지 — 인용 어미('다고'·'라고') 뒤 보도·판단 동사(과거·현재·연결형 모두), '에 따르면', '…로 추정했다'.
 # '이라고 불리는'(이름 붙이기)은 귀속이 아니라서 동사 목록에 '불리' 를 넣지 않는다.
-ATTR = re.compile(r"[라다]고\s*(?:밝[혔히힌혀]|말[했하한]|전[했하한]|덧붙|본다|봤|보았|보며|보고\s*있|들[었은]|"
-                  r"(?:설명|주장|발표|강조|평가|보고|추정|예상|전망|언급|지적|답|경고|예측|분석|판단|보도|자평|소개)[했하한])"
-                  r"|에 따르면|(?:으로|로)\s*(?:설명|소개|묘사|규정|추정|예상|전망|추산|평가)[했하한]")
+_VERB = (r"(?:밝[혔히힌혀]|말[했하한]|전[했하한]|덧붙|본다|봤|보았|보며|보고\s*있|들[었은]|"
+         r"(?:설명|주장|발표|강조|평가|보고|추정|예상|전망|언급|지적|답|경고|예측|분석|판단|보도|자평|소개)[했하한])")
+ATTR = re.compile(rf"[라다]고\s*{_VERB}"                  # …라고 밝혔다
+                  r"|[라다]고\s*(?:했|하며|한다|하고)"        # …다고 했다(= 말했다)
+                  rf"|[라다]고\s.{{0,50}}?{_VERB}"           # …라고 MiMo 팀은 밝혔다 · …다고 팟캐스트에서 밝혔다(사이에 주어·장소)
+                  r"|(?<!원문)(?<!기사)에 따르면"               # '원문에 따르면'은 말한 주체가 아니라 글 자체를 가리킨다
+                  r"|(?:으로|로)\s*(?:설명|소개|묘사|규정|추정|예상|전망|추산|평가)[했하한]")
 MODAL = re.compile(r"수 있|가능|예정|계획|추정|전망|프리뷰|베타|시범")
 _QUAL_BEFORE = re.compile(r"(?<![가-힣])(최대|최소|약|거의|대략|평균)\s*(\d[\d,.]*)")
 _QUAL_AFTER = re.compile(r"(\d[\d,.]*)\s*[^\s\d]{0,3}?\s*(이상|이하|미만|초과|이내|가량|넘게|넘는|안팎|정도|남짓|내외|가까이)")
@@ -58,21 +62,61 @@ def _tokens(text: str) -> set[str]:
     return {_PARTICLE.sub("", w) if w[0] >= "가" else w.rstrip(".,") for w in _TOKEN.findall(text)} - {""}
 
 
-def attribution(summary: str, claims: list[str]) -> tuple[int, int, int]:
-    """(보존, 분모, 대응 claim 없음) — 요약의 귀속 절 단위. 대응 claim = 낱말이 가장 많이 겹치는 claim(동점이면 모두)."""
-    kept = total = unmatched = 0
-    claim_tokens = [(_tokens(c), c) for c in claims]
+def _clause_matches(summary: str, claims: list[tuple[str, str]]) -> list[tuple[bool, str] | None]:
+    """요약의 귀속 절마다 (보존?, 대응 claim 종류) — 대응 claim 이 없으면 None.
+    대응 claim = 낱말이 가장 많이 겹치는 claim(동점이면 모두). 보존이면 귀속을 지킨 대응 claim 의 종류를 적는다."""
+    out: list[tuple[bool, str] | None] = []
+    claim_tokens = [(_tokens(text), text, ctype) for text, ctype in claims]
     for s in sentences(summary):
         for clause in attributed_clauses(s):
             want = _tokens(clause)
-            scores = [(len(want & ct) / len(want) if want else 0.0, c) for ct, c in claim_tokens]
-            best = max((x for x, _ in scores), default=0.0)
+            scores = [(len(want & ct) / len(want) if want else 0.0, text, ctype) for ct, text, ctype in claim_tokens]
+            best = max((x for x, _, _ in scores), default=0.0)
             if best < MIN_OVERLAP:
-                unmatched += 1
+                out.append(None)
                 continue
-            total += 1
-            kept += any(ATTR.search(c) for x, c in scores if x == best)
-    return kept, total, unmatched
+            tied = [(text, ctype) for x, text, ctype in scores if x == best]
+            keeper = next(((text, ctype) for text, ctype in tied if ATTR.search(text)), None)
+            out.append((True, keeper[1]) if keeper else (False, tied[0][1]))
+    return out
+
+
+def attribution(summary: str, claims: list[str]) -> tuple[int, int, int]:
+    """(보존, 분모, 대응 claim 없음) — 요약의 귀속 절 단위."""
+    res = _clause_matches(summary, [(c, "") for c in claims])
+    matched = [r for r in res if r is not None]
+    return sum(k for k, _ in matched), len(matched), len(res) - len(matched)
+
+
+def attribution_by_type(summary: str, claims: list[tuple[str, str]]) -> dict[str, tuple[int, int]]:
+    """대응 claim 종류별 (보존, 분모). 숫자형(arithmetic) claim 은 숫자만 코드로 검사하고 검증 AI 에 안 가서,
+    그 안의 귀속은 아무도 확인하지 않는다 — 보존이 숫자형에서만 늘면 '검증된 귀속'이 늘어난 게 아니다."""
+    out: dict[str, list[int]] = {}
+    for r in _clause_matches(summary, claims):
+        if r is None:
+            continue
+        kept, ctype = r
+        k = out.setdefault(ctype, [0, 0])
+        k[0] += kept
+        k[1] += 1
+    return {ct: (k, n) for ct, (k, n) in out.items()}
+
+
+def laundering(summary: str, claims: list[str]) -> tuple[int, int]:
+    """(세탁 후보, 귀속 claim 수) — 귀속 표지가 있는 claim 중, 낱말이 가장 많이 겹치는 요약 문장에는 귀속이 없는 것.
+    리서치 위험 ②: claim 이 요약보다 더 유보·귀속되면 claim 은 통과해도 발행된 요약은 원문보다 세다."""
+    sents = [(_tokens(s), s) for s in sentences(summary)]
+    count = attributed = 0
+    for c in claims:
+        if not ATTR.search(c):
+            continue
+        attributed += 1
+        want = _tokens(c)
+        scored = [(len(want & st) / len(want) if want else 0.0, s) for st, s in sents]
+        best = max((x for x, _ in scored), default=0.0)
+        if best >= MIN_OVERLAP and not any(ATTR.search(s) for x, s in scored if x == best):
+            count += 1
+    return count, attributed
 
 
 def modality(summary: str, claims: list[str]) -> tuple[int, int]:
@@ -105,8 +149,11 @@ def card_metrics(rec: dict) -> dict:
     summary = rec.get("summary") or ""
     return {"arm": rec.get("arm"), "source_id": rec.get("source_id"), "rep": rec.get("rep"),
             "decision": rec.get("decision"), "revised": (rec.get("attempts") or 1) > 1, "claims": len(claims),
-            "attribution": attribution(summary, texts), "modality": modality(summary, texts),
-            "qualifiers": qualifiers(summary, texts), "verdicts": dict(verdicts)}
+            "arith_claims": sum(c["claim_type"] == "arithmetic" for c in claims),
+            "attribution": attribution(summary, texts),
+            "attribution_by_type": attribution_by_type(summary, [(c["text"], c["claim_type"]) for c in claims]),
+            "laundering": laundering(summary, texts),
+            "modality": modality(summary, texts), "qualifiers": qualifiers(summary, texts), "verdicts": dict(verdicts)}
 
 
 def summarize_arm(cards: list[dict]) -> dict:
@@ -135,6 +182,11 @@ def summarize_arm(cards: list[dict]) -> dict:
         "modality_total": sum(c["modality"][1] for c in cards),
         "qualifiers_kept": sum(c["qualifiers"][0] for c in cards),
         "qualifiers_total": sum(c["qualifiers"][1] for c in cards),
+        "arith_claims": sum(c["arith_claims"] for c in cards),
+        "attribution_by_type": {ct: tuple(sum(c["attribution_by_type"].get(ct, (0, 0))[i] for c in cards) for i in (0, 1))
+                                for ct in ("arithmetic", "entailment")},
+        "laundering": sum(c["laundering"][0] for c in cards),
+        "attributed_claims": sum(c["laundering"][1] for c in cards),
         "marked_claims": sum(n for k, n in v.items() if k[1] == "표지"),
         "demoted": sum(n for k, n in v.items() if k[2] == "DEMOTED"),
         "blocked": sum(n for k, n in v.items() if k[2] == "BLOCKED"),
@@ -209,7 +261,15 @@ def format_report(res: dict) -> str:
         ("격리 / 다시 쓰기", f"{sb['quarantine']} / {sb['revised']}", f"{sa['quarantine']} / {sa['revised']}"),
         ("claim 수(카드당 평균)", str(sb["claims_mean"]), str(sa["claims_mean"])),
         ("claim 수 10–22 밖 카드", str(sb["claims_out_of_range"]), str(sa["claims_out_of_range"])),
+        ("숫자형 claim", _pct(sb["arith_claims"], sb["claims_total"]), _pct(sa["arith_claims"], sa["claims_total"])),
         ("귀속 보존", _pct(sb["attribution_kept"], sb["attribution_total"]), _pct(sa["attribution_kept"], sa["attribution_total"])),
+        ("— 대응 claim 이 함의형(검증 AI 가 봄)", _pct(*sb["attribution_by_type"]["entailment"]),
+         _pct(*sa["attribution_by_type"]["entailment"])),
+        ("— 대응 claim 이 숫자형(숫자만 검사)", _pct(*sb["attribution_by_type"]["arithmetic"]),
+         _pct(*sa["attribution_by_type"]["arithmetic"])),
+        ("귀속 절의 대응 claim 없음", str(sb["attribution_unmatched"]), str(sa["attribution_unmatched"])),
+        ("요약보다 귀속이 센 claim(세탁 후보)", _pct(sb["laundering"], sb["attributed_claims"]),
+         _pct(sa["laundering"], sa["attributed_claims"])),
         ("양태 보존", _pct(sb["modality_kept"], sb["modality_total"]), _pct(sa["modality_kept"], sa["modality_total"])),
         ("수치 한정어 보존", _pct(sb["qualifiers_kept"], sb["qualifiers_total"]), _pct(sa["qualifiers_kept"], sa["qualifiers_total"])),
         ("표지 있는 claim", _pct(sb["marked_claims"], sb["claims_total"]), _pct(sa["marked_claims"], sa["claims_total"])),

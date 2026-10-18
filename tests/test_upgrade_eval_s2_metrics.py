@@ -14,9 +14,12 @@ def test_attr_marker_covers_present_and_connective_forms():
     """S1C 표본 점검에서 놓친 꼴('말하며'·'본다')까지 — 이름 붙이기('이라고 불리는')는 귀속이 아니다."""
     for s in ("글쓴이는 뒤집힐 수 있다고 본다.", "Runway는 시간을 잃는다고 말하며 줄이려 한다.", "OpenAI는 점수가 72%라고 밝혔다.",
               "보고서에 따르면 비용이 늘었다.", "발레스니는 확률을 10% 이상으로 추정했다.",
-              "Azhar는 CEO들로부터 예산이 늘고 있다고 들었다.", "Meta는 이 모델을 코딩 최적화 모델로 설명한다."):
+              "Azhar는 CEO들로부터 예산이 늘고 있다고 들었다.", "Meta는 이 모델을 코딩 최적화 모델로 설명한다.",
+              "웨이 회장은 텍사스에 실무팀을 보냈다고 했다.", "가장 강력한 모델이라고 MiMo 팀은 밝혔다.",
+              "약 8명뿐이었다고 The Atlantic의 팟캐스트에서 밝혔다."):
         assert m.ATTR.search(s), s
     assert not m.ATTR.search("GWM-1이라고 불리는 모델을 공개했다.")
+    assert not m.ATTR.search("원문에 따르면 데이터셋은 48개다.")       # 글 자체를 가리키는 말 — 말한 주체가 없다
 
 
 def test_attributed_clause_starts_at_nearest_clause_boundary():
@@ -31,6 +34,21 @@ def test_attribution_judged_on_best_matching_claim():
     assert m.attribution(SUMMARY, kept) == (1, 1, 0)
     assert m.attribution(SUMMARY, dropped) == (0, 1, 0)
     assert m.attribution(SUMMARY, ["Anthropic은 새 요금제를 내놓았다."]) == (0, 0, 1)
+
+
+def test_attribution_split_by_matched_claim_type():
+    """숫자형(arithmetic) claim 은 코드가 숫자만 검사하고 검증 AI 에 안 간다 — 그 안의 귀속은 아무도 확인하지 않는다.
+    그래서 귀속 보존을 대응 claim 의 종류로 나눠 본다."""
+    claims = [("OpenAI는 GPT-X의 SWE-bench Verified 점수가 최대 72%라고 밝혔다.", "arithmetic"),
+              ("GPT-X는 오늘 공개됐다.", "entailment")]
+    assert m.attribution_by_type(SUMMARY, claims) == {"arithmetic": (1, 1)}
+
+
+def test_laundering_counts_attributed_claim_whose_summary_sentence_asserts():
+    """리서치 위험 ②(세탁): claim 은 귀속됐는데 대응 요약 문장은 단정 — claim 은 통과해도 요약은 원문보다 세다."""
+    asserted = "GPT-X는 SWE-bench Verified에서 72%를 기록했다."
+    assert m.laundering(asserted, ["OpenAI는 GPT-X가 SWE-bench Verified에서 72%를 기록했다고 밝혔다."]) == (1, 1)
+    assert m.laundering(SUMMARY, ["OpenAI는 GPT-X의 SWE-bench Verified 점수가 최대 72%라고 밝혔다."]) == (0, 1)
 
 
 # ── 양태 · 수치 한정어 ────────────────────────────────────────────────────────
@@ -72,6 +90,7 @@ def test_card_metrics_counts_verdicts_by_type_and_group():
     c = m.card_metrics(rec)
     assert c["claims"] == 2 and c["revised"] is True
     assert c["attribution"] == (1, 1, 0) and c["qualifiers"] == (1, 1)
+    assert (c["arith_claims"], c["attribution_by_type"], c["laundering"]) == (1, {"arithmetic": (1, 1)}, (0, 1))
     assert c["verdicts"] == {("arithmetic", "표지", "VERIFIED"): 1, ("entailment", "단정", "DEMOTED"): 1}
 
 
