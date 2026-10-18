@@ -146,11 +146,26 @@ def test_user_prompt_flags_truncated_source():
     assert "절단" not in build_user_prompt(short, today="2026-07-17")
 
 
+def test_truncation_flag_fires_on_real_excerpt_with_spaces():
+    """F1(2026-10-17 감사): `_excerpt` 는 상한 안 마지막 공백에서 자르므로 실제 원문은 8,000자 *미만*으로 저장된다.
+
+    그래서 `>= 8000` 경고가 운영에서 한 번도 안 떴다(30일 원문 1,609건 중 ≥8,000자 0건, 7,900–7,999자 520건).
+    위 테스트의 '가'×8000(공백 없음)은 이 버그를 못 잡는다 — 실제처럼 공백 있는 원문을 진짜 `_excerpt` 에 통과시킨다.
+    """
+    from briefing.core.retrieval.sources import _excerpt
+
+    cut = _excerpt("word " * 2000)                      # 10,000자 → 단어 경계에서 잘림
+    assert 7900 <= len(cut) < 8000
+    assert "절단" in build_user_prompt(FrozenSource("id", "u", "t", cut, "ts"), today="2026-10-18")
+    natural = "word " * 1570                              # 7,850자 — 상한 전에 끝난 기사(운영 7,800–7,900자는 전부 자연 종료)
+    assert "절단" not in build_user_prompt(FrozenSource("id", "u", "t", natural.strip(), "ts"), today="2026-10-18")
+
+
 def test_prompt_version_matches_contract():
     """PROMPT_VERSION 은 fact_card_key 성분 — 계약을 바꾸고 안 올리면 구 카드가 새 것인 척 서빙된다."""
     from briefing.core.authoring.author import PROMPT_VERSION
 
-    assert PROMPT_VERSION == "represent-v3.4"
+    assert PROMPT_VERSION == "represent-v3.4.1"   # v3.4.1 = 절단 경고가 실제로 붙음(F1) — 잘린 원문의 카드가 바뀐다
 
 
 def test_author_system_prompt_has_reader_relevance_axis():

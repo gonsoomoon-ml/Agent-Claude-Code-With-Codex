@@ -23,7 +23,7 @@ from .. import _debug
 from ..config import Settings, UserConfig
 from ..lenses import resolve_lens
 from ..prompts import apply_prompt_template
-from ..retrieval.sources import MAX_SOURCE_CHARS
+from ..retrieval.sources import TRUNCATED_MIN_CHARS
 from ..stores.source_store import FrozenSource
 
 _AUTHOR_TIMEOUT_S = 360  # `claude -p` 한 카드(1회 호출) 작성 타임아웃(초). 느리지만-완료되는 호출 여유.
@@ -39,7 +39,10 @@ _AUTHOR_TIMEOUT_S = 360  # `claude -p` 한 카드(1회 호출) 작성 타임아�
 #   로 최대 8h 세션(agentcore_runtime) → 관측 브리핑 최대 46분 대비 전체 여유 압도적. num_turns=1(루프 없음).
 
 # 프롬프트 계약 버전 — 사실층 캐시 키 성분(계약이 바뀌면 캐시 자동 무효화). card-layering §5.
-PROMPT_VERSION = "represent-v3.4"  # v3.4: 선택 규칙에 독자 관련성 축(AI 사실 포함) 추가
+PROMPT_VERSION = "represent-v3.4.1"  # v3.4.1: 절단 경고가 실제로 붙는다(F1, 2026-10-18 — 이전엔 한 번도 안 떴다)
+# v3.4.1 근거: 경고 조건이 `>= 8000` 이었는데 `_excerpt` 가 단어 경계에서 잘라 잘린 원문도 7,9xx자로 저장됐다.
+#   올리는 이유 = 잘린 원문(30일 기준 32%)의 user 프롬프트가 바뀌므로, 구 카드가 새 계약인 척 캐시에서 서빙되면 안 된다.
+# v3.4(이전): 선택 규칙에 독자 관련성 축(AI 사실 포함) 추가
 # v3.4 근거(2026-07-27): 관련성 필터를 통과한 기사(안두릴 조달)의 요약에 AI 사실이 0건이었다.
 # ①~④ 는 전부 *기사 내부의 무게*만 재고 독자 관련성 축이 없어, 규칙대로 고르면 AI 사실이 탈락한다.
 # 포함(A)이지 재구성(B)이 아니다 — 프레이밍을 옮기면 certifier 가 못 잡는 왜곡이 된다.
@@ -147,14 +150,14 @@ def build_user_prompt(source: FrozenSource, *, today: str | None = None) -> str:
     """claude/agent 의 *user 메시지* (= 캐시 안 되는 동적 turn) = 오늘 날짜 + 동결 원문 + 지시.
 
     날짜·source 같은 *변하는 내용*은 여기(캐시 프리픽스 밖)에 둔다 → system 캐싱 보존. source.text 는 f-string(브레이스 안전).
-    **절단 플래그:** 소스의 28.6%가 본문 상한(MAX_SOURCE_CHARS)에서 잘린다 — base 계약의
+    **절단 플래그:** 소스의 32%가 본문 상한(8,000자)에서 잘린다(30일 실측) — base 계약의
     "본문 전체를 근거로"가 *물리적으로 없는 뒷부분*에 대한 추측 압력이 되지 않게 잘렸음을 알린다.
     """
     today = today or date.today().isoformat()
     warn = (
         "\n\n(이 원문은 본문 상한에서 **절단**되었다 — 기사의 뒷부분이 없을 수 있다. "
         "없는 결론·후속을 추정하지 마라.)"
-        if len(source.text) >= MAX_SOURCE_CHARS
+        if len(source.text) >= TRUNCATED_MIN_CHARS   # 잘린 원문은 단어 경계라 상한보다 짧다(F1)
         else ""
     )
     return (
