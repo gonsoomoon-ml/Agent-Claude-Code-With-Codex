@@ -60,6 +60,10 @@ def runtime_env(settings: Settings) -> dict[str, str]:
         "SUPERVISOR_MODEL_ID": settings.supervisor_model_id,
         "RELEVANCE_MODEL_ID": settings.relevance_model_id,
         "RELEVANCE_LLM_ENABLED": "1",   # require_ai 사전 필터 = Haiku LLM-as-Judge(키워드 폴백). IAM=기존 InvokeModel 로 충분.
+        # F3·F7: 요약 AI·해석층 effort 와 해석층 모델 — 설정한 값만 넘긴다(빈 값 = 상속/CLI 기본, 컨테이너도 같은 해석)
+        **{k: v for k, v in (("AUTHOR_EFFORT", settings.author_effort),
+                             ("INTERP_MODEL_ID", settings.interp_model_id),
+                             ("INTERP_EFFORT", settings.interp_effort)) if v},
         "SES_SENDER": settings.ses_sender,
         # ★ ③ DB: 클라우드는 dynamo backend(영속 — microVM ephemeral FS 를 넘어 source/cache/ledger 공유).
         #   테이블명 default 가 CFN(briefing-*)과 일치하므로 그 외 env 불필요. region=settings.region(us-east-1) 일치 필수.

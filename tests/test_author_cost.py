@@ -22,7 +22,7 @@ def test_run_author_records_cost(monkeypatch):
     monkeypatch.setattr(author.shutil, "rmtree", lambda *a, **k: None)
     monkeypatch.setattr(author.tempfile, "mkdtemp", lambda *a, **k: "/tmp/x")
     rec = UsageRecorder()
-    s = type("S", (), {"author_model_id": "m", "region": "r"})()
+    s = type("S", (), {"author_model_id": "m", "author_effort": "", "region": "r"})()
     out = author._run_author("sys", "usr", s, recorder=rec)
     assert out == "R"
     assert rec.total() == 0.05

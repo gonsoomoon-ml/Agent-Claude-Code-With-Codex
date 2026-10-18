@@ -223,3 +223,14 @@ def test_smoke_fns_never_touch_network_for_headline_sources(tmp_path, monkeypatc
     out = run_briefing(settings, SourceStore(settings.source_store_path), [user], window_hours=24, **smoke_fns())
     assert real_calls == []
     assert out[0].published >= 1
+
+
+def test_runtime_env_forwards_effort_and_interp_only_when_set(tmp_path):
+    """컨테이너는 .env 를 못 읽는다 — 설정한 값만 넘기고 빈 값은 빼서(빈 값 = 상속/CLI 기본) 컨테이너도 같은 해석."""
+    from briefing.runtime.deploy_runtime import runtime_env
+    unset = runtime_env(_settings(tmp_path, author_effort="", interp_model_id="", interp_effort=""))
+    assert not {"AUTHOR_EFFORT", "INTERP_MODEL_ID", "INTERP_EFFORT"} & unset.keys()
+    env = runtime_env(_settings(tmp_path, author_effort="medium",
+                                interp_model_id="global.anthropic.claude-sonnet-5", interp_effort="default"))
+    assert (env["AUTHOR_EFFORT"], env["INTERP_MODEL_ID"], env["INTERP_EFFORT"]) == (
+        "medium", "global.anthropic.claude-sonnet-5", "default")

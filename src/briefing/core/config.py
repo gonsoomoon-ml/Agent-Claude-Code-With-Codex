@@ -57,6 +57,23 @@ class Settings:
     oauth_provider_name: str    # AgentCore Identity 자격증명 provider — *Runtime* 이 비밀 없이 토큰 받는 경로
     # ── 발행 dedup(2026-10-16) — 같은 기사를 이 기간 안에 다시 보내지 않는다. 기본값이 있어 기존 생성자 무변경 ──
     dedup_lookback_days: int = DEFAULT_DEDUP_LOOKBACK_DAYS
+    # ── 요약 AI·해석층의 effort 와 해석층 모델(F3·F7, 2026-10-18) — 모델을 바꿀 때 effort·해석층이 조용히 따라 바뀌지 않게.
+    #    빈 값의 뜻은 호출 시점에 해석한다(author._run_author·draft_interpretation) — 컨테이너도 같은 해석. ──
+    author_effort: str = ""      # claude -p --effort. 빈 값·"default" = 플래그 생략(CLI 기본값)
+    interp_model_id: str = ""    # 해석층(관점별 why) 모델. 빈 값 = author_model_id
+    interp_effort: str = ""      # 해석층 effort. 빈 값 = author_effort, "default" = CLI 기본값 강제
+
+
+# claude -p --effort 에 넘길 수 있는 값 + 빈 값·"default"(플래그 생략). 오타는 시작 시 실패시킨다.
+EFFORT_LEVELS = ("", "default", "low", "medium", "high", "xhigh", "max")
+
+
+def _effort(raw: str, name: str) -> str:
+    """effort env 파싱 — 허용값이 아니면 시작 시 크래시(모든 카드가 claude 오류로 죽는 것보다 낫다)."""
+    v = raw.strip()
+    if v not in EFFORT_LEVELS:
+        raise ValueError(f"{name} 는 {', '.join(repr(x) for x in EFFORT_LEVELS)} 중 하나여야 함 (got {raw!r})")
+    return v
 
 
 def _positive_int(raw: str, name: str) -> int:
@@ -103,6 +120,9 @@ def load_settings() -> Settings:
         oauth_provider_name=g("OAUTH_PROVIDER_NAME", ""),
         dedup_lookback_days=_positive_int(g("DEDUP_LOOKBACK_DAYS", str(DEFAULT_DEDUP_LOOKBACK_DAYS)),
                                           "DEDUP_LOOKBACK_DAYS"),
+        author_effort=_effort(g("AUTHOR_EFFORT", ""), "AUTHOR_EFFORT"),
+        interp_model_id=g("INTERP_MODEL_ID", "").strip(),
+        interp_effort=_effort(g("INTERP_EFFORT", ""), "INTERP_EFFORT"),
     )
 
 

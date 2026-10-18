@@ -113,15 +113,16 @@ class Interpretation:
     based_on: tuple[str, ...]
 
 
-def bedrock_author_env(settings: Settings) -> dict[str, str]:
+def bedrock_author_env(settings: Settings, model_id: str = "") -> dict[str, str]:
     """`claude -p` 를 Bedrock 로 라우팅하는 env (스모크 검증된 조합) — author 의 *주* 경로.
 
     claude 의 기본 설정엔 Bedrock 라우팅이 없으므로 *호출 시* 주입한다(codex 가 자기 config 로 상주하는 것과 대조).
+    `model_id` — 해석층은 자기 모델을 넘긴다(F7). 비면 요약 AI 모델.
     """
     return {
         **os.environ,
         "CLAUDE_CODE_USE_BEDROCK": "1",
-        "ANTHROPIC_MODEL": settings.author_model_id,   # inference-profile prefix (global./us.)
+        "ANTHROPIC_MODEL": model_id or settings.author_model_id,   # inference-profile prefix (global./us.)
         "AWS_REGION": settings.region,
         "ENABLE_TOOL_SEARCH": "false",
     }
@@ -269,7 +270,10 @@ def draft_interpretation(
     system_prompt = build_interp_system_prompt(lens_guidance=resolve_lens(user.lens).guidance)
     text = _run_author(
         system_prompt, build_interp_user_prompt(source, verified_claims, summary=summary),
-        settings, recorder=recorder
+        settings, recorder=recorder,
+        # F7: 해석층은 자기 모델·effort — 비면 요약 AI 값을 따른다('default' 는 CLI 기본값 강제)
+        model_id=settings.interp_model_id or settings.author_model_id,
+        effort=settings.interp_effort or settings.author_effort,
     )
     return _parse_interp(text)
 
@@ -288,7 +292,8 @@ def _parse_interp(text: str) -> Interpretation:
 # ───────────────────────── headless `claude -p` 호출 (Claude Code, clean dir, Bedrock env) ─────────────────────────
 
 def _run_author(
-    system_prompt: str, user_prompt: str, settings: Settings, *, recorder=None
+    system_prompt: str, user_prompt: str, settings: Settings, *, recorder=None,
+    model_id: str = "", effort: str | None = None,
 ) -> str:
     """headless `claude -p`(Claude Code) on Bedrock → 최종 답변 텍스트.
 
@@ -298,12 +303,17 @@ def _run_author(
 
     `recorder`(옵션, 기본 None) — 주어지면 봉투의 정확한 total_cost_usd 를 기록(`UsageRecorder`).
     role/권한을 모르는 순수 비용 sink — 이 함수는 recorder 가 *무엇을 위한 것인지* 모른다(신뢰 경계).
+    `model_id`·`effort`(F3·F7) — 생략하면 요약 AI 값(author_model_id·author_effort). 해석층이 자기 값을 넘긴다.
+    effort 가 빈 값이나 'default' 면 `--effort` 를 붙이지 않는다 = CLI 기본값(배선 전과 같은 명령).
     """
+    model_id = model_id or settings.author_model_id
+    effort = settings.author_effort if effort is None else effort
     _debug.dprint(
         "author → claude -p",
         f"clean dir · --system-prompt({len(system_prompt)}c) · user({len(user_prompt)}c) · "
-        f"model={settings.author_model_id}",
+        f"model={model_id} · effort={effort or 'CLI 기본'}",
     )
+    effort_args = ["--effort", effort] if effort and effort != "default" else []
     clean_dir = tempfile.mkdtemp(prefix="author-clean-")  # 빈 dir → repo 컨텍스트 미상속(격리)
     t0 = time.monotonic()
     try:
@@ -312,13 +322,14 @@ def _run_author(
                 "claude", "-p",
                 "--system-prompt", system_prompt,
                 "--output-format", "json",
+                *effort_args,
                 user_prompt,
             ],
             cwd=clean_dir,
             capture_output=True,
             text=True,
             timeout=_AUTHOR_TIMEOUT_S,
-            env=bedrock_author_env(settings),
+            env=bedrock_author_env(settings, model_id),
             stdin=subprocess.DEVNULL,
             check=False,
         )

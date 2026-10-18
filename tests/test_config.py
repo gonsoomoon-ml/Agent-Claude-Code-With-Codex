@@ -103,3 +103,28 @@ def test_dedup_lookback_days_rejects_non_positive(monkeypatch, bad):
     monkeypatch.setenv("DEDUP_LOOKBACK_DAYS", bad)
     with pytest.raises(ValueError, match="DEDUP_LOOKBACK_DAYS"):
         load_settings()
+
+
+def test_effort_and_interp_settings_default_empty(monkeypatch):
+    """F3·F7: 키가 없으면 빈 값 — 요약 AI 는 CLI 기본 effort, 해석층은 요약 AI 값을 따른다(호출 시 해석)."""
+    for k in ("AUTHOR_EFFORT", "INTERP_MODEL_ID", "INTERP_EFFORT"):
+        monkeypatch.delenv(k, raising=False)
+    s = load_settings()
+    assert (s.author_effort, s.interp_model_id, s.interp_effort) == ("", "", "")
+
+
+def test_effort_and_interp_settings_read_from_env(monkeypatch):
+    monkeypatch.setenv("AUTHOR_EFFORT", " medium ")
+    monkeypatch.setenv("INTERP_MODEL_ID", "global.anthropic.claude-sonnet-5")
+    monkeypatch.setenv("INTERP_EFFORT", "default")
+    s = load_settings()
+    assert (s.author_effort, s.interp_model_id, s.interp_effort) == (
+        "medium", "global.anthropic.claude-sonnet-5", "default")
+
+
+@pytest.mark.parametrize("key", ["AUTHOR_EFFORT", "INTERP_EFFORT"])
+def test_unknown_effort_fails_at_startup(monkeypatch, key):
+    """오타(예: meduim)는 시작 시 실패 — 모든 카드가 claude 오류로 죽는 것보다 낫다(silent 오설정 금지)."""
+    monkeypatch.setenv(key, "meduim")
+    with pytest.raises(ValueError, match=key):
+        load_settings()
