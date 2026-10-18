@@ -53,7 +53,7 @@ export default function Admin() {
             <th style={TH}>발송시각</th>
             <th style={TH}>기사</th>
             <th style={TH}>소요</th>
-            <th style={TH}>비용</th>
+            <th style={TH}>비용(목록가)</th>
             <th style={TH}>상태</th>
           </tr>
         </thead>
@@ -72,9 +72,13 @@ export default function Admin() {
       </table>
       {totals && (
         <p style={{ marginTop: 10, fontSize: 13, color: 'var(--text-dim)' }}>
-          합계 · {totals.count}건 · ≈${(totals.cost_usd ?? 0).toFixed(2)} · 평균 {mins(totals.avg_duration_ms ?? 0)}
+          합계 · {totals.count}건 · 목록가 ≈${(totals.cost_usd ?? 0).toFixed(2)} · 평균 {mins(totals.avg_duration_ms ?? 0)}
         </p>
       )}
+      {/* 비용 = 요약 AI(청구 단가와 같음) + 검증 AI(토큰 × 목록가). OpenAI 사용료는 이 계정에 청구되지 않는다(Cost Explorer $0). */}
+      <p style={{ marginTop: 4, fontSize: 12, color: 'var(--text-dim)' }}>
+        비용은 목록가 환산 — 검증 AI(OpenAI) 사용료는 이 계정에 청구되지 않음
+      </p>
     </div>
   )
 }

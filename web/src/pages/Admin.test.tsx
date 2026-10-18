@@ -65,3 +65,15 @@ describe('Admin dashboard', () => {
     expect(authedFetch).not.toHaveBeenCalled()
   })
 })
+
+describe('Admin 비용 표시', () => {
+  it('비용은 목록가 환산이라고 밝힌다 — 검증 AI(OpenAI) 사용료는 실제로 청구되지 않는다', async () => {
+    vi.mocked(isAuthed).mockReturnValue(true)
+    vi.mocked(isAdmin).mockReturnValue(true)
+    render(<Admin />)
+    const table = await screen.findByRole('table')
+    expect(within(table).getByRole('columnheader', { name: '비용(목록가)' })).toBeInTheDocument()
+    expect(await screen.findByText(/합계/)).toHaveTextContent('목록가 ≈$1.08')
+    expect(screen.getByText(/목록가 환산/)).toBeInTheDocument()
+  })
+})

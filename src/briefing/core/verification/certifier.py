@@ -19,7 +19,8 @@ import shutil
 import subprocess
 import tempfile
 import time
-from dataclasses import dataclass
+import tomllib
+from dataclasses import dataclass, field
 from typing import Literal
 
 from .. import _debug
@@ -29,7 +30,8 @@ Verdict = Literal["VERIFIED", "DEMOTED", "BLOCKED"]
 
 # `codex exec` 명령 — codex 는 모델을 자기 config 로 소유(우리가 안 정함). 환경별로 플래그 조정 가능한 seam.
 # --skip-git-repo-check: clean(비-git) dir 에서 실행하므로 필수(decorrelation 격리의 대가).
-_CODEX_CMD: tuple[str, ...] = ("codex", "exec", "--skip-git-repo-check")
+# --json: 이벤트 줄로 받아 최종 답과 토큰 사용량을 함께 읽는다(F5 — 비용 실측). 입력(envelope)은 그대로.
+_CODEX_CMD: tuple[str, ...] = ("codex", "exec", "--skip-git-repo-check", "--json")
 _CODEX_TIMEOUT_S = 120
 
 # 숫자 토큰(천단위 콤마·소수·퍼센트 허용) — 산술 결정론 재도출용.
@@ -54,6 +56,8 @@ class CertVerdict:
     verdict: Verdict
     evidence: str    # certifier 가 가리킨 원문 근거 구절
     model: str = ""  # 검증 출처 provenance: "deterministic"(산술) | "codex"(함의) | "codex-error"(폴백)
+    # codex 토큰 사용량(turn.completed.usage) — 그 run 의 비용 기록용(F5). 비교·캐시 형식에서는 뺀다.
+    usage: dict = field(default_factory=dict, compare=False, repr=False)
 
 
 def certify(claim_id: str, envelope: Envelope) -> CertVerdict:
@@ -168,6 +172,41 @@ def _run_codex(prompt: str, *, timeout: int = _CODEX_TIMEOUT_S) -> str:
     return proc.stdout
 
 
+def _parse_codex_events(stdout: str) -> tuple[str, dict]:
+    """`codex exec --json` 이벤트 줄 → (마지막 agent_message 텍스트, 마지막 turn.completed usage).
+
+    최종 답 이벤트가 없으면 stdout 전체를 돌려준다(평문 출력·오류 — 호출자의 `_last_json_object` 가 fail-closed 로 처리).
+    0.142.2·0.163.0 실제 출력으로 검증한 실험 U3 파서와 같은 규칙(tests/fixtures/codex_json_sample_*.jsonl).
+    """
+    final, usage = None, {}
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        item = event.get("item")
+        if event.get("type") == "item.completed" and isinstance(item, dict) and item.get("type") == "agent_message":
+            final = item.get("text")
+        elif event.get("type") == "turn.completed":
+            usage = event.get("usage") or {}
+    return (final if isinstance(final, str) else stdout), usage
+
+
+def codex_model_id() -> str:
+    """codex 가 쓰는 검증 모델 id — codex 자신의 설정(`$CODEX_HOME` 또는 `~/.codex` 의 config.toml)의 `model`.
+
+    우리는 정하지 않고 읽기만 한다(비용 단가를 고르는 데만 쓴다). 못 읽으면 빈 문자열.
+    """
+    home = os.environ.get("CODEX_HOME") or os.path.join(os.path.expanduser("~"), ".codex")
+    try:
+        with open(os.path.join(home, "config.toml"), "rb") as f:
+            return str(tomllib.load(f).get("model", ""))
+    except (OSError, ValueError):   # 파일 없음·TOML 오류(TOMLDecodeError 는 ValueError)
+        return ""
+
+
 def _last_json_object(text: str) -> dict | None:
     """noisy stdout 에서 *마지막으로 파싱되는* JSON object 추출 (codex 로그/추론 뒤의 최종 답)."""
     candidates: list[str] = []
@@ -203,11 +242,12 @@ def _certify_entailment(claim_id: str, envelope: Envelope) -> CertVerdict:
         stdout = _run_codex(prompt)
     except Exception as exc:  # noqa: BLE001 — 어떤 실패든 보수적으로 (fail-closed)
         return CertVerdict(claim_id, "DEMOTED", f"certifier 미가용(보수적 미확인): {exc}", "codex-error")
-    obj = _last_json_object(stdout)
+    text, usage = _parse_codex_events(stdout)
+    obj = _last_json_object(text)
     if obj is None:
-        return CertVerdict(claim_id, "DEMOTED", "certifier 출력 파싱 불가(보수적 미확인)", "codex")
+        return CertVerdict(claim_id, "DEMOTED", "certifier 출력 파싱 불가(보수적 미확인)", "codex", usage)
     verdict = str(obj.get("verdict", "")).upper()
     if verdict not in ("VERIFIED", "DEMOTED", "BLOCKED"):
-        return CertVerdict(claim_id, "DEMOTED", f"미상 verdict: {verdict!r}", "codex")
+        return CertVerdict(claim_id, "DEMOTED", f"미상 verdict: {verdict!r}", "codex", usage)
     evidence = str(obj.get("evidence", ""))[:500]
-    return CertVerdict(claim_id, verdict, evidence, "codex")  # type: ignore[arg-type]
+    return CertVerdict(claim_id, verdict, evidence, "codex", usage)  # type: ignore[arg-type]

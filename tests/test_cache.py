@@ -118,3 +118,13 @@ def test_deserialize_old_card_without_based_on():
     d = _serialize(_gated())
     d["card"].pop("based_on", None)          # 2026-07-28 이전 형식 재현
     assert _deserialize(d).card.based_on == ()
+
+
+def test_cache_format_leaves_out_token_usage():
+    """검증 AI 토큰 사용량은 그 run 의 비용 기록용 — 캐시 형식에는 넣지 않는다(되돌린 이전 버전도 새 항목을 그대로 읽게)."""
+    g = GatedCard(
+        DraftCard("S", "헤드라인", "요약", "왜", (Claim("C1", "함의 주장.", "entailment", "core"),)),
+        (CertVerdict("C1", "VERIFIED", "ev", "codex", {"input_tokens": 9, "output_tokens": 1}),), "PUBLISH", 1)
+    d = _serialize(g)
+    assert set(d["verdicts"][0]) == {"claim_id", "verdict", "evidence", "model"}
+    assert _deserialize(d) == g   # usage 는 비교에서 빠진다(compare=False)
