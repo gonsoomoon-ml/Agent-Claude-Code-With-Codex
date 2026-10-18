@@ -21,8 +21,12 @@
 - **반올림 관용 금지** — 부동소수 표현 오차(rel 1e-9)만. '500만 vs one million'(5배)을 놓치면 안 된다.
 - **월 이름은 대소문자 구분** — 'May'(월) vs 'may'(조동사). 소문자까지 먹으면 원문의 흔한 'may' 가
   월 5 를 만들어 거짓 VERIFIED 를 낸다.
+- **문맥 칸(ctx, F2 2026-10-18)** — 원문의 숫자 없는 문맥 표현('per million'·'triple'·'ranks second'·
+  'the second quarter')은 수량이 아니라서 values 에 넣지 않고 문맥 칸(per·mult·rank·quarter)에만 담는다.
+  claim 쪽은 같은 문맥 표지 앞의 숫자('100만 개당'·'3배'·'2위'·'2분기')만 그 칸으로 확인한다(certifier).
+  넣으면 'per million' 이 '100만 달러' 날조를 인증한다(SY09).
 
-회귀셋 `tests/eval_set/cases.jsonl` 이 이 규칙들을 케이스로 고정한다(위양성 20 + 진양성 8, 지름길 정조준).
+회귀셋 `tests/eval_set/cases.jsonl` 이 이 규칙들을 케이스로 고정한다(운영 위양성 + 합성 진양성 쌍, 지름길 정조준).
 """
 from __future__ import annotations
 
@@ -55,6 +59,12 @@ _EN_MULT = {"twice": 2, "doubled": 2, "tripled": 3, "quadrupled": 4, "quintupled
 _MULT_ALT = "|".join(sorted(_EN_MULT, key=len, reverse=True))
 # 'doubled down'·'double-digit' 류 관용구 제외. 'doubled' 뒤에 down/up/digit 이 오면 배수가 아니다.
 _RE_MULT = re.compile(rf"\b({_MULT_ALT})\b(?!\s*(?:down|up|digit))", re.I)
+# 배수 원형·-fold('triple their donation'·'fivefold') — 위 _EN_MULT 와 달리 **values 가 아니라 '배' 문맥 칸**에
+# 담는다(F2). 원형은 관용구가 많아('doubling down'·'doubles as'·'double-check'·'triple-A') 수량 칸에 넣으면
+# 원문에 없는 2·3 을 창조한다(SY11·SY12). 하이픈 복합어와 down/up/digit/as 가 뒤따르면 배수가 아니다.
+_MULT_STEM = {"doubl": 2, "tripl": 3, "quadrupl": 4}
+_RE_MULT_CTX = re.compile(
+    r"\b(doubl|tripl|quadrupl)(?:e|es|ing)\b(?![\s-]*(?:down|up|digits?|as)\b)(?!-)", re.I)
 # 서수 — 수량과 *다른 네임스페이스*. 'third-party'↔'제3자' 동치는 인정하되 수량 3 은 못 만든다.
 _EN_ORD = {
     "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6,
@@ -108,6 +118,11 @@ _RE_KO_GROUP = re.compile(rf"({_NUM})\s*({'|'.join(_KO_SUB)})?\s*({'|'.join(_KO_
 # 만 단위 뒤에 붙는 천/백/십 자리 — '16만 5천'(=165,000). 이 꼬리를 못 읽으면 {160000, 5} 로 흩어져
 # 원문 '165,000' 과 영영 안 맞는다(실측 위양성).
 _RE_KO_TAIL = re.compile(rf"\s*({_NUM})\s*({'|'.join(_KO_SUB)}){_KO_BOUND}")
+# 만 뒤의 *맨숫자* 꼬리 — '1만2000'·'1만 9,500'·'72만5,000'(=725,000)(F2). 이걸 못 읽으면 {10000, 2000} 으로
+# 흩어져 원문 '12,000' 과 영영 안 맞고(30일 운영 위양성 7건), 거꾸로 한국어 원문 '1만8000대'가 거짓 '8000대'
+# claim 을 인증한다(SY19). 꼬리는 1만 미만이고 사이에 공백만 허용 — 쉼표면 목록('1만, 2000원'), 뒤에 숫자가
+# 이어지거나(2,000,000) 만/억/조/천/백/십이 오면 꼬리가 아니라 다른 수다.
+_RE_KO_DIGIT_TAIL = re.compile(r"[ \t]*(\d,\d{3}|\d{1,4})(?!\d|[.,]\d|\s*[십백천만억조])")
 # 만/억/조 **없이** 쓰이는 보조배수 — '5천 명'(=5,000)·'3백 명'(=300). _RE_KO_GROUP 은 만/억/조를
 # 필수로 요구해 이걸 놓쳤고, 그러면 뒤의 맨숫자 스캔이 '5' 만 주워 **1000배 축소된 값**이 된다
 # → 원문의 무관한 맨숫자 5 가 '5천 명' claim 을 인증한다(적대 검증에서 실증). _RE_KO_GROUP 뒤에 적용.
@@ -140,6 +155,36 @@ _RE_EN_SUFFIX = re.compile(rf"\b({_NUM})\s*([BMK])(?![A-Za-z0-9])")
 _RE_IDIOM_ONE = re.compile(r"\bone of (?:the|its|his|her|their|our)\b", re.I)
 _RE_EN_CARD = re.compile(rf"\b({_CARD_ALT})\b", re.I)
 _RE_PLAIN = re.compile(_NUM)
+# decades·centuries — 'nearly four decades' = 40(년)(F2). 통째로 소비해 기수 4 가 따로 새지 않게 한다(SY15).
+_DECADE_YEARS = {"decade": 10, "centur": 100}
+_RE_DECADE = re.compile(rf"\b(?:({_NUM})|(a|an|{_CARD_ALT}))[\s-]+(decade|centur)(?:s|y|ies)?\b", re.I)
+
+# ── 문맥 칸 패턴(F2) — 여기서 나온 값은 values 가 아니라 Nums.ctx 로만 간다 ─────────────────────
+# 숫자 없는 단가 분모 — '$2 per million input tokens'. 숫자가 붙은 'per 1 million'·'per 1M' 은 원래대로 values.
+_RE_PER_SCALE = re.compile(rf"\bper\s+(?:a\s+)?({_SCALE_ALT})\b", re.I)
+# '-fold' 배수 — 'fivefold'·'two-fold'·'tenfold'. 단어 목록으로 한정('manifold'·'scaffold' 배제).
+# 숫자형('5-fold')은 손대지 않는다: 그 5 는 이미 values 에 있고, '5-fold 교차검증'처럼 배수가 아닐 때도 많다.
+_RE_FOLD = re.compile(rf"\b({_CARD_ALT}|hundred|thousand)[\s-]?fold\b", re.I)
+# 분기 — 'the second quarter'·'third-quarter'·'Q3'. 원문에서 *읽기만* 한다(서수 소비는 종전대로).
+_QUARTER_ORD = {"first": 1, "second": 2, "third": 3, "fourth": 4, "1st": 1, "2nd": 2, "3rd": 3, "4th": 4}
+_RE_QUARTER = re.compile(r"\b(first|second|third|fourth|1st|2nd|3rd|4th)[\s-]+quarters?\b|\bQ([1-4])\b", re.I)
+# 순위 — 순위 문맥의 서수만: 'ranks second'·'finished third'·'sits in first'·'put it in eighth'·'first place'.
+# ★ 서수라면 아무거나 받으면 'third-party'·'for the first time' 이 'N위' 날조를 인증한다(SY17).
+_RANK_ORD = rf"{_ORD_ALT}|\d+(?:st|nd|rd|th)"
+_RE_RANK = re.compile(
+    rf"\b(?:rank(?:s|ed|ing)?|placed|finish(?:ed|es)?|(?:came|comes|sits|sat|lands|landed)\s+in)"
+    rf"\s+(?:at\s+)?({_RANK_ORD})\b"
+    rf"|\bput(?:s|ting)?\s+(?:\S+\s+){{1,2}}?in\s+({_RANK_ORD})\b"
+    rf"|\b({_RANK_ORD})[\s-]+(?:place|spot|position)\b",
+    re.I)
+# 한국어 문맥 표지 — 숫자 *바로 뒤*에 붙는 것. '0.1위안'(통화)·'위원회'는 순위가 아니다.
+_KO_CTX = (
+    ("quarter", re.compile(r"\s*분기")),
+    ("rank", re.compile(r"\s*위(?![안원해성험치협])")),
+    ("mult", re.compile(r"\s*배")),
+    ("per", re.compile(r"\s*[가-힣A-Za-z]{0,4}당(?![가-힣])")),
+)
+_CTX_KINDS = ("per", "mult", "rank", "quarter")
 
 
 @dataclass(frozen=True)
@@ -149,9 +194,14 @@ class Nums:
     months: set[int] = field(default_factory=set)      # 1~12
     ordinals: set[int] = field(default_factory=set)    # 제N·Nth
     percents: set[float] = field(default_factory=set)  # 파생 가능 → 정책상 DEMOTED
+    # values 중 한국어 문맥 표지('당·배·위·분기')가 *붙지 않은* 자리에서 나온 값(F2). claim 의 이 값은 종전대로
+    # 원문 values 로만 대조하고, 표지가 붙은 값은 ctx 로 넓혀 대조한다(certifier). values 의미는 그대로다.
+    plain: set[float] = field(default_factory=set)
+    # 문맥 칸 — per(단가 분모)·mult(배수)·rank(순위)·quarter(분기). 영어 문맥 표현의 값은 **여기에만** 들어간다.
+    ctx: dict[str, set[float]] = field(default_factory=dict)
 
     def empty(self) -> bool:
-        return not (self.values or self.months or self.ordinals or self.percents)
+        return not (self.values or self.months or self.ordinals or self.percents or any(self.ctx.values()))
 
 
 def _val(s: str) -> float:
@@ -160,7 +210,7 @@ def _val(s: str) -> float:
 
 def _num_or_word(tok: str) -> float:
     low = tok.lower()
-    if low == "a":  # 'a third' = 1/3 — 영어는 분자 1 을 관사로 쓴다
+    if low in ("a", "an"):  # 'a third' = 1/3 — 영어는 분자 1 을 관사로 쓴다
         return 1.0
     return float(_EN_CARD[low]) if low in _EN_CARD else _val(tok)
 
@@ -182,11 +232,18 @@ def _ratio(numer: float, denom: float) -> float | None:
 
 def scan(text: str) -> Nums:
     """텍스트 → 값 집합. 큰 표현부터 소비하며 마스킹한다 — **순서가 곧 정확성**이다."""
-    values: set[float] = set()
     months: set[int] = set()
     ordinals: set[int] = set()
     percents: set[float] = set()
-    work = text or ""
+    ctx: dict[str, set[float]] = {k: set() for k in _CTX_KINDS}
+    # 수량 값과 그 값이 원문에서 끝나는 위치 — 끝에서 한국어 문맥 표지('당·배·위·분기')가 붙었는지 본다.
+    # 마스킹은 같은 길이의 공백으로 덮으므로 work 의 위치가 곧 원문(orig)의 위치다.
+    occ: list[tuple[float, int]] = []
+    orig = text or ""
+    work = orig
+
+    def val(v: float, end: int) -> None:
+        occ.append((v, end))
 
     def consume(rx: re.Pattern[str], fn) -> None:
         nonlocal work
@@ -197,25 +254,32 @@ def scan(text: str) -> Nums:
             fn(m)
             work = _mask(work, m.start(), m.end())
 
+    # ⓪ 문맥 칸(읽기만) — 분기·순위는 서수로 쓰여서, ⑤ 가 서수를 소비하기 *전에* 원문에서 읽는다.
+    for m in _RE_QUARTER.finditer(orig):
+        ctx["quarter"].add(float(_QUARTER_ORD[m.group(1).lower()] if m.group(1) else int(m.group(2))))
+    for m in _RE_RANK.finditer(orig):
+        tok = next(g for g in m.groups() if g).lower()
+        ctx["rank"].add(float(_EN_ORD[tok] if tok in _EN_ORD else int(re.match(r"\d+", tok).group())))
+
     # ① 퍼센트 — 원문 수치에서 *파생*됐을 수 있어 별도 정책(누락 시 BLOCK 아니라 DEMOTED).
     consume(_RE_PERCENT, lambda m: percents.add(_val(m.group(1))))
 
     # ② 분수 × 스케일 — 'half a million'=5e5. 분수·스케일 규칙 **둘 다보다 먼저**(위 패턴 주석 참조).
     #    분모는 _EN_DENOM(상수)이라 0 이 될 수 없다 — 분모 0 위험은 아래 ③(원문 숫자가 분모)에 있다.
-    consume(_RE_FRAC_SCALE, lambda m: values.add(
+    consume(_RE_FRAC_SCALE, lambda m: val(
         (_num_or_word(m.group(1)) if m.group(1) else 1.0)
-        / _EN_DENOM[m.group(2).lower()] * _EN_SCALE[m.group(3).lower()]))
+        / _EN_DENOM[m.group(2).lower()] * _EN_SCALE[m.group(3).lower()], m.end()))
 
     # ③ 분수 — 맨숫자보다 먼저. 'two-thirds'를 {2,3}으로 흘리면 순서 반전 오류를 놓친다.
     #    분모 0 은 값을 만들지 않는다(_ratio → None). 소비는 하므로 뒤 패턴이 재해석하지 않는다.
-    def _add_ratio(numer: float, denom: float) -> None:
+    def _add_ratio(numer: float, denom: float, end: int) -> None:
         r = _ratio(numer, denom)
         if r is not None:
-            values.add(r)
-    consume(_RE_FRAC_KO, lambda m: _add_ratio(_val(m.group(2)), _val(m.group(1))))
-    consume(_RE_FRAC_KO_IN, lambda m: _add_ratio(_val(m.group(2)), _val(m.group(1))))
-    consume(_RE_FRAC_EN, lambda m: _add_ratio(_num_or_word(m.group(1)), _EN_DENOM[m.group(2).lower()]))
-    consume(_RE_FRAC_EN_IN, lambda m: _add_ratio(_num_or_word(m.group(1)), _num_or_word(m.group(2))))
+            val(r, end)
+    consume(_RE_FRAC_KO, lambda m: _add_ratio(_val(m.group(2)), _val(m.group(1)), m.end()))
+    consume(_RE_FRAC_KO_IN, lambda m: _add_ratio(_val(m.group(2)), _val(m.group(1)), m.end()))
+    consume(_RE_FRAC_EN, lambda m: _add_ratio(_num_or_word(m.group(1)), _EN_DENOM[m.group(2).lower()], m.end()))
+    consume(_RE_FRAC_EN_IN, lambda m: _add_ratio(_num_or_word(m.group(1)), _num_or_word(m.group(2)), m.end()))
 
     # ④ 어휘화된 숫자 — 값으로 세지 않고 버린다.
     consume(_RE_LEXICAL, lambda m: None)
@@ -223,7 +287,8 @@ def scan(text: str) -> Nums:
     # ④ 월 — 별도 네임스페이스. ISO 날짜는 연/월/일을 제자리에.
     def _iso(m: re.Match[str]) -> None:
         months.add(int(m.group(2)))
-        values.update({_val(m.group(1)), float(int(m.group(3)))})
+        val(_val(m.group(1)), m.end())
+        val(float(int(m.group(3))), m.end())
     consume(_RE_ISO_DATE, _iso)
     consume(_RE_MONTH_KO, lambda m: months.add(int(_val(m.group(1)))))
     consume(_RE_MONTH_EN, lambda m: months.add(_MONTHS[m.group(1)]))
@@ -233,45 +298,64 @@ def scan(text: str) -> Nums:
     consume(_RE_ORD_DIGIT, lambda m: ordinals.add(int(m.group(1))))
     consume(_RE_ORD_EN, lambda m: ordinals.add(_EN_ORD[m.group(1).lower()]))
 
-    # ⑥ 한국어 만/억/조 — 체이닝('4억 6,600만' = 4.66e8)까지 한 값으로.
-    work = _scan_ko_groups(work, values)
+    # ⑥ 한국어 만/억/조 — 체이닝('4억 6,600만' = 4.66e8)·꼬리('16만 5천'·'1만2000')까지 한 값으로.
+    work = _scan_ko_groups(work, val)
 
     # ⑥-b 만/억/조 없는 보조배수('5천 명'=5,000) — ⑥ 뒤라야 '5천만'의 천을 다시 읽지 않는다.
-    consume(_RE_KO_SUB_ONLY, lambda m: values.add(_val(m.group(1)) * _KO_SUB[m.group(2)]))
+    consume(_RE_KO_SUB_ONLY, lambda m: val(_val(m.group(1)) * _KO_SUB[m.group(2)], m.end()))
+
+    # ⑥-c decades·centuries('four decades'=40) — 기수 스캔(⑨) 전에 통째로.
+    consume(_RE_DECADE, lambda m: val(
+        (_val(m.group(1)) if m.group(1) else _num_or_word(m.group(2)))
+        * _DECADE_YEARS[m.group(3).lower()], m.end()))
+
+    # ⑥-d 숫자 없는 'per million' — 수량이 아니라 단가의 분모. values 가 아니라 문맥 칸으로.
+    consume(_RE_PER_SCALE, lambda m: ctx["per"].add(float(_EN_SCALE[m.group(1).lower()])))
 
     # ⑦ 등위 생략 스케일 — '0.8 and 4 billion' = {8e8, 4e9}. 반드시 단일 스케일 구보다 먼저.
     #    단 앞이 제품명이면(= 'Gemini 3.5 and 4.8 billion') 첫 수는 버전이라 스케일을 공유하지 않는다.
     def _pair(m: re.Match[str]) -> None:
         scale = _EN_SCALE[m.group(3).lower()]
-        values.add(_val(m.group(2)) * scale)          # 뒤 수는 항상 스케일과 결합
+        val(_val(m.group(2)) * scale, m.end())          # 뒤 수는 항상 스케일과 결합
         if not _RE_PROPER_BEFORE.search(work[:m.start()]):
-            values.add(_val(m.group(1)) * scale)      # 등위일 때만 앞 수도 결합
+            val(_val(m.group(1)) * scale, m.end())      # 등위일 때만 앞 수도 결합
         else:
-            values.add(_val(m.group(1)))              # 버전 번호 — 그대로 둔다
+            val(_val(m.group(1)), m.end())              # 버전 번호 — 그대로 둔다
     consume(_RE_EN_SCALE_PAIR, _pair)
 
     # ⑧ 영어 스케일 구 — 'one million' 을 통째로 1e6 으로 소비(SY02 방어의 핵심).
-    consume(_RE_EN_SCALE, lambda m: values.add(
+    consume(_RE_EN_SCALE, lambda m: val(
         (_val(m.group(1)) if m.group(1) else _num_or_word(m.group(2)))
-        * _EN_SCALE[m.group(3).lower()]))
-    consume(_RE_EN_SUFFIX, lambda m: values.add(_val(m.group(1)) * _EN_SUFFIX[m.group(2).lower()]))
+        * _EN_SCALE[m.group(3).lower()], m.end()))
+    consume(_RE_EN_SUFFIX, lambda m: val(_val(m.group(1)) * _EN_SUFFIX[m.group(2).lower()], m.end()))
 
     # ⑧ 배수 동사('tripled'=3배) — 관용구(doubled down·double-digit)는 _RE_MULT 가 배제.
-    consume(_RE_MULT, lambda m: values.add(float(_EN_MULT[m.group(1).lower()])))
+    consume(_RE_MULT, lambda m: val(float(_EN_MULT[m.group(1).lower()]), m.end()))
+
+    # ⑧-a 배수 원형·-fold('triple'·'fivefold') — values 가 아니라 '배' 문맥 칸으로(SY11·SY12).
+    consume(_RE_MULT_CTX, lambda m: ctx["mult"].add(float(_MULT_STEM[m.group(1).lower()])))
+    consume(_RE_FOLD, lambda m: ctx["mult"].add(float(
+        {"hundred": 100, "thousand": 1000}.get(m.group(1).lower()) or _EN_CARD[m.group(1).lower()])))
 
     # ⑧-b 관용구의 'one' 소비(값 없음) — 기수 스캔 전이라야 1 로 새지 않는다.
     consume(_RE_IDIOM_ONE, lambda m: None)
 
     # ⑨ 남은 기수 단어. 스케일 구 뒤라야 'one million' 의 'one' 이 1 로 새지 않는다.
-    consume(_RE_EN_CARD, lambda m: values.add(float(_EN_CARD[m.group(1).lower()])))
+    consume(_RE_EN_CARD, lambda m: val(float(_EN_CARD[m.group(1).lower()]), m.end()))
 
     # ⑨ 남은 맨숫자.
-    consume(_RE_PLAIN, lambda m: values.add(_val(m.group())))
-    return Nums(values, months, ordinals, percents)
+    consume(_RE_PLAIN, lambda m: val(_val(m.group()), m.end()))
+
+    # ⑩ 한국어 문맥 표지 — 값 바로 뒤가 '당·배·위·분기'면 그 문맥 칸, 아니면 plain.
+    plain: set[float] = set()
+    for v, end in occ:
+        kind = next((k for k, rx in _KO_CTX if rx.match(orig, end)), None)
+        (ctx[kind] if kind else plain).add(v)
+    return Nums({v for v, _ in occ}, months, ordinals, percents, plain, ctx)
 
 
-def _scan_ko_groups(text: str, values: set[float]) -> str:
-    """한국어 만/억/조 그룹 → 값. **내림차순으로 인접하면 결합**한다.
+def _scan_ko_groups(text: str, val) -> str:
+    """한국어 만/억/조 그룹 → 값(`val(값, 끝 위치)` 로 넘긴다). **내림차순으로 인접하면 결합**한다.
 
     '4억 6,600만' 을 {4e8, 6.6e7} 로 흘리면 원문 '466 million'(=4.66e8)과 영영 안 맞는다.
     결합 조건 = 사이가 공백/쉼표뿐 + 단위 rank 가 strictly 내림차순('4억 6,600만' ✓ / '3만 4만' ✗).
@@ -294,11 +378,19 @@ def _scan_ko_groups(text: str, values: set[float]) -> str:
             sub = _KO_SUB[m.group(2)] if m.group(2) else 1
             total += _val(m.group(1)) * sub * _KO_MYRIAD[m.group(3)]
             spans.append((m.start(), m.end()))
-        tail = _RE_KO_TAIL.match(text, chain[-1].end())  # '16만' 뒤의 '5천'
+        end = chain[-1].end()
+        tail = _RE_KO_TAIL.match(text, end)  # '16만' 뒤의 '5천'
         if tail:
             total += _val(tail.group(1)) * _KO_SUB[tail.group(2)]
             spans.append((tail.start(), tail.end()))
-        values.add(total)
+            end = tail.end()
+        elif chain[-1].group(3) == "만":
+            dtail = _RE_KO_DIGIT_TAIL.match(text, end)  # '1만' 뒤의 '2000'·' 9,500'
+            if dtail:
+                total += _val(dtail.group(1))
+                spans.append((dtail.start(), dtail.end()))
+                end = dtail.end()
+        val(total, end)
         i = j
     for start, end in spans:  # 소비 구간 마스킹 — 뒤의 맨숫자 스캔이 '4'·'6600' 을 다시 읽지 않게
         text = _mask(text, start, end)

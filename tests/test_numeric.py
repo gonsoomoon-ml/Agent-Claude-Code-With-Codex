@@ -248,6 +248,89 @@ def test_idiomatic_one_does_not_break_counted_phrase() -> None:
     assert v.verdict == "VERIFIED"
 
 
+# ── 문맥 칸(F2, 2026-10-18): '~당·~배·~위·~분기' 숫자만 원문의 같은 문맥 표현으로 확인 ──────
+#
+# 30일 운영 재생에서 BLOCKED 64건 중 다수가 이 표기였다: 'per million'↔'100만 개당',
+# 'triple'↔'3배', 'ranks second'↔'2위', 'the second quarter'↔'2분기'. 원문 쪽 표현은 *수량이 아니므로*
+# values 에 넣지 않고 문맥 칸(ctx)에만 담는다 — 넣으면 'per million' 이 '100만 달러' 날조를 인증한다.
+
+def test_bare_per_scale_goes_to_context_not_values() -> None:
+    n = numeric.scan("Pricing sits at $2 per million input tokens and $6 per million output tokens.")
+    assert n.ctx["per"] == {1e6}
+    assert n.values == {2, 6}          # 1e6 은 수량이 아니다
+
+
+def test_korean_context_markers_split_claim_values() -> None:
+    """claim 쪽: 문맥 표지 앞 숫자는 문맥 칸으로, 나머지는 plain 으로. values 의미는 그대로(기존 소비자 보호)."""
+    n = numeric.scan("입력 100만 개당 2달러, 121개국 중 2위, 기부액의 3배, 2분기부터")
+    assert n.values == {1e6, 2, 121, 3}
+    assert n.plain == {2, 121}         # '2달러'·'121개국'
+    assert n.ctx["per"] == {1e6}
+    assert n.ctx["rank"] == {2}
+    assert n.ctx["mult"] == {3}
+    assert n.ctx["quarter"] == {2}
+
+
+@pytest.mark.parametrize(("text", "kind", "val"), [
+    ("with early employees receiving triple their donation's value", "mult", 3),
+    ("to improve accuracy more than fivefold", "mult", 5),
+    ("Singapore ranks second of 121 countries", "rank", 2),
+    ("the model currently sits in first place", "rank", 1),
+    ("early estimates put it in eighth on the Math ECI", "rank", 8),
+    ("working alongside 3,000 internal employees since the second quarter", "quarter", 2),
+    ("revenue grew in Q3 2026", "quarter", 3),
+])
+def test_english_context_phrases(text: str, kind: str, val: int) -> None:
+    assert val in numeric.scan(text).ctx.get(kind, set())
+
+
+@pytest.mark.parametrize(("text", "kind"), [
+    ("As Western mathematicians push back against AI, China is doubling down.", "mult"),
+    ("double-digit growth", "mult"),
+    ("a double-blind trial", "mult"),
+    ("checking how well third-party models could browse the web", "rank"),
+    ("for the first time in over a year", "rank"),
+])
+def test_idioms_do_not_enter_context(text: str, kind: str) -> None:
+    """관용구의 double·first·third 는 배수·순위가 아니다 — 문맥 칸이 비어야 한다."""
+    assert not numeric.scan(text).ctx.get(kind)
+
+
+def test_context_phrases_never_become_quantities() -> None:
+    """문맥 표현은 values 에 아무것도 넣지 않는다 — 'triple' 이 수량 3 을 인증하면 안 된다(SY11)."""
+    assert numeric.scan("triple their value, ranks second, since the second quarter, per million tokens").values == set()
+
+
+# ── 만 + 맨숫자 꼬리(F2): '1만2000'·'1만 9,500' = 한 값 ─────────────────────────────
+
+@pytest.mark.parametrize(("text", "val"), [
+    ("건당 평균 약 1만2000달러", 12000),
+    ("약 1만 9,500건", 19500),
+    ("매달 72만5,000건 이상", 725000),
+    ("총 14만1006건의 테스트 세션", 141006),
+])
+def test_myriad_with_plain_digit_tail(text: str, val: int) -> None:
+    assert numeric.scan(text).values == {val}
+
+
+def test_myriad_tail_does_not_chain_lists_or_next_group() -> None:
+    assert numeric.scan("1만, 2000원").values == {10000, 2000}       # 쉼표 = 목록
+    assert numeric.scan("1만 2000만 원").values == {10000, 2e7}      # 꼬리가 아니라 다음 그룹
+
+
+# ── decades·centuries(F2): 환산값 ──────────────────────────────────────────────────
+
+@pytest.mark.parametrize(("text", "val"), [
+    ("started nearly four decades of research", 40),
+    ("practiced for two decades", 20),
+    ("for more than a decade", 10),
+    ("over 3 decades", 30),
+    ("two centuries ago", 200),
+])
+def test_decades_convert_to_years(text: str, val: int) -> None:
+    assert numeric.scan(text).values == {val}    # 기수(4·2)는 따로 새지 않는다(SY15)
+
+
 # ── 알려진 잔여 위양성 (값 대조로는 못 고침 — 문서화해 둔다) ─────────────────────
 #
 # 둘 다 "원문에 그 숫자가 *수사로* 없지만 근거는 텍스트에 있다"는 종류라, 결정론 산술이 아니라

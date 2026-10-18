@@ -103,7 +103,14 @@ def _certify_arithmetic(claim_id: str, envelope: Envelope) -> CertVerdict:
         return CertVerdict(claim_id, "DEMOTED", "검증할 숫자 토큰이 claim 에 없음", "deterministic")
     src = numeric.scan(envelope.source_excerpt)
     # 네임스페이스별로 대조 — 월 7('July')이 수량 7 을 정당화하면 안 된다(numeric 불변식).
-    missing_val = sorted(v for v in claim.values if not numeric.contains(v, src.values))
+    # 문맥 숫자('100만 개당'·'3배'·'2위'·'2분기')는 원문 values *또는* 같은 문맥 칸('per million'·'triple'·
+    # 'ranks second'·'the second quarter')으로 확인한다(F2). 넓히기만 한다 — 지금 values 로 통과하던 것은 그대로,
+    # 문맥 칸은 같은 문맥의 숫자만 인증한다('per million' 이 '100만 달러'를 인증하면 안 된다 — SY09).
+    missing = {v for v in claim.plain if not numeric.contains(v, src.values)}
+    for kind, vals in claim.ctx.items():
+        pool = src.values | src.ctx.get(kind, set())
+        missing |= {v for v in vals if not numeric.contains(v, pool)}
+    missing_val = sorted(missing)
     missing_mon = sorted(m for m in claim.months if m not in src.months)
     # 서수는 원문의 서수로 정당화된다. 예외: **큰 수(≥_ORD_NUMERIC_MIN)** 는 원문의 맨숫자도 인정 —
     # 한국어 '제109조'(법조문)·'제3차'류를 영어 원문은 'Article 109' 로 쓴다(실측).
