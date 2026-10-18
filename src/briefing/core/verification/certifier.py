@@ -55,7 +55,9 @@ class CertVerdict:
     claim_id: str
     verdict: Verdict
     evidence: str    # certifier 가 가리킨 원문 근거 구절
-    model: str = ""  # 검증 출처 provenance: "deterministic"(산술) | "codex"(함의) | "codex-error"(폴백)
+    # 검증 출처 provenance: "deterministic"(산술) | "deterministic→codex"(산술이 막고 codex 2차 판정이 확인)
+    #                      | "codex"(함의) | "codex-error"(폴백)
+    model: str = ""
     # codex 토큰 사용량(turn.completed.usage) — 그 run 의 비용 기록용(F5). 비교·캐시 형식에서는 뺀다.
     usage: dict = field(default_factory=dict, compare=False, repr=False)
 
@@ -64,13 +66,34 @@ def certify(claim_id: str, envelope: Envelope) -> CertVerdict:
     """envelope 1건 → per-claim verdict. **claim_type 으로 디스패치**("결정론 게이트=신뢰" 헤드라인).
 
     - `arithmetic` → **결정론 코드**(source 에서 숫자 재추출·대조, byte-stable) — verdict 가 LLM 이 아니라 *코드*.
+      코드가 BLOCKED 면 codex 2차 판정(`_second_opinion`)을 한 번 더 받는다 — 단 뒤집힌 한국어 분수는 코드가 최종.
     - `entailment` → **`codex exec`**(다른 계열, clean dir, envelope-only) — fail-closed.
     불변식: ① envelope 4필드 *외* 아무것도 codex 프롬프트에 안 넣음(누설 0 — `_build_codex_prompt` 가 강제),
             ② **codex 는 clean dir 에서 실행** — repo `CLAUDE.md`/`AGENTS.md` 자동 로드 금지(decorrelation).
     """
     if envelope.claim_type == "arithmetic":
-        return _certify_arithmetic(claim_id, envelope)
+        det = _certify_arithmetic(claim_id, envelope)
+        if det.verdict != "BLOCKED" or numeric.inverted_ko_fraction(envelope.claim_text):
+            return det
+        return _second_opinion(claim_id, envelope, det)
     return _certify_entailment(claim_id, envelope)
+
+
+def _second_opinion(claim_id: str, envelope: Envelope, det: CertVerdict) -> CertVerdict:
+    """숫자 검사가 막은 claim 을 codex 에게 한 번 더 판정받는다(F2, 2026-10-18).
+
+    **왜:** 숫자가 말로 쓰인 같은 뜻('Pope Leo XIV'↔'레오 14세'·'the year before'(2025)↔'2024년'·나열한 이름 수)은
+    코드가 원리적으로 못 본다. 30일 운영에서 숫자 검사가 막은 claim 64건 중 숫자가 틀린 것은 0건이었다.
+    codex 는 같은 envelope 만 본다 — 코드 판정은 보여주지 않는다(독립성; 보여주면 그쪽으로 기운다).
+    숫자 claim 이라 codex 지시에는 '같은 값만 인정' 엄격 규칙이 붙는다(`_NUMERIC_RULES`).
+    codex 가 VERIFIED 일 때만 통과, DEMOTED(판단 불가)·BLOCKED·오류는 코드 판정대로 BLOCKED(fail-closed).
+    """
+    v = _certify_entailment(claim_id, envelope)
+    if v.verdict == "VERIFIED":
+        return CertVerdict(claim_id, "VERIFIED", f"{det.evidence} → codex 확인: {v.evidence}",
+                           "deterministic→codex", v.usage)
+    return CertVerdict(claim_id, "BLOCKED", f"{det.evidence} · codex {v.verdict}: {v.evidence}",
+                       "deterministic", v.usage)
 
 
 # ───────────────────────── 산술: 결정론 재도출 (LLM 아님, byte-stable) ─────────────────────────
@@ -134,16 +157,38 @@ def _certify_arithmetic(claim_id: str, envelope: Envelope) -> CertVerdict:
 
 # ───────────────────────── 함의: codex exec (다른 계열, clean dir, envelope-only) ─────────────────────────
 
+# 숫자 claim(codex 2차 판정) 전용 엄격 지시 — codex 는 '논리적으로 뒷받침되나'를 봐서 숫자에 관대했다(실측):
+# 근사('약 12'≈11)·범위 함의('800k까지'⟹'70만까지')·잘못 쓴 숫자의 선의 해석·괄호 속 영어 숫자만 대조(10배 오류 통과).
+# 이 지시로 그 유형은 두 모델(GPT-5.5·Luna) 모두 전부 잡았다. ★예시 숫자는 측정 사례와 다르게 둔다(시험 유출 방지).
+_NUMERIC_RULES = (
+    "The claim contains numbers. Check EVERY number in it (counts, amounts, dates, years, ranks, fractions, "
+    "ratios, and numbers inside parentheses) against the excerpt. A number is supported only if the excerpt "
+    "gives the SAME value, possibly written another way: in words instead of digits, in another language or "
+    "scale word (e.g. '1.2 billion' = 12억, '250k' = 25만), through a unit conversion (e.g. 'half a day' = 12시간), "
+    "as an ordinal or rank (e.g. 'finished third' = 3위), relative to another value the excerpt states "
+    "(e.g. 'two years after 2020' = 2022), or as the number of items the excerpt explicitly lists.\n"
+    "NOT supported: a nearby or rounded different value (e.g. 'about 50' when the excerpt says 48); a value "
+    "that only follows from a bound (e.g. 'within 10 days' or 'by May 31' when the excerpt says 'within 7 days' "
+    "or 'by May 15'); a malformed number read charitably. In Korean, 'N분의 M' means M/N (e.g. '4분의 3' = 0.75, "
+    "but '3분의 4' = 1.33). If the claim states one quantity twice (e.g. a Korean number with an English one in "
+    "parentheses), both must match the excerpt.\n"
+    "If any number is not supported in this strict sense, do NOT answer VERIFIED: answer BLOCKED when the "
+    "excerpt gives a different value, otherwise DEMOTED.\n"
+)
+
+
 def _build_codex_prompt(envelope: Envelope) -> str:
     """envelope 4필드 *만* 으로 certify 프롬프트 조립 — narration/lens/skill/user 등 누설 0 (구조적 강제).
 
-    source_excerpt + claim_text + schema 만 사용(claim_type 은 라우팅으로 이미 소비). 외부 지식 금지 지시.
+    source_excerpt + claim_text + schema 를 쓰고, claim_type 은 판정 기준을 고르는 데만 쓴다(숫자 claim 이면
+    `_NUMERIC_RULES` 추가 — codex 2차 판정 경로). 외부 지식 금지 지시.
     """
     return (
         "You are an independent verifier. Using ONLY the source excerpt below, decide whether it "
         "ENTAILS the claim. Do not use any outside knowledge. If the excerpt does not clearly support "
         "the claim, do NOT verify it.\n"
-        f"Respond with ONE JSON object and nothing else, matching this schema: {envelope.schema}\n"
+        + (_NUMERIC_RULES if envelope.claim_type == "arithmetic" else "")
+        + f"Respond with ONE JSON object and nothing else, matching this schema: {envelope.schema}\n"
         "verdict ∈ {VERIFIED (excerpt entails claim), DEMOTED (not determinable from excerpt), "
         "BLOCKED (excerpt contradicts claim)}.\n\n"
         f"<source_excerpt>\n{envelope.source_excerpt}\n</source_excerpt>\n\n"

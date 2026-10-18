@@ -35,8 +35,12 @@ def test_certify_dispatches_by_claim_type(monkeypatch):
     assert certify("C1", Envelope("s", "c", "entailment", "{}")).evidence == "ENTAIL"
 
 
-def test_certify_arithmetic_is_deterministic_and_fail_closed():
+def test_certify_arithmetic_is_deterministic_and_fail_closed(monkeypatch):
     # 결정론 산술 = 다른 모델 불필요, byte-stable. 날조된 절대수는 BLOCKED(절대 거짓 VERIFIED 금지).
+    # 코드가 막은 숫자는 codex 2차 판정을 받는다 — codex 가 응답하지 못해도(가장 보수적인 경우) BLOCKED 그대로.
+    def _codex_down(prompt, **kw):
+        raise RuntimeError("codex unavailable")
+    monkeypatch.setattr(cert, "_run_codex", _codex_down)
     src = "직원 약 100명 규모로 시작한다."
     assert certify("C1", Envelope(src, "직원이 100명이다.", "arithmetic", "{}")).verdict == "VERIFIED"
     blocked = certify("C2", Envelope(src, "매출 500억원을 기록했다.", "arithmetic", "{}"))

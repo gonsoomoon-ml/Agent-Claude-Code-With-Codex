@@ -296,6 +296,17 @@ def test_idioms_do_not_enter_context(text: str, kind: str) -> None:
     assert not numeric.scan(text).ctx.get(kind)
 
 
+@pytest.mark.parametrize(("text", "inverted"), [
+    ("거의 2분의 3을 차지했다", True),       # = 1.5 — '3분의 2'를 뒤집어 쓴 꼴
+    ("거의 3분의 4 수준으로", True),
+    ("전체의 3분의 2를", False),
+    ("입력 가격의 10분의 1", False),
+    ("분수 없음 2.5배", False),
+])
+def test_inverted_ko_fraction(text: str, inverted: bool) -> None:
+    assert numeric.inverted_ko_fraction(text) is inverted
+
+
 @pytest.mark.parametrize("claim", ["학습은 3배치로 나눠 진행했다.", "이 기능은 3배포 채널로 나갔다."])
 def test_bae_inside_other_words_is_not_multiplier(claim: str) -> None:
     """'배치'(batch)·'배포'의 '배'는 배수가 아니다 — 원문 'triple' 이 '3배치'를 인증하면 안 된다."""

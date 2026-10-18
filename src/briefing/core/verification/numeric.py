@@ -431,6 +431,15 @@ def _scan_ko_groups(text: str, val) -> str:
     return text
 
 
+def inverted_ko_fraction(text: str) -> bool:
+    """한국어 분수 'N분의 M' 이 1보다 큰가 — 분자·분모를 뒤집어 쓴 꼴('3분의 2'를 '2분의 3'으로).
+
+    LLM 검증자는 이 꼴을 원래 뜻대로 좋게 읽는다(실측: 지시에 순서 규칙을 적어도 '2분의 3'을 2/3 로 읽었다).
+    certifier 는 이런 claim 을 codex 2차 판정에 넘기지 않고 코드 판정을 최종으로 둔다.
+    """
+    return any(_val(m.group(2)) > _val(m.group(1)) for m in _RE_FRAC_KO.finditer(text or ""))
+
+
 def contains(needle: float, haystack: set[float]) -> bool:
     """부동소수 표현 오차만 허용(rel 1e-9). **반올림 관용은 금지** — 배수 오류를 놓친다."""
     return any(abs(needle - h) <= 1e-9 * max(abs(needle), abs(h), 1.0) for h in haystack)
