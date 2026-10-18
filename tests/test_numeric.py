@@ -248,6 +248,176 @@ def test_idiomatic_one_does_not_break_counted_phrase() -> None:
     assert v.verdict == "VERIFIED"
 
 
+# ── 문맥 칸(F2, 2026-10-18): '~당·~배·~위·~분기' 숫자만 원문의 같은 문맥 표현으로 확인 ──────
+#
+# 30일 운영 재생에서 BLOCKED 64건 중 다수가 이 표기였다: 'per million'↔'100만 개당',
+# 'triple'↔'3배', 'ranks second'↔'2위', 'the second quarter'↔'2분기'. 원문 쪽 표현은 *수량이 아니므로*
+# values 에 넣지 않고 문맥 칸(ctx)에만 담는다 — 넣으면 'per million' 이 '100만 달러' 날조를 인증한다.
+
+def test_bare_per_scale_goes_to_context_not_values() -> None:
+    n = numeric.scan("Pricing sits at $2 per million input tokens and $6 per million output tokens.")
+    assert n.ctx["per"] == {1e6}
+    assert n.values == {2, 6}          # 1e6 은 수량이 아니다
+
+
+def test_korean_context_markers_split_claim_values() -> None:
+    """claim 쪽: 문맥 표지 앞 숫자는 문맥 칸으로, 나머지는 plain 으로. values 의미는 그대로(기존 소비자 보호)."""
+    n = numeric.scan("입력 100만 개당 2달러, 121개국 중 2위, 기부액의 3배, 2분기부터")
+    assert n.values == {1e6, 2, 121, 3}
+    assert n.plain == {2, 121}         # '2달러'·'121개국'
+    assert n.ctx["per"] == {1e6}
+    assert n.ctx["rank"] == {2}
+    assert n.ctx["mult"] == {3}
+    assert n.ctx["quarter"] == {2}
+
+
+@pytest.mark.parametrize(("text", "kind", "val"), [
+    ("with early employees receiving triple their donation's value", "mult", 3),
+    ("to improve accuracy more than fivefold", "mult", 5),
+    ("Singapore ranks second of 121 countries", "rank", 2),
+    ("the model currently sits in first place", "rank", 1),
+    ("early estimates put it in eighth on the Math ECI", "rank", 8),
+    ("working alongside 3,000 internal employees since the second quarter", "quarter", 2),
+    ("revenue grew in Q3 2026", "quarter", 3),
+])
+def test_english_context_phrases(text: str, kind: str, val: int) -> None:
+    assert val in numeric.scan(text).ctx.get(kind, set())
+
+
+@pytest.mark.parametrize(("text", "kind"), [
+    ("As Western mathematicians push back against AI, China is doubling down.", "mult"),
+    ("double-digit growth", "mult"),
+    ("a double-blind trial", "mult"),
+    ("checking how well third-party models could browse the web", "rank"),
+    ("for the first time in over a year", "rank"),
+])
+def test_idioms_do_not_enter_context(text: str, kind: str) -> None:
+    """관용구의 double·first·third 는 배수·순위가 아니다 — 문맥 칸이 비어야 한다."""
+    assert not numeric.scan(text).ctx.get(kind)
+
+
+@pytest.mark.parametrize(("text", "inverted"), [
+    ("거의 2분의 3을 차지했다", True),       # = 1.5 — '3분의 2'를 뒤집어 쓴 꼴
+    ("거의 3분의 4 수준으로", True),
+    ("전체의 3분의 2를", False),
+    ("입력 가격의 10분의 1", False),
+    ("분수 없음 2.5배", False),
+])
+def test_inverted_ko_fraction(text: str, inverted: bool) -> None:
+    assert numeric.inverted_ko_fraction(text) is inverted
+
+
+@pytest.mark.parametrize("claim", ["학습은 3배치로 나눠 진행했다.", "이 기능은 3배포 채널로 나갔다."])
+def test_bae_inside_other_words_is_not_multiplier(claim: str) -> None:
+    """'배치'(batch)·'배포'의 '배'는 배수가 아니다 — 원문 'triple' 이 '3배치'를 인증하면 안 된다."""
+    src = "with early employees receiving triple their donation's value."
+    assert _certify_arithmetic("C1", Envelope(src, claim, "arithmetic", "{}")).verdict == "BLOCKED"
+
+
+def test_context_phrases_never_become_quantities() -> None:
+    """문맥 표현은 values 에 아무것도 넣지 않는다 — 'triple' 이 수량 3 을 인증하면 안 된다(SY11)."""
+    assert numeric.scan("triple their value, ranks second, since the second quarter, per million tokens").values == set()
+
+
+# ── 만 + 맨숫자 꼬리(F2): '1만2000'·'1만 9,500' = 한 값 ─────────────────────────────
+
+@pytest.mark.parametrize(("text", "val"), [
+    ("건당 평균 약 1만2000달러", 12000),
+    ("약 1만 9,500건", 19500),
+    ("매달 72만5,000건 이상", 725000),
+    ("총 14만1006건의 테스트 세션", 141006),
+])
+def test_myriad_with_plain_digit_tail(text: str, val: int) -> None:
+    assert numeric.scan(text).values == {val}
+
+
+def test_myriad_tail_does_not_chain_lists_or_next_group() -> None:
+    assert numeric.scan("1만, 2000원").values == {10000, 2000}       # 쉼표 = 목록
+    assert numeric.scan("1만 2000만 원").values == {10000, 2e7}      # 꼬리가 아니라 다음 그룹
+
+
+# ── decades·centuries(F2): 환산값 ──────────────────────────────────────────────────
+
+@pytest.mark.parametrize(("text", "val"), [
+    ("started nearly four decades of research", 40),
+    ("practiced for two decades", 20),
+    ("for more than a decade", 10),
+    ("over 3 decades", 30),
+    ("two centuries ago", 200),
+])
+def test_decades_convert_to_years(text: str, val: int) -> None:
+    assert numeric.scan(text).values == {val}    # 기수(4·2)는 따로 새지 않는다(SY15)
+
+
+# ── F2 2차: 운영 재생에서 나온 파서 버그 8종 ────────────────────────────────────────
+
+def test_year_is_not_a_fraction_denominator() -> None:
+    """'45,000 in 2025' 는 'one in four' 같은 분수가 아니다 — 두 값이 그대로 남아야 한다."""
+    assert numeric.scan("approximately 45,000 in 2025, 32,000 in 2024").values == {45000, 2025, 32000, 2024}
+    assert numeric.scan("One in four posts is AI-generated").values == {0.25}     # 진짜 분수는 그대로
+
+
+@pytest.mark.parametrize(("text", "vals"), [
+    ("binned to 2k-step means", {2000}),
+    ("Through ~800k steps", {800000}),
+    ("over the full ~5.93T-token / 1.41M-step budget", {5.93e12, 1.41e6}),
+    ("a 128k context window", {128000}),
+])
+def test_lowercase_k_and_T_suffix(text: str, vals: set[float]) -> None:
+    assert numeric.scan(text).values == vals
+
+
+@pytest.mark.parametrize(("text", "val"), [
+    ("while using about an eighth of the output tokens", 0.125),
+    ("about a tenth of traditional production costs", 0.1),
+    ("at one-tenth of the cost", 0.1),
+])
+def test_fraction_of_beyond_fifth(text: str, val: float) -> None:
+    assert numeric.scan(text).values == {val}
+
+
+def test_sixth_without_of_stays_ordinal() -> None:
+    """'A sixth agent'(여섯째)는 분수가 아니다 — 'of' 가 없으면 서수로 남는다(SY24)."""
+    n = numeric.scan("A sixth agent, the Nakama's coordinator, is the fleet's operations manager.")
+    assert n.values == set() and n.ordinals == {6}
+
+
+def test_percentile_bae_is_not_hundred() -> None:
+    """'11백분위'의 백은 보조배수(100)가 아니다 — 1100 으로 읽으면 원문 '11-percentile' 과 안 맞는다."""
+    assert numeric.scan("약 11백분위 포인트 상승").values == {11}
+
+
+def test_je_inside_word_is_not_ordinal_prefix() -> None:
+    """'과제 17'의 제는 서수 접두어가 아니다 — '제3자'처럼 낱말 첫머리일 때만 서수."""
+    n = numeric.scan("자동 생성 과제 17개 × 시드 3개")
+    assert n.values == {17, 3} and n.ordinals == set()
+    assert numeric.scan("제3자 감사").ordinals == {3}
+
+
+def test_latex_thousands_separator() -> None:
+    assert numeric.scan("첫 토큰 지연이 508 ms에서 3{,}420 ms로 늘었습니다").values == {508, 3420}
+
+
+@pytest.mark.parametrize(("text", "vals"), [
+    ("Twenty-five Fields Medal winners", {25}),
+    ("a thirty-two layer network", {32}),
+    ("twenty-five million users", {25e6}),
+])
+def test_hyphenated_compound_cardinals(text: str, vals: set[float]) -> None:
+    """'Twenty-five'를 twenty·five 로 쪼개면 거짓 '20명'·'5명'이 통과한다(SY28·SY29)."""
+    assert numeric.scan(text).values == vals
+
+
+@pytest.mark.parametrize(("text", "val"), [
+    ("That's roughly two and a half times higher.", 2.5),
+    ("after one and a half hours", 1.5),
+    ("two and a half million users", 2.5e6),
+])
+def test_and_a_half(text: str, val: float) -> None:
+    """'two and a half' = 2.5 — two(2)·a half(0.5)로 쪼개면 거짓 '2배'가 통과한다(SY30)."""
+    assert numeric.scan(text).values == {val}
+
+
 # ── 알려진 잔여 위양성 (값 대조로는 못 고침 — 문서화해 둔다) ─────────────────────
 #
 # 둘 다 "원문에 그 숫자가 *수사로* 없지만 근거는 텍스트에 있다"는 종류라, 결정론 산술이 아니라
