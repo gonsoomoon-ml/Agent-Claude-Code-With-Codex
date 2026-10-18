@@ -70,6 +70,21 @@ def test_catalog_anthropic_research_and_hf_blog():
     assert anth == list(range(anth[0], anth[0] + 5))
 
 
+def test_catalog_meta_research_and_gcloud_ai():
+    """2026-10-18 리뷰 편입 2차 — Meta 원 발표처(AI Labs 묶음: 소스 1개라 자기 섹션 대신) · Google Cloud AI & ML(Google 섹션)."""
+    by_key = {s.key: s for s in CATALOG}
+    mr = by_key["meta-research"]
+    assert (mr.kind, mr.url, mr.category) == ("html", "https://research.meta.ai/blog", "AI Labs")
+    assert (mr.window_hours, mr.max_items, mr.select) == (48, 6, "llm")   # 날짜만 → 48h, 선별 회피
+    gc = by_key["gcloud-ai"]
+    assert (gc.kind, gc.category, gc.max_items, gc.select) == ("rss", "Google", 5, "llm")
+    assert gc.homepage == "https://cloud.google.com/blog/products/ai-machine-learning"   # 피드 호스트는 사람용이 아님
+    order = list(dict.fromkeys(s.category for s in CATALOG))
+    assert order.index("Google") < order.index("AI Labs") < order.index("Engineering Blogs")
+    goog = [i for i, s in enumerate(CATALOG) if s.category == "Google"]
+    assert len(goog) == 5 and goog == list(range(goog[0], goog[0] + 5))   # Google 은 한 블록
+
+
 def test_catalog_window_hours_default_and_html_override():
     """html(date-only 메타데이터) 소스는 window 48h(W≥U+P) — RSS(분 단위 timestamp)는 0(=글로벌 24h)."""
     by_key = {s.key: s for s in CATALOG}

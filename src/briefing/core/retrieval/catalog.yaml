@@ -177,6 +177,35 @@
   window_hours: 48   # date-only 메타데이터(리스팅+trafilatura) — late-post 보정
   # 피드 자동발견 없음 → 리스팅+trafilatura 전문 200. last-verified: 2026-07-06
 
+- key: gcloud-ai
+  name: Google Cloud AI & ML
+  url: https://cloudblog.withgoogle.com/products/ai-machine-learning/rss/
+  kind: rss
+  lang: en
+  category: Google
+  homepage: https://cloud.google.com/blog/products/ai-machine-learning   # 피드 호스트(cloudblog.withgoogle.com)는 사람용 페이지가 아님
+  max_items: 5       # 주 4건·하루 최대 2건 → 사실상 전부(사용자 결정 2026-10-18)
+  select: llm        # 학회 주간처럼 하루 6건 이상 몰리는 날에만 작동
+  # 에이전트 설계·평가 실무 + 고객 사례·제품 홍보. 적법성 A(Google ToS = robots 위반 자동 접근만 금지, robots 허용).
+  # 피드 시각 대부분 16:00 UTC(미 서부 오전 9시 정기 게시) → 05:00 KST 발송 전이라 기본 24h 창.
+  # ⚠️ 받는 사람(AWS 직원)에겐 경쟁사 클라우드 소식. Gemini 출시 글은 DeepMind·google-ai 와 같은 소식이 겹친다.
+  # 실측 12/12 추출(6.5k~8k자). last-verified: 2026-10-18
+
+# ── AI Labs ── 소스가 3개 미만인 연구소·모델 회사의 공식 채널 ──────────────────────
+- key: meta-research
+  name: Meta Research
+  url: https://research.meta.ai/blog
+  kind: html
+  lang: en
+  category: AI Labs
+  window_hours: 48   # 페이지 메타도 날짜만(00:00)
+  max_items: 6       # 월 약 8건·48h 안 최대 2~3건 → 사실상 전부(선별 회피 — anthropic-research 와 같은 이유)
+  select: llm        # 7건 이상 몰리는 날에만
+  # Meta 모델의 원 발표처(Muse Wonder·Muse Spark Open) — 같은 소식을 AWS·HF·The Decoder 가 다시 다룬다.
+  # 적법성 B(Meta ToS 3.2.3 자동 수집 금지 일반 문구, robots 허용). ai.meta.com/blog 는 목록이 JS 라 0건 → 이 주소.
+  # ⚠️ canonical 이 ai.meta.com 인 글은 offsite 검사로 건너뛴다(30일 8건 중 2건, 모델 발표로 보임) — 허용하려면 코드 필요.
+  # 실측 6/6 추출(4k~8k자). last-verified: 2026-10-18
+
 # ── Engineering Blogs ── 개발 도구·플랫폼 회사의 기술 블로그 ─────────────────────────
 - key: hf-blog
   name: Hugging Face Blog
