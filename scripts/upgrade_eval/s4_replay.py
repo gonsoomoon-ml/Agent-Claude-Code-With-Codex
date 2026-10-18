@@ -5,8 +5,9 @@
 - R0 지시 = main 40f9838 의 `_build_revise_prompt` 사본(아래 old_revise_prompt) — S4 브랜치에선 함수가 바뀌어 여기 얼려 둔다.
 - R4 지시 = 지금 브랜치의 `author._build_revise_prompt`, 결과는 `gate.revise_within_targets` 가드를 거친다
   (범위 밖을 바꾸면 버리고 이전 카드를 그대로 ⚠ — 운영 gate 와 같은 규칙).
-- 요약 AI = Sonnet 5.5 medium · CLI 2.1.301(Stage A 의 A2, U8 ② 운영 예정 구성), 검증 = Luna(숫자 claim 은 코드 검사만 —
-  실험 도구에 codex 2차 판정 없음, 두 방식 같은 조건).
+- 요약 AI = Sonnet 5.5 medium · CLI 2.1.301(Stage A 의 A2, U8 ② 운영 예정 구성), 검증 = Luna. 숫자 claim 은 운영 v57 과 같이
+  코드 검사 → 막히면 codex 2차 판정(make_replay_verify). Stage A 도구엔 2차 판정이 없어, 시험 실행에서 맞는 숫자를
+  그대로 둔 R4 가 다시 막히고 숫자를 말로 바꾼 R0 가 통과하는 왜곡을 봤다.
 - 막힌 claim 은 대부분 F2 이전 숫자 검사 오탐이었다 — 이 실험은 '실패 표시를 받았을 때 어떻게 고치나'를 본다(맞는 사실을
   지우지 않고 다시 쓰는가, 다른 문장을 건드리지 않는가).
 
@@ -28,14 +29,15 @@ from briefing.core.authoring.author import (
     DraftCard, _build_revise_prompt, _parse_card_json, _to_draft_card, _tokens, build_system_prompt,
     revise_targets, summary_sentences,
 )
-from briefing.core.gate import reroute_claim_types, revise_within_targets
+from briefing.core.gate import _build_envelope, reroute_claim_types, revise_within_targets
 from briefing.core.lenses import resolve_lens
 from briefing.core.pipeline import _FACT_USER
 from briefing.core.stores.cache import _deserialize
 from briefing.core.verification import numeric
+from briefing.core.verification.certifier import CertVerdict
 
 from .author_runner import ARMS, EVAL_TODAY, run_author
-from .codex_runner import VERIFIERS
+from .codex_runner import VERIFIERS, certify_entailment_json, run_codex_json
 from .common import EXP_ROOT, append_jsonl, done_keys, read_jsonl
 from .stage_a import make_verify_fn
 
@@ -119,6 +121,29 @@ def load_cases(table) -> list[dict]:
             return sorted(out, key=lambda c: c["cache_key"])
 
 
+def make_replay_verify(verifier, store, log: list[dict], *, runner=run_codex_json):
+    """운영 v57 certify 와 같은 검증 — Stage A 검증(숫자 = 코드, 나머지 = 검증 AI) 뒤, 코드가 막은 숫자 claim 은
+    검증 AI 가 한 번 더 본다(VERIFIED 일 때만 풀림, 뒤집힌 한국어 분수는 코드가 최종 — certifier.certify 와 같은 규칙)."""
+    base = make_verify_fn(verifier, store, log, runner=runner)
+
+    def verify(card: DraftCard) -> tuple[CertVerdict, ...]:
+        verdicts = list(base(card))
+        source = None
+        for i, (claim, v) in enumerate(zip(card.claims, verdicts)):
+            if claim.claim_type != "arithmetic" or v.verdict != "BLOCKED" or numeric.inverted_ko_fraction(claim.text):
+                continue
+            source = source or store.get_source(card.source_id)
+            second, run = certify_entailment_json(claim.id, _build_envelope(source, claim), verifier, runner=runner)
+            log.append({"claim_id": claim.id, "usage": run.usage, "duration_ms": run.duration_ms, "error": run.error,
+                        "second_opinion": True})
+            if second.verdict == "VERIFIED":
+                verdicts[i] = CertVerdict(claim.id, "VERIFIED", f"{v.evidence} → codex 확인: {second.evidence}",
+                                          "deterministic→codex")
+        return tuple(verdicts)
+
+    return verify
+
+
 def run_case(case: dict, method: str, *, store, verify, runner=run_author) -> dict:
     """한 카드 × 한 방식 → 기록. R4 는 가드를 통과해야 검증하고, 못 하면 이전 카드를 ⚠ 로 둔다(운영 gate 와 같다)."""
     prior, failed = case["prior"], case["failed_ids"]
@@ -160,7 +185,7 @@ def run_all(*, limit: int | None = None, concurrency: int = 4) -> None:
     def work(t):
         case, method = t
         log: list[dict] = []
-        rec = run_case(case, method, store=store, verify=make_verify_fn(VERIFIERS["gpt-6-luna"], store, log))
+        rec = run_case(case, method, store=store, verify=make_replay_verify(VERIFIERS["gpt-6-luna"], store, log))
         rec["codex_calls"] = len(log)
         with lock:
             append_jsonl(RECORDS, rec)

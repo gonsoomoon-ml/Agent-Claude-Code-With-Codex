@@ -76,3 +76,37 @@ def test_load_cases_keeps_revised_quarantined_fact_cards_with_blocked_ids():
              _item("k4", GatedCard(DraftCard("s", "t", "x", "w", PRIOR.claims, ("C1",)), blocked, "QUARANTINE", 2))]
     cases = r.load_cases(_Table(items))
     assert [(c["cache_key"], c["failed_ids"]) for c in cases] == [("k1", ("C2",))]
+
+
+def test_replay_verify_adds_codex_second_opinion_like_production():
+    """운영 v57 certify 와 같게 — 숫자 검사가 막은 claim 은 검증 AI 가 한 번 더 본다(VERIFIED 일 때만 풀림).
+    Stage A 도구엔 이 단계가 없어, 맞는 숫자를 그대로 둔 쪽(R4)이 손해 보는 것을 시험 실행에서 봤다."""
+    from upgrade_eval.codex_runner import VERIFIERS, CodexRun
+
+    src = FrozenSource("sid", "https://example.com/a", "제목", "Furiwake, Sabaki, Henji, Shoudan, Nokori 에이전트가 있다.",
+                       "2026-10-18T00:00:00Z")
+
+    class Store:
+        def get_source(self, sid):
+            return src
+
+    def card(text):
+        return DraftCard("sid", "제목", "s", "w", (Claim("C1", text, "arithmetic", "core"),))
+
+    def runner_saying(verdict):
+        calls = []
+
+        def run(prompt, model, timeout_s=120):
+            calls.append(prompt)
+            return CodexRun(json.dumps({"verdict": verdict, "evidence": "e"}), {}, 5, 0, None)
+        return run, calls
+
+    run, calls = runner_saying("VERIFIED")
+    v = r.make_replay_verify(VERIFIERS["gpt-6-luna"], Store(), [], runner=run)(card("에이전트는 5개다."))
+    assert (v[0].verdict, v[0].model, len(calls)) == ("VERIFIED", "deterministic→codex", 1)
+    run, calls = runner_saying("DEMOTED")
+    v = r.make_replay_verify(VERIFIERS["gpt-6-luna"], Store(), [], runner=run)(card("에이전트는 5개다."))
+    assert (v[0].verdict, v[0].model) == ("BLOCKED", "deterministic")
+    run, calls = runner_saying("VERIFIED")                                         # 뒤집힌 한국어 분수는 코드가 최종
+    v = r.make_replay_verify(VERIFIERS["gpt-6-luna"], Store(), [], runner=run)(card("에이전트의 2분의 3이 남았다."))
+    assert v[0].verdict == "BLOCKED" and calls == []
