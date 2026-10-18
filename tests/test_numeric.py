@@ -296,6 +296,13 @@ def test_idioms_do_not_enter_context(text: str, kind: str) -> None:
     assert not numeric.scan(text).ctx.get(kind)
 
 
+@pytest.mark.parametrize("claim", ["학습은 3배치로 나눠 진행했다.", "이 기능은 3배포 채널로 나갔다."])
+def test_bae_inside_other_words_is_not_multiplier(claim: str) -> None:
+    """'배치'(batch)·'배포'의 '배'는 배수가 아니다 — 원문 'triple' 이 '3배치'를 인증하면 안 된다."""
+    src = "with early employees receiving triple their donation's value."
+    assert _certify_arithmetic("C1", Envelope(src, claim, "arithmetic", "{}")).verdict == "BLOCKED"
+
+
 def test_context_phrases_never_become_quantities() -> None:
     """문맥 표현은 values 에 아무것도 넣지 않는다 — 'triple' 이 수량 3 을 인증하면 안 된다(SY11)."""
     assert numeric.scan("triple their value, ranks second, since the second quarter, per million tokens").values == set()

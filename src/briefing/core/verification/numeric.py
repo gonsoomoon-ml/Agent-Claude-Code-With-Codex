@@ -177,11 +177,12 @@ _RE_RANK = re.compile(
     rf"|\bput(?:s|ting)?\s+(?:\S+\s+){{1,2}}?in\s+({_RANK_ORD})\b"
     rf"|\b({_RANK_ORD})[\s-]+(?:place|spot|position)\b",
     re.I)
-# 한국어 문맥 표지 — 숫자 *바로 뒤*에 붙는 것. '0.1위안'(통화)·'위원회'는 순위가 아니다.
+# 한국어 문맥 표지 — 숫자 *바로 뒤*에 붙는 것. '0.1위안'(통화)·'위원회'는 순위가 아니고,
+# '3배치'(batch)·'3배포'의 '배'는 배수가 아니다(원문 'triple' 이 '3배치'를 인증하면 안 된다).
 _KO_CTX = (
     ("quarter", re.compile(r"\s*분기")),
     ("rank", re.compile(r"\s*위(?![안원해성험치협])")),
-    ("mult", re.compile(r"\s*배")),
+    ("mult", re.compile(r"\s*배(?![치터포송달])")),
     ("per", re.compile(r"\s*[가-힣A-Za-z]{0,4}당(?![가-힣])")),
 )
 _CTX_KINDS = ("per", "mult", "rank", "quarter")
