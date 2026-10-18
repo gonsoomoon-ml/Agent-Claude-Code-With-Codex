@@ -272,6 +272,10 @@ def fetch_clean_rss(source: Source, *, window_hours: int = 24, max_items: int = 
 
 # ── 제너릭 HTML/auto 출처 페치 (사이트별 코드 0; trafilatura 범용 추출 + 피드 자동발견) ──
 MAX_SOURCE_CHARS = 8000  # 넉넉한 상한 — 대부분 기사엔 사실상 전문, 초장문만 컷. 저작권: 원문은 7일 TTL(DynamoSourceStore)로 ephemeral.
+# 잘린 원문으로 볼 길이(F1) — `_excerpt` 는 상한 안 마지막 공백에서 자르므로 잘린 원문은 상한보다 *짧다*.
+# 30일 운영 원문 1,609건: ≥8,000자 0건 · 7,900–7,999자 520건(32%, 전부 잘림) · 7,800–7,899자 4건(전부 자연 종료).
+# 그래서 `>= MAX_SOURCE_CHARS` 로 판정하던 절단 경고는 한 번도 안 떴다(2026-10-17 감사).
+TRUNCATED_MIN_CHARS = MAX_SOURCE_CHARS - 100
 
 MIN_SOURCE_CHARS = 500
 """동결 원문의 **하한** — 이보다 짧으면 기사가 아니라 티저(피드 요약·SEO 메타설명)다.
