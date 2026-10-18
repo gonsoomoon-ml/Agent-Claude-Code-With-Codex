@@ -387,24 +387,39 @@ def cmd_export_human_2(n: int) -> None:
     print(RESULTS / "human_check_2.md")
 
 
-def cmd_pairwise() -> None:
+def pairwise_tasks(groups: dict[tuple, list[dict]], *, base: str, arms: list[str] | None, judges: list[str],
+                   done: set) -> list[tuple]:
+    """맞비교 할 일 — (조건, 기사, 판정자, 순서, 조건 요약, 기준 요약). 조건·기준 모두 발행된 반복의 중간 길이 요약.
+
+    순서 이름 = 'arm_first' / '<기준 소문자>_first' — 기준이 A0 면 예전 이름('a0_first') 그대로라 기존 완료 키와 맞는다.
+    arms=None 이면 기준을 뺀 모든 조건.
+    """
+    base_first = f"{base.lower()}_first"
+    tasks = []
+    for (arm, sid), rs in groups.items():
+        if arm == base or (arms is not None and arm not in arms):
+            continue
+        if not scoring_targets(rs) or not scoring_targets(groups.get((base, sid), [])):
+            continue
+        cand, ref = median_length_rep(rs), median_length_rep(groups[(base, sid)])
+        for j in judges:
+            for order in ("arm_first", base_first):
+                if (arm, sid, j, order) not in done:
+                    tasks.append((arm, sid, j, order, cand["summary"], ref["summary"]))
+    return tasks
+
+
+def cmd_pairwise(base: str = "A0", arms: list[str] | None = None) -> None:
+    """조건 vs 기준(기본 A0) 맞비교. 기준이 A0 가 아니면 pairwise_<기준>.jsonl 에 따로 쓴다(원래 A0 결과와 섞지 않게)."""
     sel = _judges()
     store = _sources()
     recs = read_jsonl(STAGE_A)
-    out = JUDGE_DIR / "pairwise.jsonl"
+    out = JUDGE_DIR / ("pairwise.jsonl" if base == "A0" else f"pairwise_{base}.jsonl")
     done = done_ok(out, ("arm", "source_id", "judge", "order"))
     groups: dict[tuple, list[dict]] = {}
     for r in recs:
         groups.setdefault((r["arm"], r["source_id"]), []).append(r)
-    tasks = []
-    for (arm, sid), rs in groups.items():
-        if arm == "A0" or not scoring_targets(rs) or not scoring_targets(groups.get(("A0", sid), [])):
-            continue
-        cand, base = median_length_rep(rs), median_length_rep(groups[("A0", sid)])
-        for j in (sel["main"], sel["cross"]):
-            for order in ("arm_first", "a0_first"):
-                if (arm, sid, j, order) not in done:
-                    tasks.append((arm, sid, j, order, cand["summary"], base["summary"]))
+    tasks = pairwise_tasks(groups, base=base, arms=arms, judges=[sel["main"], sel["cross"]], done=done)
 
     def work(t):
         arm, sid, j, order, cand, base = t
@@ -412,7 +427,7 @@ def cmd_pairwise() -> None:
         call = J.converse_json(_model(j), *J.pairwise_messages(store.get_source(sid).text, first, second), validate=J.parse_pairwise)
         better = J.parse_pairwise(call.obj) if call.obj else None
         winner = None if better is None else ("tie" if better == "tie" else
-                                              ("arm" if (better == "first") == (order == "arm_first") else "A0"))
+                                              ("arm" if (better == "first") == (order == "arm_first") else base))
         _write(out, {"arm": arm, "source_id": sid, "judge": j, "order": order, "winner": winner, "error": call.error,
                      "usage": call.usage})
 
@@ -432,11 +447,13 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("tiebreak")
     h2 = sub.add_parser("export-human-2")
     h2.add_argument("--n", type=int, default=10)
-    sub.add_parser("pairwise")
+    pw = sub.add_parser("pairwise")
+    pw.add_argument("--base", default="A0")
+    pw.add_argument("--arms", default=None, help="콤마 구분(기본 = 기준을 뺀 모든 조건)")
     args = ap.parse_args(argv)
     {"gate": lambda: cmd_gate(args.judges.split(","), args.score_only), "keyfacts": cmd_keyfacts,
      "export-human-1": cmd_export_human_1, "score": cmd_score, "tiebreak": cmd_tiebreak,
-     "export-human-2": lambda: cmd_export_human_2(args.n), "pairwise": cmd_pairwise}[args.cmd]()
+     "export-human-2": lambda: cmd_export_human_2(args.n), "pairwise": lambda: cmd_pairwise(args.base, args.arms.split(",") if args.arms else None)}[args.cmd]()
 
 
 if __name__ == "__main__":

@@ -68,3 +68,27 @@ def test_prompts_pin_today_across_runs():
     revise(SRC, FACT_USER, SETTINGS, prior=d, failed_ids=("C1",))
     assert author_runner.EVAL_TODAY == "2026-10-17"
     assert all(f"오늘 날짜: {author_runner.EVAL_TODAY}" in u for u in seen) and len(seen) == 2
+
+
+# ── S1(2026-10-18): 초안 A('같은 확신도') 한 가지만 다른 두 조건 ─────────────────────────────
+
+def test_s1_arms_differ_only_by_draft_a():
+    """S1C(대조) = 운영 예정 구성(Sonnet 5.5·CLI 2.1.301·medium) + 현재 지시문, S1A = 그 위에 초안 A 만 더함."""
+    from briefing.core.authoring.author import build_system_prompt
+    from briefing.core.lenses import resolve_lens
+
+    c, a = author_runner.ARMS["S1C"], author_runner.ARMS["S1A"]
+    assert (c.model_id, c.cli_version, c.effort) == (a.model_id, a.cli_version, a.effort) == (
+        "global.anthropic.claude-sonnet-5-5", "2.1.301", "medium")
+    prod = build_system_prompt(lens_guidance=resolve_lens(FACT_USER.lens).guidance, skill_md=FACT_USER.skill_md)
+    assert author_runner.system_prompt_for(c, FACT_USER) == prod                     # 대조군 = 운영 지시문 그대로
+    s = author_runner.system_prompt_for(a, FACT_USER)
+    assert s.index("## 논조·귀속 보존") < s.index("3-1. 확신도와 범위를") < s.index("## 요약 계약")
+    block = a.rules_patch.rstrip("\n") + "\n\n"                                       # 넣은 것은 초안 A 블록 하나뿐
+    assert s.replace(block, "", 1) == prod and len(s) == len(prod) + len(block)
+
+
+def test_insert_rules_fails_loudly_without_anchor():
+    """넣을 자리('## 논조·귀속 보존' 절)가 없으면 조용히 빠뜨리지 않고 실패한다 — 초안 없이 돈 실험은 무의미하다."""
+    with pytest.raises(ValueError):
+        author_runner.insert_rules("## 다른 절\n내용\n", "추가 규칙")

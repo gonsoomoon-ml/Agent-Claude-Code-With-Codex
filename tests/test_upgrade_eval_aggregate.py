@@ -120,3 +120,17 @@ def test_per_article_and_rep_sd_carry_cost_and_sequential_latency():
     assert per["s0"]["latency_seq"] == pytest.approx(20_000)                    # 순차 회차만(동시 실행은 지연을 부풀린다)
     card = aggregate.scorecard("A2", runs, [], {}, "gpt-6-luna", keyfacts={}, sources=src)
     assert card["rep_sd"]["cost_per_card"] == pytest.approx(0.0141421356, rel=1e-6)
+
+
+# ── S1(2026-10-18): 조건·기준선·출력 이름을 고른다(기본 = 원래 Stage A 6조건, 원래 파일 이름) ──────────
+
+def test_cli_defaults_reproduce_original_stage_a():
+    from upgrade_eval import aggregate
+    args = aggregate.parse_args([])
+    assert args.arms.split(",") == ["A0", "A1", "A2", "A3", "A4", "A5"] and args.baseline == "A0" and args.out_prefix == ""
+
+
+def test_cli_s1_options_write_separate_files():
+    from upgrade_eval import aggregate
+    args = aggregate.parse_args(["--arms", "S1C,S1A", "--baseline", "S1C", "--out-prefix", "s1_"])
+    assert aggregate.out_names(args.out_prefix) == ("s1_scorecards.json", "s1_decision.json")

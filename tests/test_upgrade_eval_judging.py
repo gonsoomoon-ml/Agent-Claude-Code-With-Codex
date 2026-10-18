@@ -85,3 +85,22 @@ def test_overrides_reapply_after_merge():
     assert applied == 2                                                   # 대상 없는 1건은 세지 않는다(보고용)
     assert out[0]["fidelity"] == {"2": ["사실 오류"], "5": ["부풀림-범위"]}  # 다른 문장의 판정은 그대로
     assert out[0]["covered"] == {"K1": False}
+
+
+# ── S1(2026-10-18): 맞비교 기준 조건을 고른다(기본 A0 — 기존 기록과 호환) ─────────────────────
+
+def _recs(arm, sid="s1"):
+    return [{"arm": arm, "source_id": sid, "rep": r, "decision": "PUBLISH", "summary": "요" * (10 + r)} for r in (1, 2, 3)]
+
+
+def test_pairwise_tasks_use_chosen_base_and_arms():
+    groups = {("S1A", "s1"): _recs("S1A"), ("S1C", "s1"): _recs("S1C"), ("A0", "s1"): _recs("A0"), ("A2", "s1"): _recs("A2")}
+    tasks = judging.pairwise_tasks(groups, base="S1C", arms=["S1A"], judges=["astra"], done=set())
+    assert sorted((t[0], t[3]) for t in tasks) == [("S1A", "arm_first"), ("S1A", "s1c_first")]
+
+
+def test_pairwise_default_base_keeps_a0_labels():
+    """기본(A0) 기준의 순서 이름은 예전 그대로('a0_first') — 기존 pairwise.jsonl 의 완료 키를 다시 돌리지 않게."""
+    groups = {("A2", "s1"): _recs("A2"), ("A0", "s1"): _recs("A0")}
+    tasks = judging.pairwise_tasks(groups, base="A0", arms=None, judges=["astra"], done={("A2", "s1", "astra", "arm_first")})
+    assert [(t[0], t[3]) for t in tasks] == [("A2", "a0_first")]
