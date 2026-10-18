@@ -96,6 +96,21 @@ def failed_claim_ids(verdicts: tuple[CertVerdict, ...]) -> tuple[str, ...]:
     return tuple(v.claim_id for v in verdicts if v.verdict == "BLOCKED")
 
 
+def revise_within_targets(prior: DraftCard, revised: DraftCard, failed_ids: tuple[str, ...]) -> bool:
+    """S4 diff guard — 다시 쓴 요약이 고칠 문장(막힌 claim 이 덮는 문장, author.revise_targets) 밖을 건드리지 않았나.
+
+    대상 아닌 문장은 공백만 정규화해 글자 그대로 같은 순서로 남아야 하고, 문장 수는 늘면 안 된다(새 사실 금지).
+    고칠 문장은 바뀌거나 지워져도 된다(교정 우선 · 뒷받침이 없을 때만 삭제 — 판단은 author, 확인은 다시 검증).
+    """
+    targets = set(author.revise_targets(prior, failed_ids))
+    before = [" ".join(s.split()) for s in author.summary_sentences(prior.summary)]
+    after = [" ".join(s.split()) for s in author.summary_sentences(revised.summary)]
+    if len(after) > len(before):
+        return False
+    rest = iter(after)                                   # 부분열 검사 — iterator 를 소비하므로 순서까지 본다
+    return all(s in rest for i, s in enumerate(before) if i not in targets)
+
+
 def produce_card(
     source: FrozenSource,
     user: UserConfig,
@@ -110,7 +125,8 @@ def produce_card(
 ) -> GatedCard:
     """★ Maker-Checker 루프 (author↔certifier) — **decorrelation 보존형**.
 
-    author(초안) → verify → 실패 claim 있으면 author 재도출(실패 claim 만, 피드백=실패 id 만) → 재verify …
+    author(초안) → verify → 실패 claim 있으면 author 재도출(실패 claim 과 그 claim 이 덮는 요약 문장만, 피드백=실패 id 만)
+    → 범위 가드(S4 — 고칠 문장 밖을 바꾸면 버림) → 재verify …
     캡(max_attempts) 소진 시 **QUARANTINE**(BLOCKED 남음 → ⚠ 표시로 메일에 실림, F4·N5).
     *피드백에 certifier 추론·정답을 안 줌* → 라운드 간에도 'teaching to the test'(상관) 회피.
     (draft_fn/revise_fn/verify_fn = 의존성 주입 — 테스트용; 기본은 author·verify_card.)
@@ -134,7 +150,13 @@ def produce_card(
             return GatedCard(card, verdicts, "PUBLISH", attempt)
         if attempt < max_attempts:
             _debug.dprint("gate → revise", f"failed={list(failed)} → 실패 claim 재도출 (attempt {attempt + 1})", "yellow")
-            card = reroute_claim_types(revise_fn(source, user, settings, prior=card, failed_ids=failed))
+            revised = reroute_claim_types(revise_fn(source, user, settings, prior=card, failed_ids=failed))
+            if not revise_within_targets(card, revised, failed):
+                # S4: 고칠 문장 밖을 바꿨거나 문장을 늘렸다 → 다시 쓴 카드는 검증하지 않고 버린다. 이전 카드가 막힌
+                # claim 그대로 ⚠(QUARANTINE)로 나간다(N5 — 카드를 잃지 않음). warn = 운영에서 이 경로 빈도를 본다.
+                _debug.warn("gate revise", f"{card.source_id[:12]}: 다시 쓴 요약이 고칠 문장 밖을 바꿈 — 버리고 이전 카드를 ⚠ 로")
+                return _quarantine_on_exhaustion(card, verdicts, attempt + 1)
+            card = revised
     # 캡 소진: BLOCKED 가 남음 → QUARANTINE(⚠ 표시로 발송 — F4·N5)
     return _quarantine_on_exhaustion(card, verdicts, max_attempts)
 
