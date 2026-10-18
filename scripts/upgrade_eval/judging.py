@@ -9,6 +9,7 @@ judge/final.jsonl({arm, source_id, rep, covered, first_sentence_new, fidelity, b
 from __future__ import annotations
 
 import argparse
+import collections
 import json
 import random
 import threading
@@ -416,6 +417,22 @@ def pairwise_winner(better: str | None, order: str, base: str) -> str | None:
     if better == "tie":
         return "tie"
     return "arm" if (better == "first") == (order == "arm_first") else base
+
+
+def pairwise_summary(rows: list[dict], arm: str) -> dict:
+    """맞비교 기록 → 판정 수와 기사 단위 다수결({'arm'|'base'|'tie': 기사 수}).
+
+    후보 조건의 승리는 'arm' 으로 기록된다(기준 조건 이름과 구분 — d950712). 손으로 셀 때 조건 이름으로 세면
+    후보 승리가 0 으로 빠진다(2026-10-18 S2 집계 실수) — 그래서 셈을 여기 한 곳에 둔다. 판정 실패(None)는 뺀다."""
+    rs = [r for r in rows if r.get("arm") == arm and r.get("winner")]
+    by_article: dict[str, collections.Counter] = {}
+    for r in rs:
+        by_article.setdefault(r["source_id"], collections.Counter())[r["winner"]] += 1
+    articles: collections.Counter = collections.Counter()
+    for c in by_article.values():
+        cand, base = c.get("arm", 0), sum(n for w, n in c.items() if w not in ("arm", "tie"))
+        articles["arm" if cand > base else "base" if base > cand else "tie"] += 1
+    return {"judgments": dict(collections.Counter(r["winner"] for r in rs)), "articles": dict(articles)}
 
 
 def cmd_pairwise(base: str = "A0", arms: list[str] | None = None) -> None:

@@ -37,6 +37,24 @@ _CLAUDE_CONFIG = Path(__file__).resolve().parents[2] / "src" / "briefing" / "run
 
 # S1 초안 A — 리서치(01-research/author-summarization-research.md §5 초안 A) 문구 그대로.
 _S1_DRAFT_A = (Path(__file__).with_name("s1_draft_a.md")).read_text(encoding="utf-8")
+# S2 초안 B — 같은 리서치 §5 초안 B 문구 그대로(분자형 claims·한정어 보존).
+_S2_DRAFT_B = (Path(__file__).with_name("s2_draft_b.md")).read_text(encoding="utf-8")
+
+# S2 지시문 치환 — 초안 B 는 '원자적(단일 사실)으로 분해' 문구와 입도가 충돌한다(리서치 부록: 덧붙이기가 아니라
+# 그 줄을 고쳐야 한다). 그래서 원자 문구 4곳을 절 단위로 바꾸고, 초안 B 를 요약 커버리지 규칙 바로 아래에 넣는다.
+_S2_SYSTEM_EDITS: tuple[tuple[str, str], ...] = (
+    ("그리고 원자적 claims 를 작성한다.", "그리고 claims 를 작성한다."),
+    ("- `claims` 는 원자적(단일 사실) 단위로 분해한다.", "- `claims` 는 요약의 한 절을 하나의 명제로 옮긴다."),
+    ("요약이 한 문장에 여러 사실을 융합했으면 각각을 원자적 claim 으로 분해한다(요약에 담은 유보·반론도 사실이니 claim 으로).",
+     "요약이 한 문장에 여러 절을 이었으면 절마다 claim 을 만든다(요약에 담은 유보·반론도 claim 으로)."),
+    ("  기사 전체의 색인이 아니다. 독자에게 안 보이는 사실은 검증할 대상이 아니다(기사에 사실이 많아도 요약이 고른 것만 덮는다).\n",
+     "  기사 전체의 색인이 아니다. 독자에게 안 보이는 사실은 검증할 대상이 아니다(기사에 사실이 많아도 요약이 고른 것만 덮는다).\n"
+     + _S2_DRAFT_B),
+    ("claims 는 원자적(독립 검증 단위)이며", "claims 는 요약의 한 절을 옮긴 명제(독립 검증 단위)이며"),
+)
+_S2_USER_EDITS: tuple[tuple[str, str], ...] = (
+    ("다음 동결 원문을 요약하고 원자적 claims 를 추출하라.", "다음 동결 원문을 요약하고 claims 를 추출하라."),
+)
 
 
 @dataclass(frozen=True)
@@ -48,6 +66,9 @@ class Arm:
     # 지시문 추가 규칙(S1) — '논조·귀속 보존' 절 바로 다음에 넣는다. 빈 값 = 운영 지시문 그대로. rules_name 은 실행 기록용 이름.
     rules_patch: str = ""
     rules_name: str = ""
+    # 지시문 치환(S2) — (old, new). system 은 system 지시문에, user 는 draft 의 user 지시에 적용(다시 쓰기 지시는 그대로).
+    system_edits: tuple[tuple[str, str], ...] = ()
+    user_edits: tuple[tuple[str, str], ...] = ()
 
 
 ARMS: dict[str, Arm] = {
@@ -61,6 +82,10 @@ ARMS: dict[str, Arm] = {
     # 10-17 의 A2 를 대조군으로 쓰지 않는 이유: 그 뒤 F1(절단 경고)이 들어와 잘린 원문(기사 1/3)의 지시가 달라졌다.
     "S1C": Arm("S1C", "global.anthropic.claude-sonnet-5-5", "2.1.301", "medium"),
     "S1A": Arm("S1A", "global.anthropic.claude-sonnet-5-5", "2.1.301", "medium", _S1_DRAFT_A, "s1_draft_a"),
+    # S2(2026-10-18): 초안 B(분자형 claims·한정어 보존) 한 가지만 다른 조건 — 대조군은 S1C 기록을 그대로 쓴다
+    # (같은 운영 코드 main 40f9838·같은 실험 도구, 실험 도구 변경은 치환 장치뿐이고 S1C 지시문은 그대로).
+    "S2B": Arm("S2B", "global.anthropic.claude-sonnet-5-5", "2.1.301", "medium", rules_name="s2_draft_b",
+               system_edits=_S2_SYSTEM_EDITS, user_edits=_S2_USER_EDITS),
 }
 
 
@@ -80,10 +105,23 @@ def insert_rules(system_prompt: str, patch: str) -> str:
     return system_prompt[:k] + patch.rstrip("\n") + "\n\n" + system_prompt[k:]
 
 
+def apply_edits(text: str, edits: tuple[tuple[str, str], ...]) -> str:
+    """(old, new) 치환을 차례로 — old 는 정확히 한 번 있어야 한다(없거나 여럿이면 ValueError).
+    운영 지시문이 바뀌어 치환이 조용히 빠지면, 초안 없이 돈 실험이 된다."""
+    for old, new in edits:
+        n = text.count(old)
+        if n != 1:
+            raise ValueError(f"치환할 문구가 {n}번 있다(정확히 1번이어야 함): {old[:40]!r}")
+        text = text.replace(old, new, 1)
+    return text
+
+
 def system_prompt_for(arm: Arm, user) -> str:
-    """조건의 system 지시문 = 운영 build_system_prompt(+ 조건의 추가 규칙)."""
+    """조건의 system 지시문 = 운영 build_system_prompt(+ 조건의 추가 규칙·치환)."""
     s = build_system_prompt(lens_guidance=resolve_lens(user.lens).guidance, skill_md=user.skill_md)
-    return insert_rules(s, arm.rules_patch) if arm.rules_patch else s
+    if arm.rules_patch:
+        s = insert_rules(s, arm.rules_patch)
+    return apply_edits(s, arm.system_edits)
 
 
 @dataclass
@@ -171,7 +209,7 @@ def make_author_fns(
         return system_prompt_for(arm, user)
 
     def draft_fn(source, user, settings) -> DraftCard:
-        text = _call("draft", _system(user), build_user_prompt(source, today=EVAL_TODAY))
+        text = _call("draft", _system(user), apply_edits(build_user_prompt(source, today=EVAL_TODAY), arm.user_edits))
         return _to_draft_card(source.source_id, source.title, _parse_card_json(text))
 
     def revise_fn(source, user, settings, *, prior, failed_ids) -> DraftCard:
