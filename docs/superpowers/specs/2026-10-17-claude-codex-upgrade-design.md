@@ -1,6 +1,6 @@
 # Claude Code·Codex 업그레이드 — 전후 비교 실험과 단계 배포 (설계)
 
-- **상태:** **승인(2026-10-17) · 실험 완료(2026-10-17).** U2–U7 을 실행했고 결과는 작업 노트 `upgrade-comparison-report.md`(추천: 요약 Sonnet 5.5 + CLI 2.1.301, 검증 GPT-6 Luna + codex 0.163.0). 결정 D1–D6 확정. 사용자 결정 4(배포 순서, §14)는 보류 중이라 F3·F5·F7·U8 배포는 아직 하지 않는다.
+- **상태:** **승인(2026-10-17) · 실험 완료(2026-10-17).** U2–U7 을 실행했고 결과는 작업 노트 `upgrade-comparison-report.md`(추천: 요약 Sonnet 5.5 + CLI 2.1.301, 검증 GPT-6 Luna + codex 0.163.0). 결정 D1–D6 확정. U8 조합 확정(2026-10-18). 배포 착수(2026-10-18): F3·F7 배선 + U8 ① CLI 2.1.301 = runtime v54. 다음 = 아침 발송 2–3회 관찰 뒤 ② 요약 모델 → F5 → ③ 검증 모델, 한 단계씩.
 - **발단:** PRD `docs/work_note/Oct-2026/261016-upgrade-claude-codex/claude-codex-upgrade-prd.md` — ① AgentCore Runtime 의 Claude Code·Codex CLI 업그레이드 ② 최신 모델로 교체 ③ 전후 품질·비용 비교.
 - **관련 작업 노트(같은 work_note 폴더, 미커밋):**
   - `work-list.md`: 항목과 결정의 원본

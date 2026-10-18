@@ -100,10 +100,10 @@
 | specs `2026-10-16-article-identity-dedup-design` | **DRAFT** — 감사: 07-08~10-15 8기사·초과 45장. 원인 3층(문서 페이지 오인·본문 해시 신원·7일 lookback) → ① canonical 호스트 검사 ② URL·제목 신원 키 ③ lookback 90일+pagination. DB 스키마·일일 흐름 ASCII 수록. 결정: source-store join + 90일(2026-10-16) |
 | plans `2026-10-16-article-identity-dedup` | **DRAFT** — 7 Task(신원 키 → 스토어 get_meta·pagination → 설정 90일 → 파이프라인 → canonical 검사 → 재생 게이트(≤10-15 에서 45장·8기사·AI Times 0) → 출하) |
 
-### claude-codex-upgrade (CLI·모델 업그레이드 + 전후 품질·비용 비교) — 실험 완료·배포 보류 (2026-10-17)
+### claude-codex-upgrade (CLI·모델 업그레이드 + 전후 품질·비용 비교) — 실험 완료·main 병합·단계 배포 중 (2026-10-18)
 | 문서 | 상태 |
 |---|---|
 | specs `2026-10-17-claude-codex-upgrade-design` | **승인·실험 완료(2026-10-17)** — 결과 = 작업 노트 `upgrade-comparison-report.md`(추천: 요약 Sonnet 5.5 + CLI 2.1.301, 검증 GPT-6 Luna + codex 0.163.0). 설계: Stage B(검증 AI: GPT-6 4종 + GPT-5.5 기준선) → Stage A(요약 AI 조건 A0–A5 × 12건 × 3회) → 판정 파이프라인(다섯 질문·결함 심기·사람 20분) → 비용 실측 → 리포트 → 단계 배포. 결정 D1–D6(2026-10-17). 작업 노트 = `docs/work_note/Oct-2026/261016-upgrade-claude-codex/` |
-| plans `2026-10-17-claude-codex-upgrade` | **실행 완료(2026-10-17, Native)** — 브랜치 `upgrade-eval`(미병합). 13 Task: 작업 공간·프로브 → 공통·codex/author 러너 → 지표 → 기사 선정 → Stage B(+코드 리뷰·재승인 게이트) → Stage A → 판정자·채점(사람 확인 2회) → 비용 → 집계·결정 → 리포트. 배포(F3·F5·F7·U8)는 §14-4 보류로 제외 |
+| plans `2026-10-17-claude-codex-upgrade` | **실행 완료(2026-10-17, Native)** — 브랜치 `upgrade-eval` → main 병합(2026-10-18). 13 Task: 작업 공간·프로브 → 공통·codex/author 러너 → 지표 → 기사 선정 → Stage B(+코드 리뷰·재승인 게이트) → Stage A → 판정자·채점(사람 확인 2회) → 비용 → 집계·결정 → 리포트. 배포: F3·F7 배선 + U8 ① CLI 2.1.301 = runtime v54(2026-10-18). 다음 = 아침 발송 관찰 뒤 ② 요약 모델 → F5 → ③ 검증 모델 |
 
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.
