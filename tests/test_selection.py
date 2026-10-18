@@ -1,5 +1,7 @@
 """selection — 캡 초과 시 top-K 선별: 주=LLM pick-K(invoke seam), 폴백=최신순 잘림(latest_k=현행 동작)."""
-from briefing.core.retrieval.selection import latest_k, llm_select
+import pytest
+
+from briefing.core.retrieval.selection import latest_k, llm_select, pick_indices
 from briefing.core.retrieval.sources import FetchedArticle
 
 
@@ -81,3 +83,14 @@ def test_llm_select_prompt_ranks_ai_agents_first():
     assert "(1) AI agents" in s and s.index("AI agents") < s.index("major model")
     assert "applied AI — building and running AI in production" in s and s.index("applied AI") < s.index("major model")
     assert "Rank lower:" in s and "Exception" not in s   # 예외 문장은 시험에서 기각(큰 뉴스 쪽으로 기울어 불안정)
+
+
+def test_pick_indices_returns_zero_based_in_answer_order():
+    items = [(f"제목{i}", f"본문{i}") for i in range(1, 6)]
+    assert pick_indices(items, 2, invoke=lambda s, u: "생각... [4, 2]") == [3, 1]
+
+
+def test_pick_indices_raises_when_short_so_caller_picks_its_own_fallback():
+    """폴백은 호출자 몫 — 소스 선별은 최신순, 오늘의 핵심 3 은 칸 생략(최신순이면 늘 첫 섹션 카드가 '핵심')."""
+    with pytest.raises(ValueError):
+        pick_indices([("a", ""), ("b", ""), ("c", "")], 2, invoke=lambda s, u: "[9, 1, 1]")

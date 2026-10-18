@@ -6,6 +6,8 @@
 #      표 하나로 붙인다). 사용자 프로필엔 소스 키만 저장 → 이름을 바꿔도 데이터 이전 없음.
 #      소스 3개 이상 발행처 = 자기 섹션(AWS·Anthropic·Google), 나머지 = 성격별 묶음(Independent Voices 등).
 #   ⚠️ 섹션 순서 = 이 파일의 첫 등장 순서(build_catalog 이 CATALOG 순서 보존) → 같은 발행처를 인접 배치해 순서를 통제한다.
+#   현재 순서(2026-10-18 사용자 결정): News & Media → AWS → Anthropic → Google → AI Labs → Engineering Blogs →
+#   Independent Voices → Community — 메일은 AI Times 헤드라인 칸 → 오늘의 핵심 3 → The Decoder → AWS … 로 이어진다.
 # kind: rss=피드 직접 / html=리스팅→trafilatura 추출(피드 발견 안 함) / auto=피드 자동발견 후 폴백 / sitemap=사이트맵 urlset→글 페이지 추출.
 # ⚠️ 모든 요청은 실행 중 robots.txt(RFC 9309) 검사를 거친다(retrieval/robots.py) — 막힌 경로는 요청하지 않는다.
 # ⚠️ sources._load_catalog() 가 로드 시 검증 — 형식 오류면 시작 시 크래시(silent failure 금지).
@@ -21,7 +23,7 @@
   require_ai: false  # 헤드라인 전용: 제목별 판정 대신 Haiku 가 선별(select) — 제목만으론 신제품명을 AI 로
                      #   못 알아본다(30일 소급: Haiku 4.5 오판 13건). 선별 실패 시 키워드로 비AI 를 뺀 최신순
   # 2026-10-17 적법성 점검: 기사마다 "무단전재 및 재배포, AI학습 및 활용 금지" 고지 → 본문 수집·LLM 요약(카드) 중단.
-  #   RSS 의 제목·링크만 메일 맨 위 "헤드라인" 칸에(요약·검증 없음). Haiku 판정·선별엔 **제목만**(headlines.py).
+  #   RSS 의 제목·링크만 메일 맨 위 "헤드라인" 칸에(분야 소제목으로 묶음, 요약·검증 없음). Haiku 판정·선별엔 **제목만**(headlines.py).
   #   피드 요약문 = 본문 앞 300자 원문 → 싣지 않음. 근거: docs/work_note/Oct-2026/261017-find-new-articles/
   headlines_only: true
   max_items: 15      # 헤드라인 상한 — 메일 맨 위 칸. 실무 핵심 + 국내 AI 가 함께 들어가는 크기(3.5일 시험)

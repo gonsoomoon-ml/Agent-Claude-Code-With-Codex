@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -60,3 +61,17 @@ def lens_keys() -> tuple[str, ...]:
 def resolve_lens(key: str) -> Lens:
     """per-user lens 키 → Lens. 미설정/미상이면 default(general)로 폴백(편집 렌즈라 crash 대신 graceful)."""
     return _BY_KEY.get(key or DEFAULT_LENS, _BY_KEY[DEFAULT_LENS])
+
+
+_EN_NAME_RE = re.compile(r"\(([^()]+)\)\s*$")
+
+
+def lens_label(key: str) -> str:
+    """메일 표시용 관점 이름 = lenses.yaml name 의 괄호 안 영문(예 "엔지니어(Engineer)" → "Engineer").
+
+    키(engineer)는 프로필·캐시 키로 그대로 두고 표시만 바꾼다(2026-10-18 사용자 결정). 괄호가 없으면 name 그대로,
+    미상 키는 resolve_lens 와 같은 폴백(general) — 해석층이 실제로 쓴 관점과 표시가 어긋나지 않게.
+    """
+    name = resolve_lens(key).name
+    m = _EN_NAME_RE.search(name)
+    return m.group(1).strip() if m else name

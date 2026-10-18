@@ -12,6 +12,7 @@ from __future__ import annotations
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 
 from . import _debug, render
 from .article_identity import identity_keys, match_kind, published_keys
@@ -20,12 +21,13 @@ from .authoring.author import INTERP_PROMPT_VERSION, PROMPT_VERSION
 from .stores.cache import CardCache, fact_card_key, interp_card_key
 from .config import DEFAULT_DEDUP_LOOKBACK_DAYS, Settings, UserConfig
 from .retrieval.curation import FetchArticleFn, curate
-from .retrieval.headlines import HeadlineFetchFn, HeadlineSelectFn, collect_headlines
+from .retrieval.headlines import HeadlineAreaFn, HeadlineFetchFn, HeadlineSelectFn, collect_headlines
 from .gate import GatedCard, interpret_card, produce_card
 from .lenses import DEFAULT_LENS, resolve_lens
 from .stores.ledger import Ledger
 from .stores.source_store import SourceStore
 from .stores.usage import UsageRecorder
+from .top_picks import TopPickFn, top_source_ids
 
 # 사실층 합성 사용자 — author 는 user 의 lens·skill_md 만 본다: general + 무skill = 공통 사실층.
 # (id 는 로그 식별용일 뿐 프롬프트에 안 들어감; gate/certifier 는 원래 user-blind.)
@@ -56,15 +58,18 @@ def run_briefing(
     fetch_article_fn: FetchArticleFn | None = None,
     headline_fetch_fn: HeadlineFetchFn | None = None,
     headline_select_fn: HeadlineSelectFn | None = None,
+    headline_area_fn: HeadlineAreaFn | None = None,
     relevance_fn=None,
     select_fn=None,
     draft_fn=None,
     revise_fn=None,
     verify_fn=None,
     interp_fn=None,
+    top_pick_fn: TopPickFn | None = None,
     card_cache: CardCache | None = None,
     ledger: Ledger | None = None,
     run_date: str = "",
+    sent_at: datetime | None = None,
     recorder: UsageRecorder | None = None,
 ) -> list[UserBriefing]:
     """공유 수집(union)→동결 → 공유 사실층 → per-user [해석층 → render]. 사용자별 UserBriefing 목록 반환.
@@ -76,20 +81,22 @@ def run_briefing(
     by_key = curate(store, fetch_targets, window_hours=window_hours,
                     fetch_article_fn=fetch_article_fn, relevance_fn=relevance_fn, select_fn=select_fn)
     # 제목·링크 전용 소스(headlines_only) — 본문 미수집·카드 없음. 판정자(Haiku)는 제목만 받는다(headlines.py).
-    # covered = 이번 run 카드 소스의 동결본 제목(전 사용자 합집합) → 메일 맨 위 칸이 카드와 같은 소식을 반복하지 않게.
+    # covered = 이번 run 카드 소스의 동결본 제목(전 사용자 합집합) → 헤드라인 칸이 카드와 같은 소식을 반복하지 않게.
     covered = [fs.title for fss in by_key.values() for fs in fss]
     headlines = collect_headlines(fetch_targets, window_hours=window_hours, fetch_fn=headline_fetch_fn,
                                   relevance_fn=relevance_fn, headline_select_fn=headline_select_fn,
-                                  covered_titles=covered)
+                                  headline_area_fn=headline_area_fn, covered_titles=covered)
 
     out: list[UserBriefing] = []
     rec = recorder if recorder is not None else UsageRecorder()
     fact_memo: dict[str, GatedCard] = {}                 # run 내 사실층 공유 (source_id →)
     interp_memo: dict[tuple[str, str], GatedCard] = {}   # run 내 해석층 공유 ((source_id, lens) →)
-    today = render.format_briefing_date(run_date)
     lookback_days = getattr(settings, "dedup_lookback_days", DEFAULT_DEDUP_LOOKBACK_DAYS)
     meta_memo: dict = {}   # source_id → SourceMeta | None — run 동안 사용자 간 공유(dedup join 은 사실상 run당 1회)
+    top_memo: dict = {}    # 발행 카드 묶음 → 오늘의 핵심 3 source_id — 같은 묶음을 받는 사용자는 판정 1회 공유
     for u in users:
+        # 머리 날짜 = 발송 시각(sent_at)을 받는 사람 시간대로 바꾼 날짜(없으면 run_date). run_date 는 저장 키라 UTC 그대로.
+        today = render.briefing_date(run_date, sent_at, getattr(u, "timezone", ""))
         before = rec.total()
         t0 = time.monotonic()
         # (frozen, category) 쌍 — category 는 출처 카탈로그 Source.category (분야 그룹 키)
@@ -130,6 +137,7 @@ def run_briefing(
         cards = tuple(g for g, _ in produced)
         # render 는 *카드의* source_id 로 분야를 찾는다(실 author 는 fs.source_id 복사) → 카드 기준으로 매핑
         source_categories = {g.card.source_id: cat for g, cat in produced}
+        top = top_source_ids(cards, top_pick_fn, top_memo)   # 발행 6장 미만·미주입·실패면 () = 핵심 칸 없음
         out.append(
             UserBriefing(
                 user_id=u.id,
@@ -138,6 +146,7 @@ def run_briefing(
                 email=render.render_email(
                     cards, u, settings, store, source_categories=source_categories, today=today,
                     headlines=[h for s in src.resolve_sources(u.sources) for h in headlines.get(s.key, [])],
+                    top_picks=top,
                 ),
                 published=sum(1 for c in cards if c.decision == "PUBLISH"),
                 quarantined=sum(1 for c in cards if c.decision == "QUARANTINE"),

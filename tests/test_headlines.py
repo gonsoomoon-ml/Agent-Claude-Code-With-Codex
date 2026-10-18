@@ -32,7 +32,7 @@ def test_catalog_marks_aitimes_headlines_only():
     assert by_key["aitimes"].headlines_only is True
     # 제목별 관련성 판정 없이 Haiku 가 8건만 고른다 — 제목만으론 신제품명을 AI 로 못 알아본다(30일 소급: 4.5 오판 13건)
     assert by_key["aitimes"].require_ai is False and by_key["aitimes"].select == "llm"
-    assert by_key["aitimes"].max_items == 15   # 메일 맨 위 칸 — 실무 핵심 + 국내 소식이 함께 들어가는 크기
+    assert by_key["aitimes"].max_items == 15   # 메일 맨 위 칸(핵심 3 위) — 실무 핵심 + 국내 소식이 함께 들어가는 크기
     assert by_key["the-decoder"].headlines_only is False   # 기본값 = 기존 카드 경로
 
 
@@ -110,6 +110,49 @@ def test_headline_group_is_carried_from_selector():
     out = H.collect_headlines([_src(require_ai=False, max_items=15, select="llm")], window_hours=24,
                               fetch_fn=lambda s, w: arts, headline_select_fn=hsel)
     assert [(h.url, h.group) for h in out["aitimes"]] == [("https://a/2", "해외"), ("https://a/0", "국내")]
+
+
+def test_headline_area_is_attached_from_area_fn_with_titles_only():
+    arts = _arts(3)
+    seen = {}
+
+    def areas(titles):
+        seen["titles"] = list(titles)
+        return ["Research", "AI Agents"]
+
+    out = H.collect_headlines([_src(require_ai=False, max_items=2)], window_hours=24,
+                              fetch_fn=lambda s, w: arts, headline_area_fn=areas)
+    assert [(h.title, h.area) for h in out["aitimes"]] == [("AI 기사 0", "Research"), ("AI 기사 1", "AI Agents")]
+    assert seen["titles"] == ["AI 기사 0", "AI 기사 1"]                     # 분야 판정에도 제목만(고지 준수)
+
+
+def test_headline_area_fn_failure_or_length_mismatch_leaves_no_area(capsys):
+    def boom(_t):
+        raise RuntimeError("throttled")
+
+    for fn in (boom, lambda t: ["Research"]):          # 예외 · 길이 불일치 → 분야 없음(소제목 없는 목록)
+        out = H.collect_headlines([_src(require_ai=False, max_items=2)], window_hours=24,
+                                  fetch_fn=lambda s, w: _arts(3), headline_area_fn=fn)
+        assert [h.area for h in out["aitimes"]] == ["", ""]
+    assert "WARN" in capsys.readouterr().err
+
+
+def test_llm_headline_areas_maps_closed_list_in_order():
+    ans = '생각...\n{"Research": [2], "AI Agents": [1, 3]}'
+    assert H.llm_headline_areas(["a", "b", "c"], invoke=lambda s, u: ans) == ["AI Agents", "Research", "AI Agents"]
+
+
+def test_llm_headline_areas_all_or_nothing(capsys):
+    """한 건이라도 분야가 비거나 목록 밖 이름이면 [] — 일부만 소제목 아래 두면 마지막 묶음에 섞여 보인다."""
+    assert H.llm_headline_areas(["a", "b"], invoke=lambda s, u: '{"AI Agents": [1]}') == []
+    assert H.llm_headline_areas(["a", "b"], invoke=lambda s, u: '{"AI Agents": [1], "Chips": [2]}') == []
+    assert H.llm_headline_areas(["a"], invoke=lambda s, u: "글쎄요") == []
+    assert "WARN" in capsys.readouterr().err
+
+
+def test_headline_areas_are_the_five_user_approved_names_in_order():
+    assert H.HEADLINE_AREAS == ("AI Agents", "Models & Releases", "Research", "Policy & Security",
+                                "Industry & Business")   # 2026-10-18 사용자 결정 — 메일 소제목 순서
 
 
 def test_headline_carries_media_title_url_and_date():

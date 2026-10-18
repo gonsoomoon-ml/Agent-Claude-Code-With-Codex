@@ -7,6 +7,7 @@ Haiku 관련성 판정·선별은 제목만 받고 출력은 선택 여부뿐 �
 판단 근거: docs/work_note/Oct-2026/261017-find-new-articles/source-candidates.md
 
 검증 카드가 아니므로 gate/certifier 를 거치지 않는다 → render 가 "요약·검증 없음" 칸으로 카드와 분리한다.
+칸 안은 분야(HEADLINE_AREAS)로 묶는다 — 선별이 끝난 제목만 Haiku 가 닫힌 분야 목록에 배정(별도 콜, 제목만).
 """
 from __future__ import annotations
 
@@ -32,6 +33,12 @@ HeadlineFetchFn = Callable[[src.Source, int], Sequence[src.FetchedArticle]]
 # (candidates, k, covered_titles) -> 상한 k **이하**의 (기사, 그룹). covered = 이번 run 카드 소스의 기사 제목(같은 소식
 # 제외용). 그룹 = "해외" | "국내" | ""(모름 — 폴백·구형 응답).
 HeadlineSelectFn = Callable[[Sequence[src.FetchedArticle], int, Sequence[str]], list[tuple[src.FetchedArticle, str]]]
+# titles -> 제목마다 분야(같은 길이, HEADLINE_AREAS 중 하나). 실패 = [] → 분야 없음(render 가 소제목 없는 한 목록).
+HeadlineAreaFn = Callable[[Sequence[str]], list[str]]
+
+# 헤드라인 칸 분야(2026-10-18 사용자 결정) — 닫힌 목록·영문 정본(섹션 이름과 같은 원칙). 순서 = 메일 소제목 순서
+# (독자 우선순위: 에이전트 먼저). 지역(국내/해외)은 화면에 내지 않는다(소제목·표시 없음 — 2026-10-18 사용자 결정).
+HEADLINE_AREAS = ("AI Agents", "Models & Releases", "Research", "Policy & Security", "Industry & Business")
 
 _HEADLINE_SELECT_SYSTEM = (
     "You curate the headline list at the top of a Korean daily AI briefing email. The candidates are Korean "
@@ -59,6 +66,18 @@ _DEDUP_SYSTEM = (
     "Different events about the same company do NOT match. If unsure, do not include it. Think briefly, then "
     "end your answer with a JSON array of the matching candidate numbers on the last line, e.g. [2,9] or []."
 )
+# ★ 선별 프롬프트를 고치지 않고 **별도 콜**로 둔 이유: 선별(위)의 10-17 실측(파싱 3/3·비AI 0·국내 3~4건)을 그대로 유지.
+#   2026-10-18 실측(Haiku 5.5, 오늘 선별 11건 × 3회): 전부 배정, 7건 매회 같은 분야, 4건은 경계에서 흔들림
+#   (물리 문제 풀이=Research/Models, 에이전트 무단 침입=Agents/Security 등 — 어느 쪽도 틀리지 않은 경계).
+_AREA_SYSTEM = (
+    "You group Korean AI news headlines (titles only) by area for a daily AI briefing read by AI practitioners. "
+    "Assign EVERY numbered headline to exactly one area from this closed list: " + ", ".join(HEADLINE_AREAS) + ". "
+    "AI Agents = agent products and frameworks, agentic coding, agents acting on browsers or computers, agent "
+    "protocols, agent incidents. Models & Releases = new or updated models and AI products. Research = studies, "
+    "benchmarks, scientific results. Policy & Security = laws, regulation, government action, security incidents "
+    "and espionage. Industry & Business = funding, credit, deals, datacenters, chips, markets. Think briefly, then "
+    'end with ONE JSON object on the last line mapping area to numbers, e.g. {"AI Agents": [2], "Research": [1]}.'
+)
 _IDX_RE = re.compile(r"\[[\d,\s]*\]")
 
 
@@ -69,7 +88,8 @@ class Headline:
     title: str          # 피드 원제목 그대로
     url: str
     published_at: str   # ISO8601 (없으면 "")
-    group: str = ""     # "해외" | "국내" | ""(선별자가 안 나눔) — 메일 칸의 소제목(해외 먼저)
+    group: str = ""     # "해외" | "국내" | ""(선별자가 안 나눔) — 선별 안에서만 씀(상한 초과 시 국내 보존), 화면 표시 없음
+    area: str = ""      # HEADLINE_AREAS 중 하나 | ""(분류 안 됨) — 메일 칸의 분야 소제목
 
 
 def fetch_headline_feed(source: src.Source, window_hours: int) -> list[src.FetchedArticle]:
@@ -189,6 +209,36 @@ def llm_headline_select(cands: Sequence[src.FetchedArticle], k: int, covered: Se
     return [(a, "") for a in keyword_latest(arts, k)]
 
 
+def llm_headline_areas(titles: Sequence[str], *, invoke: Callable[[str, str], str]) -> list[str]:
+    """선별된 제목 → 제목마다 분야(HEADLINE_AREAS). 응답 = 마지막 줄 {"분야": [번호…]} 객체.
+
+    전부 배정됐을 때만 돌려준다 — 일부만 분야가 있으면 소제목 없는 줄이 마지막 묶음에 섞여 보인다.
+    목록 밖 이름·범위 밖 번호는 버리고(→ 미배정), 실패하면 [](non-silent): 칸은 소제목 없이 한 목록.
+    """
+    if not titles:
+        return []
+    user = "\n".join(f"{i}. {t}" for i, t in enumerate(titles, start=1))
+    try:
+        ans = invoke(_AREA_SYSTEM, user) or ""
+        objs = re.findall(r"\{[^{}]*\}", ans)
+        d = json.loads(objs[-1]) if objs else None
+        if not isinstance(d, dict):
+            raise ValueError(f"분야 객체 없음 (응답 {ans[-80:]!r})")
+        areas = [""] * len(titles)
+        for area, nums in d.items():
+            if area not in HEADLINE_AREAS:
+                continue
+            for i in nums if isinstance(nums, list) else []:
+                if isinstance(i, int) and 1 <= i <= len(titles) and not areas[i - 1]:
+                    areas[i - 1] = area
+        if all(areas):
+            return areas
+        _debug.warn("headlines area", f"분야 미배정 {areas.count('')}/{len(titles)}건 → 소제목 없이 한 목록")
+    except Exception as err:  # noqa: BLE001 — throttle/timeout/파싱: 분야 소제목만 빠진다
+        _debug.warn("headlines area", f"{type(err).__name__}: {err} → 소제목 없이 한 목록")
+    return []
+
+
 def collect_headlines(
     sources: Sequence[src.Source],
     *,
@@ -196,12 +246,14 @@ def collect_headlines(
     fetch_fn: HeadlineFetchFn | None = None,
     relevance_fn: RelevanceFn | None = None,
     headline_select_fn: HeadlineSelectFn | None = None,
+    headline_area_fn: HeadlineAreaFn | None = None,
     covered_titles: Sequence[str] = (),
 ) -> dict[str, list[Headline]]:
     """headlines_only 소스만 → {source_key: [Headline]}. 다른 소스는 무시(카드 경로 = curate).
 
     require_ai 면 제목으로 관련성 판정(주=Haiku, 미주입=키워드). select=llm 이면 선별자가 상한 이하로 고른다
     (주=Haiku: 실무 핵심 → 국내 AI, 카드와 같은 소식·비AI 제외 / 미주입=keyword_latest). 아니면 최신순 상한.
+    headline_area_fn 이 있으면 고른 제목에 분야를 붙인다(실패·길이 불일치 = 분야 없음).
     한 소스 실패가 브리핑을 막지 않는다(curate 와 같은 source-level degradation).
     """
     fetch = fetch_fn or fetch_headline_feed
@@ -225,6 +277,23 @@ def collect_headlines(
             picked = list(chooser(cands, cap, covered_titles))[:cap]
         else:
             picked = [(a, "") for a in latest_k(cands, cap)]
+        areas = _areas([a.title for a, _ in picked], headline_area_fn) if picked else []
         if picked:
-            out[source.key] = [Headline(source.key, source.name, a.title, a.url, a.published_at, g) for a, g in picked]
+            out[source.key] = [Headline(source.key, source.name, a.title, a.url, a.published_at, g, ar)
+                               for (a, g), ar in zip(picked, areas or [""] * len(picked))]
     return out
+
+
+def _areas(titles: list[str], fn: HeadlineAreaFn | None) -> list[str]:
+    """분야 판정 1회 — 주입 함수가 예외를 던지거나 길이가 안 맞으면 [](분야 없음). 헤드라인 칸 자체는 막지 않는다."""
+    if fn is None:
+        return []
+    try:
+        areas = list(fn(titles))
+    except Exception as err:  # noqa: BLE001
+        _debug.warn("headlines area", f"{type(err).__name__}: {err} → 소제목 없이 한 목록")
+        return []
+    if len(areas) != len(titles):
+        _debug.warn("headlines area", f"분야 {len(areas)}개 ≠ 제목 {len(titles)}개 → 소제목 없이 한 목록")
+        return []
+    return areas

@@ -112,3 +112,14 @@ def test_run_trial_forwards_window_hours():
               deliver_fn=lambda b: None, fallback_fn=lambda e: None,
               sleep_fn=lambda s: None, run_date="2026-07-06")
     assert seen.get("window_hours") == 24   # 미지정 시 기본 24h 유지
+
+
+def test_run_trial_passes_send_time_taken_after_verification():
+    """체험 메일 머리 날짜도 받는 사람 기준 — 발송 시각은 이메일 인증 polling 이 끝난 뒤(렌더 직전)에 읽는다."""
+    from datetime import datetime, timezone
+    seen, t = {}, datetime(2026, 10, 17, 23, 0, tzinfo=timezone.utc)
+    run_trial(_settings(), object(), None, {"email": "u@x.com", "sources": ["aitimes"]},
+              ses=_Ses(success_on=1), run_briefing_fn=lambda *a, **k: seen.update(k) or [_Brief(3)],
+              deliver_fn=lambda b: None, fallback_fn=lambda e: None, sleep_fn=lambda s: None,
+              run_date="2026-10-17", now_fn=lambda: t)
+    assert seen["sent_at"] == t

@@ -2,6 +2,7 @@
 
 ★ 이전엔 이 오케스트레이션이 AgentCore entrypoint 에 용접돼 *테스트로 안 덮였음* — 추출 후 여기서 결정론으로 덮는다.
 """
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from briefing.core.authoring.author import Claim, DraftCard
@@ -128,9 +129,75 @@ def test_run_briefing_groups_by_area_and_dates_header(tmp_path):
         run_date="2026-06-29",
     )
     email = out[0].email
-    assert "2개 분야" in email                                   # 출처 기준 분야 카운트
+    assert "요약 2건" in email                                   # 부제 = 요약(카드) 수(분야 수는 표시 안 함)
     assert "News &amp; Media" in email and "Anthropic" in email     # 분야 밴드(2개+, 발행처)
     assert "6월 29일" in email                                   # run_date → 헤더 날짜
+
+
+def test_run_briefing_header_date_follows_sent_at_in_recipient_timezone(tmp_path):
+    """sent_at(발송 시각)이 있으면 머리 날짜 = 받는 사람 시간대의 날짜. timezone 이 없는 사용자는 Asia/Seoul(설정 기본값)."""
+    store = SourceStore(str(tmp_path / "store"))
+    out = run_briefing(
+        SimpleNamespace(), store, [_user("alice", ["the-decoder"])], window_hours=0, fetch_article_fn=_fetch_distinct,
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "헤드라인", "요약", "왜중요",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+        run_date="2026-10-17", sent_at=datetime(2026, 10, 17, 20, 0, tzinfo=timezone.utc),
+    )
+    assert "10월 18일 (일)" in out[0].email and "10월 17일" not in out[0].email
+
+
+# ── 오늘의 핵심 3 (top_pick_fn) ─────────────────────────
+def _fetch_three(source, _w):
+    """출처당 서로 다른 기사 3건 — 출처 2개면 발행 카드 6장(핵심 3 문턱)."""
+    return [FetchedArticle(source.key, f"https://x/{source.key}/{i}", f"{source.key} AI 제목 {i}",
+                           f"{source.key} 고유 AI 본문 {i}.", "2026-06-27T00:00:00Z") for i in range(3)]
+
+
+def _top_kw(sources=("the-decoder", "claude-blog")):
+    return dict(window_hours=0, fetch_article_fn=_fetch_three,
+                draft_fn=lambda source, *_a: DraftCard(source.source_id, source.title, "요약", "왜중요",
+                                                       (Claim("C1", "ok", "entailment", "core"),)),
+                verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),))
+
+
+def test_run_briefing_top_picks_once_per_card_set_and_rendered_first(tmp_path):
+    """같은 카드 묶음을 받는 사용자들은 판정 1회를 공유하고(lens 무관 — 재료는 사실층), 핵심 3 이 메일 맨 앞에 온다."""
+    calls = []
+
+    def top(cards, k):
+        calls.append(([g.card.headline for g in cards], k))
+        return list(cards)[-3:]
+
+    users = [_user("alice", ["the-decoder", "claude-blog"]), _user("bob", ["the-decoder", "claude-blog"], lens="engineer")]
+    from briefing.core.authoring.author import Interpretation
+
+    out = run_briefing(SimpleNamespace(), SourceStore(str(tmp_path / "store")), users, top_pick_fn=top,
+                       interp_fn=lambda source, claims, user, settings, summary="":
+                       Interpretation(f"{user.lens} 관점 해석", (claims[0].id,)), **_top_kw())
+    assert len(calls) == 1 and len(calls[0][0]) == 6 and calls[0][1] == 3
+    for b in out:
+        assert b.published == 6
+        assert b.email.index("오늘의 핵심") < b.email.index("◆ News &amp; Media")
+
+
+def test_run_briefing_skips_top_picks_under_threshold(tmp_path):
+    def boom(_c, _k):
+        raise AssertionError("발행 카드 6장 미만이면 판정 호출 금지(비용 0)")
+
+    out = run_briefing(SimpleNamespace(), SourceStore(str(tmp_path / "store")), [_user("u", ["the-decoder"])],
+                       top_pick_fn=boom, **_top_kw())
+    assert out[0].published == 3 and "오늘의 핵심" not in out[0].email
+
+
+def test_run_briefing_top_pick_failure_sends_without_section(tmp_path, capsys):
+    def boom(_c, _k):
+        raise RuntimeError("throttled")
+
+    out = run_briefing(SimpleNamespace(), SourceStore(str(tmp_path / "store")),
+                       [_user("u", ["the-decoder", "claude-blog"])], top_pick_fn=boom, **_top_kw())
+    assert out[0].published == 6 and "오늘의 핵심" not in out[0].email   # 핵심 칸만 빠지고 발송은 그대로
+    assert "WARN" in capsys.readouterr().err                              # non-silent
 
 
 # ── cross-day 발행 dedup (late-post window 겹침에서 "사용자당 기사 1회" — ledger 조회) ──
@@ -432,6 +499,18 @@ def test_run_briefing_never_fetches_bodies_for_headlines_only(tmp_path):
         verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
     )
     assert calls == ["aws-ml"]                                   # aitimes 본문 fetch 0회
+
+
+def test_run_briefing_threads_headline_area_fn(tmp_path):
+    out = run_briefing(
+        SimpleNamespace(), SourceStore(str(tmp_path / "store")), [_user("u", ["aws-ml", "aitimes"])], window_hours=0,
+        fetch_article_fn=_fetch, headline_fetch_fn=_headline_feed,
+        headline_area_fn=lambda titles: ["Industry & Business"] * len(titles),
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "H", "S", "W",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert "Industry &amp; Business 1" in out[0].email           # 분야 소제목이 메일까지 온다
 
 
 def test_run_briefing_passes_card_source_titles_as_covered(tmp_path):

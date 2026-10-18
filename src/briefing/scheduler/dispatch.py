@@ -44,7 +44,9 @@ def dispatch(
         return []   # 아무도 due 아님 → run_briefing/발송 호출 0 (시간당 tick 의 대부분)
 
     rd = run_date or now_utc.strftime("%Y-%m-%d")
-    briefings = run_briefing(settings, store, due, card_cache=card_cache, ledger=ledger, run_date=rd, **fns)
+    # sent_at = 메일 머리 날짜용 발송 시각(받는 사람 시간대로 바꿔 찍음). rd 는 저장 키라 UTC 날짜 그대로.
+    briefings = run_briefing(settings, store, due, card_cache=card_cache, ledger=ledger, run_date=rd,
+                             sent_at=now_utc, **fns)
 
     delivered: list[str] = []
     for b in briefings:

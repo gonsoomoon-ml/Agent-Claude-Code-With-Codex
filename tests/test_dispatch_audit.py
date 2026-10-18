@@ -59,3 +59,14 @@ def test_dispatch_writes_audit_record_with_none_deliver_fn(monkeypatch):
     assert r["published"] == 5 and r["duration_ms"] == 662000
     assert r["recipient"] == "u1@x.com"
     assert isinstance(r["cost_usd"], Decimal)
+
+
+def test_dispatch_passes_send_time_and_keeps_utc_run_date(monkeypatch):
+    """머리 날짜용 발송 시각(sent_at)을 넘기되, 저장 키 run_date 는 UTC 날짜 그대로(발송 기록·중복 방지 기준 불변)."""
+    import briefing.scheduler.dispatch as d
+    seen = {}
+    monkeypatch.setattr(d, "users_due_now", lambda users, now, **k: users)
+    monkeypatch.setattr(d, "run_briefing", lambda *a, **k: seen.update(k) or [])
+    now = datetime(2026, 10, 17, 20, 0, 12, tzinfo=timezone.utc)
+    dispatch(None, None, ["u1"], now, deliver_fn=lambda b: None)
+    assert seen["sent_at"] == now and seen["run_date"] == "2026-10-17"

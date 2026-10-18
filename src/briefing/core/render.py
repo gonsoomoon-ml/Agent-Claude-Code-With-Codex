@@ -15,7 +15,8 @@ from urllib.parse import urlparse
 
 from .config import Settings, UserConfig
 from .gate import GatedCard
-from .retrieval.headlines import Headline
+from .lenses import lens_label
+from .retrieval.headlines import HEADLINE_AREAS, Headline
 from .stores.source_store import SourceStore
 
 # ── 검증 명세서 토큰 ──
@@ -45,6 +46,20 @@ def format_briefing_date(run_date: str) -> str:
     except (ValueError, TypeError):
         return ""
     return f"{d.month}월 {d.day}일 ({_WEEKDAY_KO[d.weekday()]})"
+
+
+def briefing_date(run_date: str, sent_at: datetime.datetime | None, tz: str) -> str:
+    """메일 머리 날짜 — sent_at(발송 시각)을 받는 사람 시간대(tz)로 바꾼 날짜. sent_at 이 없으면 run_date.
+
+    왜: run_date 는 발송 기록·중복 방지의 UTC 날짜 키다. 05:00 KST 발송은 전날 20:00 UTC 라 run_date 를 그대로
+    찍으면 하루 전 날짜가 나간다(2026-10-18 일요일 메일에 "10월 17일 (토)"). naive datetime 은 UTC 로 본다.
+    """
+    if sent_at is None:
+        return format_briefing_date(run_date)
+    from zoneinfo import ZoneInfo   # lazy — render 의 다른 경로엔 불필요
+    if sent_at.tzinfo is None:
+        sent_at = sent_at.replace(tzinfo=datetime.timezone.utc)
+    return format_briefing_date(sent_at.astimezone(ZoneInfo(tz or "Asia/Seoul")).date().isoformat())
 
 
 def _domain(url: str) -> str:
@@ -140,13 +155,19 @@ def _band(category: str, count: int) -> str:
     )
 
 
+def _valid_headlines(headlines: Sequence[Headline]) -> list[Headline]:
+    """http(s) 링크만 — 칸과 부제 개수가 같은 목록을 센다(javascript: 등은 버림)."""
+    return [h for h in headlines if urlparse(h.url).scheme in ("http", "https")]
+
+
 def _headlines_html(headlines: Sequence[Headline]) -> str:
-    """헤드라인 칸 — 제목·링크 전용 소스(본문 미수집). 메일 맨 위, 검증 카드와 상자로 구분한다.
+    """헤드라인 칸 — 제목·링크 전용 소스(본문 미수집). 메일 맨 위(오늘의 핵심 3 위), 검증 카드와 상자로 구분한다.
 
     원제목을 그대로 싣는다(재작성·요약 없음). http(s) 가 아닌 링크는 버린다(javascript: 등).
-    매체가 하나면 칸 제목에 한 번만 쓰고, 여럿일 때만 줄마다 붙인다. 그룹(해외/국내)이 있으면 소제목으로 나눈다.
+    매체가 하나면 칸 제목에 한 번만 쓰고, 여럿일 때만 줄마다 붙인다. 모든 줄에 분야가 있으면 HEADLINE_AREAS 순서의
+    소제목으로 나누고(빈 분야 숨김, 분야 안은 선별 순서), 하나라도 없으면 소제목 없이 한 목록. 지역(국내/해외)은 표시하지 않는다.
     """
-    ok = [h for h in headlines if urlparse(h.url).scheme in ("http", "https")]
+    ok = _valid_headlines(headlines)
     if not ok:
         return ""
     media = list(dict.fromkeys(h.media for h in ok))
@@ -162,13 +183,13 @@ def _headlines_html(headlines: Sequence[Headline]) -> str:
         )
         return f'<ul style="margin:4px 0 0;padding-left:18px;font-size:13px;line-height:1.5">{items}</ul>'
 
-    if any(h.group for h in ok):   # 해외 먼저, 국내 다음 — 빈 그룹은 소제목째 숨김
+    if all(h.area in HEADLINE_AREAS for h in ok):   # 분야 순서 고정 — 빈 분야는 소제목째 숨김
         body = ""
-        for g in ("해외", "국내"):
-            rows = [h for h in ok if (h.group or "해외") == g]
+        for area in HEADLINE_AREAS:
+            rows = [h for h in ok if h.area == area]
             if rows:
                 body += (f'<p style="font-size:12px;font-weight:700;color:{_META};margin:8px 0 0">'
-                         f"{g} {len(rows)}</p>" + _ul(rows))
+                         f"{html.escape(area)} {len(rows)}</p>" + _ul(rows))
     else:
         body = _ul(ok)
     label = f"{html.escape(media[0])} " if not per_row else ""
@@ -189,15 +210,19 @@ def render_email(
     source_categories: Mapping[str, str] | None = None,
     today: str | None = None,
     headlines: Sequence[Headline] = (),
+    top_picks: Sequence[str] = (),
 ) -> str:
     """PUBLISH 카드만 → 검증 명세서 HTML 이메일.
 
     source_categories: source_id → 분야(category). 발행 카드가 **2개 이상 분야**에 걸치면 밴드로 그룹(번호 분야별 리셋),
     아니면 평평(전역 번호). today: 헤더 날짜(없으면 생략). 0건이면 폴백.
-    headlines: 제목·링크 전용 소스의 헤드라인 — 맨 위 별도 상자(아침에 먼저 훑는 칸). 카드가 0건이면 싣지 않는다(헤드라인만으론 브리핑 아님).
+    headlines: 제목·링크 전용 소스의 헤드라인 — 맨 위 별도 상자(아침에 먼저 훑는 칸, 핵심 3 위). 카드가 0건이면 싣지 않는다(헤드라인만으론 브리핑 아님).
+    top_picks: 오늘의 핵심 3 으로 올릴 카드의 source_id(순서 = 판정 순서). 맨 앞 칸에 싣고 원래 분야 밴드에서는 뺀다
+      (중복 없음). 모르는 id 는 무시. 핵심 칸이 있으면 나머지는 분야가 하나여도 밴드로 구분한다.
     """
     published = [c for c in cards if c.decision == "PUBLISH"]
     lens = getattr(user, "lens", "") or ""
+    lens = lens_label(lens) if lens else ""   # 표시 = 영문 이름(engineer → Engineer); 키는 프로필 그대로
     depth = getattr(user, "depth", "full") or "full"
 
     # ── 분야 그룹: 발행 카드의 distinct category(첫 등장 순서) ──
@@ -212,8 +237,9 @@ def render_email(
     # ── 헤더(인장 · 날짜; user.id 비노출) ──
     title = "오늘의 브리핑" + (f" · {html.escape(today)}" if today else "")
     heads_html = _headlines_html(headlines) if published else ""
-    # 헤드라인 칸(검증 없음)이 맨 위에 오면 인장이 그것까지 검증한 것처럼 읽히지 않게 범위를 밝힌다
-    seal_text = ("✓ 아래 카드는 AI 에이전트 원문 대조" if heads_html else "✓ AI 에이전트 원문 대조")
+    # 인장 = 검증 범위(요약) + 누가(요약을 만들지 않은 다른 AI). 요약이 있는 것은 카드뿐이라 헤드라인 칸(요약·검증
+    # 없음)이 위에 있어도 범위가 저절로 맞고, 해석까지 원문 대조한 것처럼 읽히지 않는다(검증줄 "요약의 사실 N건"과 같은 범위).
+    seal_text = "✓ 요약은 다른 AI 에이전트가 원문 대조"
     seal = (
         f'<span style="{_MONO};font-size:12px;color:{_OK};border:1px solid {_RULE};'
         f'border-radius:6px;padding:2px 8px;white-space:nowrap">{seal_text}</span>'
@@ -230,30 +256,40 @@ def render_email(
             "(확인되지 않은 항목은 보내지 않았어요.)</p></div>"
         )
 
-    area_prefix = f"{len(distinct)}개 분야 · " if grouped else ""
-    # 부제 = 콘텐츠(분야·개수·관점)만 — 검증 문구는 인장(✓ 원문 대조 완료)·카드 검증줄·푸터가 소유(중복 제거).
+    # 부제 = 콘텐츠(개수·관점)만, 메일 순서대로 헤드라인 → 요약 — 검증 문구는 인장·카드 검증줄·푸터가 소유(중복 제거).
+    # "요약 N건"(≠ "카드 N장": 카드는 내부 용어) — 인장 "요약은…"·카드 라벨 "요약 · 원문 사실"과 같은 말.
+    # 분야 수는 뺐다(2026-10-18): 헤드라인 칸의 분야(AI Agents…)와 뜻이 겹치고, 핵심 3 으로 밴드 수와 어긋난다.
     # "관점 해석"(≠ 관점 요약) — 2층화 후 lens 가 소유하는 것은 해석이므로 카피도 그렇게 말한다.
-    subtitle = (
-        f'<p style="{_MONO};font-size:12px;color:{_META};margin:4px 0 0">'
-        f"{area_prefix}소식 {len(published)}개 · {html.escape(lens)} 관점 해석</p>"
-    )
+    n_heads = len(_valid_headlines(headlines)) if heads_html else 0
+    bits = ([f"헤드라인 {n_heads}건"] if n_heads else []) + [f"요약 {len(published)}건"] \
+        + ([f"{html.escape(lens)} 관점 해석"] if lens else [])
+    subtitle = f'<p style="{_MONO};font-size:12px;color:{_META};margin:4px 0 0">{" · ".join(bits)}</p>'
     coral_rule = f'<div style="border-top:2px solid {_CORAL};margin:10px 0 4px"></div>'
 
-    if grouped:
-        sections = []
-        for ct in distinct:
-            members = [g for g in published if cats.get(g.card.source_id, "") == ct]
-            cards_html = "\n".join(
-                _card_html(g, store, depth=depth, lens=lens, rank=i) for i, g in enumerate(members, 1)
-            )
-            sections.append(_band(ct, len(members)) + "\n" + cards_html)
-        body = "\n".join(sections)
-    else:
-        body = "\n".join(
-            _card_html(g, store, depth=depth, lens=lens, rank=i) for i, g in enumerate(published, 1)
-        )
+    def _cards(members: Sequence[GatedCard]) -> str:
+        return "\n".join(_card_html(g, store, depth=depth, lens=lens, rank=i) for i, g in enumerate(members, 1))
 
-    heads_note = (" 맨 위 헤드라인은 요약·검증 없이 제목과 원문 링크만 옮긴 것입니다." if heads_html else "")
+    # ── 오늘의 핵심 3: 판정 순서대로 맨 앞 칸, 원래 밴드에서는 뺀다. 부제("요약 N건")는 발행 카드 전체 기준(핵심 포함) ──
+    by_sid: dict[str, GatedCard] = {}
+    for g in published:
+        by_sid.setdefault(g.card.source_id, g)
+    top = [by_sid[sid] for sid in dict.fromkeys(top_picks) if sid in by_sid]
+    top_ids = {g.card.source_id for g in top}
+    rest = [g for g in published if g.card.source_id not in top_ids]
+    top_html = (_band("오늘의 핵심", len(top)) + "\n" + _cards(top)) if top else ""
+
+    # 밴드 = 남은 카드의 분야(첫 등장 순서) — 카드가 전부 핵심으로 올라간 분야는 0건 밴드를 그리지 않는다
+    rest_cats = list(dict.fromkeys(ct for g in rest if (ct := cats.get(g.card.source_id, ""))))
+    if grouped or (top and rest_cats):
+        body = "\n".join(
+            _band(ct, len(members)) + "\n" + _cards(members)
+            for ct in rest_cats
+            if (members := [g for g in rest if cats.get(g.card.source_id, "") == ct])
+        )
+    else:
+        body = _cards(rest)
+
+    heads_note = (" 헤드라인 칸은 요약·검증 없이 제목과 원문 링크만 옮긴 것입니다." if heads_html else "")
     send_hour = getattr(user, "send_hour", 7)
     footer = (
         f'<div style="border-top:2px solid {_RULE};margin:22px 0 0;padding-top:10px;'
@@ -264,4 +300,5 @@ def render_email(
         f"확인되지 않은 내용은 보내지 않습니다.{heads_note}</p>"
         f'<p style="margin:0">다음 브리핑 내일 {int(send_hour):02d}:00 · 관점 바꾸기 · 구독 해지</p></div>'
     )
-    return _WRAP + header + subtitle + coral_rule + heads_html + body + footer + "</div>"
+    # 순서(2026-10-18 사용자 결정): 헤드라인 칸 → 오늘의 핵심 3 → 분야 섹션(News & Media → AWS → …)
+    return _WRAP + header + subtitle + coral_rule + heads_html + top_html + body + footer + "</div>"

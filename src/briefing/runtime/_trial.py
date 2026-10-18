@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 from typing import Any, Callable
 
 from ..core.config import Settings, UserConfig
@@ -65,7 +66,8 @@ def run_trial(settings: Settings, store: Any, card_cache: Any, payload: dict, *,
               ses: Any, run_briefing_fn: Callable, deliver_fn: Callable[[Any], None],
               fallback_fn: Callable[[str], None], sleep_fn: Callable[[int], None],
               run_date: str, attempts: int = 45, sleep_seconds: int = 20,
-              status_fn: Callable[[str, int | None], None] = lambda s, p=None: None) -> str:
+              status_fn: Callable[[str, int | None], None] = lambda s, p=None: None,
+              now_fn: Callable[[], datetime] = lambda: datetime.now(timezone.utc)) -> str:
     """검증 polling → run_briefing → 발송/폴백. 상태 문자열 반환(로깅용).
 
     미검증(timeout) 시 run_briefing 호출 금지 (LLM 비용 0).
@@ -82,6 +84,7 @@ def run_trial(settings: Settings, store: Any, card_cache: Any, payload: dict, *,
         run_date: ISO 날짜 문자열
         attempts, sleep_seconds: 폴링 설정
         status_fn: 상태 콜백(주입) — status_fn(단계, published_count) 또는 status_fn(단계)
+        now_fn: 발송 시각 읽기(주입) — 메일 머리 날짜를 받는 사람 시간대로 찍는 데 쓴다(인증 polling 이 끝난 뒤 읽음)
 
     Returns:
         상태 로그(str) — "trial timeout(...)", "trial empty(...)", "trial delivered(...)", "trial fallback(...)"
@@ -94,7 +97,7 @@ def run_trial(settings: Settings, store: Any, card_cache: Any, payload: dict, *,
     user = build_trial_user(payload, settings)
     # window_hours 포워딩(기본 24h) — 누락 시 payload 값이 조용히 무시돼 저빈도 출처 trial 이 무조건 fallback.
     briefs = run_briefing_fn(settings, store, [user], card_cache=card_cache, ledger=None, run_date=run_date,
-                             window_hours=int(payload.get("window_hours", 24)))
+                             window_hours=int(payload.get("window_hours", 24)), sent_at=now_fn())
     if not briefs:
         fallback_fn(email)
         status_fn("fallback")

@@ -11,7 +11,8 @@ IAM 은 기존 `bedrock:InvokeModel` 이 Converse 도 커버(같은 액션) → 
 from __future__ import annotations
 
 from ..config import Settings
-from .headlines import llm_headline_select
+from ..top_picks import TopPickFn, llm_top_picks
+from .headlines import HeadlineAreaFn, llm_headline_areas, llm_headline_select
 from .relevance import RelevanceFn, llm_relevance
 from .selection import SelectFn, llm_select
 
@@ -82,3 +83,31 @@ def make_bedrock_headline_select(settings: Settings):
 
     return lambda cands, k, covered: llm_headline_select(cands, k, covered, invoke=_invoke)
 
+
+def make_bedrock_headline_areas(settings: Settings) -> HeadlineAreaFn:
+    """settings → titles->분야 목록. 헤드라인 칸 분야 묶음 1콜(선별된 제목만, "짧게 추론 → 마지막 줄 객체").
+
+    실패는 llm_headline_areas 안에서 [](소제목 없는 한 목록, non-silent) — 여기선 조립만.
+    """
+    client = _client(settings.region)
+    model_id = settings.relevance_model_id
+
+    def _invoke(system: str, user: str) -> str:
+        return _converse_text(client, model_id, system, user, 2000)   # 선별과 같은 추론 여유 — 잘리면 소제목 없음
+
+    return lambda titles: llm_headline_areas(titles, invoke=_invoke)
+
+
+
+def make_bedrock_top_pick(settings: Settings) -> TopPickFn:
+    """settings → (발행 카드,k)->오늘의 핵심 K장. 소스 선별과 같은 Haiku·Converse 배관·같은 P2b 기준(재료=제목·요약).
+
+    실패는 llm_top_picks 안에서 [](핵심 칸 생략, non-silent) — 여기선 조립만.
+    """
+    client = _client(settings.region)
+    model_id = settings.relevance_model_id
+
+    def _invoke(system: str, user: str) -> str:
+        return _converse_text(client, model_id, system, user, 64)
+
+    return lambda cards, k: llm_top_picks(cards, k, invoke=_invoke)

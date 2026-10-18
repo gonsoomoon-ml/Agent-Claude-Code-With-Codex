@@ -36,3 +36,12 @@ def test_lenses_validation_rejects(bad):
     p.write_text(bad, encoding="utf-8")
     with pytest.raises(ValueError):
         _load_lenses(p)
+
+
+def test_lens_label_is_english_name_from_library():
+    """메일 표시 = lenses.yaml name 의 괄호 안 영문(2026-10-18 사용자 결정: engineer → Engineer). 키는 그대로 저장."""
+    from briefing.core.lenses import lens_label
+    assert lens_label("engineer") == "Engineer"
+    assert lens_label("agent-builder") == "Agent Builder"     # 키 대문자화가 아니라 라이브러리 이름
+    assert lens_label("business") == "Business"
+    assert lens_label("nope") == "General"                    # 미상 키 = resolve_lens 와 같은 폴백

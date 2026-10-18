@@ -31,15 +31,19 @@ def _production_fns(settings) -> dict:
     if settings.gateway_enabled:   # ① 승격: retrieval 을 Gateway MCP 로(opt-in; off 면 직접 — 현 기본)
         from ..core.retrieval.gateway_client import gateway_fetch_factory
         fns["fetch_article_fn"] = gateway_fetch_factory(settings)
-    if settings.relevance_llm_enabled:   # curate-stage Haiku 사전 필터 2종(같은 플래그): 관련성 + top-K 선별
+    if settings.relevance_llm_enabled:   # Haiku 판정자(같은 플래그): 관련성 + top-K 선별 + 헤드라인(선별·분야) + 오늘의 핵심 3
         from ..core.retrieval.relevance_bedrock import (
+            make_bedrock_headline_areas,
             make_bedrock_headline_select,
             make_bedrock_relevance,
             make_bedrock_select,
+            make_bedrock_top_pick,
         )
         fns["relevance_fn"] = make_bedrock_relevance(settings)   # require_ai 소스(키워드 폴백)
         fns["select_fn"] = make_bedrock_select(settings)         # select=llm 카드 소스(최신순 폴백)
         fns["headline_select_fn"] = make_bedrock_headline_select(settings)   # 헤드라인 칸(키워드·최신순 폴백)
+        fns["headline_area_fn"] = make_bedrock_headline_areas(settings)       # 헤드라인 분야 소제목(실패 시 한 목록)
+        fns["top_pick_fn"] = make_bedrock_top_pick(settings)     # 오늘의 핵심 3(실패 시 칸 생략)
     return fns
 
 app = BedrockAgentCoreApp()
@@ -172,7 +176,7 @@ async def briefing_entrypoint(payload, context):
     for b in run_briefing(settings, store, users, window_hours=window_hours,
                           card_cache=None if test_mode else card_cache,
                           ledger=None if test_mode else ledger,
-                          run_date=run_date, **fns):
+                          run_date=run_date, sent_at=datetime.now(timezone.utc), **fns):
         # TODO(deliver): SES send(b.recipient, b.email) · QUARANTINE → 사람-검토 큐(별도 행선지).
         _debug.dprint("entrypoint ← briefing",
                       f"{b.user_id}: published={b.published} quarantined={b.quarantined}",

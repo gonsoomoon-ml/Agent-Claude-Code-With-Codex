@@ -10,6 +10,7 @@ supervisor 가 reach/override 불가 — 결정·실행은 도구가, supervisor
 from __future__ import annotations
 
 import time
+from datetime import datetime, timezone
 
 from strands import Agent, tool
 from strands.hooks import HookProvider
@@ -85,10 +86,11 @@ def render_briefing() -> str:
     cards: list[GatedCard] = _CTX.get("cards", [])
     user: UserConfig = _CTX["user"]
     settings: Settings = _CTX["settings"]
+    # 헤드라인 칸·오늘의 핵심 3 은 미배선 — supervisor 는 옵션 경로(운영 발송 = pipeline.run_briefing)
     email = render.render_email(
         cards, user, settings, _CTX["store"],
         source_categories=_CTX.get("source_categories"),
-        today=render.format_briefing_date(_CTX.get("run_date", "")),
+        today=render.briefing_date(_CTX.get("run_date", ""), _CTX.get("sent_at"), getattr(user, "timezone", "")),
     )
     _CTX["email"] = email
     published = sum(1 for c in cards if c.decision == "PUBLISH")
@@ -166,7 +168,7 @@ def run_supervisor(
     user = load_user(user_id, settings)
     _CTX.clear()
     _CTX.update(settings=settings, store=store, user=user, source_keys=source_keys,
-                max_items=max_items, run_date=run_date)
+                max_items=max_items, run_date=run_date, sent_at=datetime.now(timezone.utc))   # 머리 날짜용 발송 시각
 
     agent = get_supervisor(settings)
     task = (

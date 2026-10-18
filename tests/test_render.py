@@ -26,7 +26,7 @@ def _gated(decision="PUBLISH", verdicts=None, **kw):
 def test_header_shows_brand_and_seal_and_hides_user_id():
     out = render_email([_gated()], _user(), None)
     assert "오늘의 브리핑" in out
-    assert "AI 에이전트 원문 대조" in out     # 검증 인장 — 누가 검증했는지(차별점) 포함
+    assert "✓ 요약은 다른 AI 에이전트가 원문 대조" in out   # 인장 = 검증 범위(요약) + 누가(다른 AI — 차별점)
     assert "u-secret-id" not in out          # 내부 user.id 노출 제거
 
 
@@ -37,8 +37,9 @@ def test_header_shows_date_when_today_given():
 
 def test_subtitle_shows_count_lens_without_duplicating_verification():
     out = render_email([_gated()], _user(lens="engineer"), None)
-    assert "소식 1개" in out
-    assert "engineer 관점 해석" in out        # 2층화: lens 는 '해석'을 소유(요약은 공통 사실)
+    assert "요약 1건" in out and "소식 " not in out and "카드 " not in out   # "소식"은 헤드라인도 뜻해 모호, "카드"는 내부 용어
+                                                                         # → 인장("요약은…")·카드 라벨("요약 · 원문 사실")과 같은 말
+    assert "Engineer 관점 해석" in out        # 2층화: lens 는 '해석'을 소유. 표시 = lenses.yaml 영문 이름
     assert "관점 요약" not in out             # 옛 카피('{lens} 관점 요약')는 거짓이 됨 — 제거
     assert out.count("원문 대조") == 1        # 헤더 인장에만 1회 — 부제의 "원문 대조" 중복 제거
     assert "개 분야" not in out               # 1개 분야면 분야 표기 안 함
@@ -136,7 +137,7 @@ def test_area_bands_render_when_two_or_more_categories():
     cats = {"s1": "AI 뉴스", "s2": "프런티어 AI 랩"}
     out = render_email([g1, g2], _user(), None, source_categories=cats)
     assert "AI 뉴스" in out and "프런티어 AI 랩" in out
-    assert "2개 분야" in out
+    assert "개 분야" not in out                 # 부제에서 분야 수 제거 — 헤드라인 칸의 분야(AI Agents…)와 뜻이 겹친다
     assert out.index("AI 뉴스") < out.index("프런티어 AI 랩")   # 첫 등장 순서 유지
 
 
@@ -159,7 +160,7 @@ def test_dark_mode_canvas_anchored():
 def test_footer_explains_decorrelation_plainly():
     out = render_email([_gated()], _user(lens="engineer"), None)
     assert "요약을 만들지 않은 다른 AI 에이전트가 그 요약을 원문과 대조" in out
-    assert "확인된 요약 위에 engineer 관점의 해석" in out   # 2층 구조를 정직하게 설명(검증=요약, 해석=관점)
+    assert "확인된 요약 위에 Engineer 관점의 해석" in out   # 2층 구조를 정직하게 설명(검증=요약, 해석=관점)
     assert "확인되지 않은 내용은 보내지 않습니다" in out
 
 
@@ -169,7 +170,7 @@ def test_footer_explains_decorrelation_plainly():
 def test_card_labels_split_fact_and_lens_interpretation():
     out = render_email([_gated()], _user(lens="engineer"), None)
     assert "요약 · 원문 사실" in out                       # 요약 라벨에서 lens 제거(공통 사실층)
-    assert "사실들을 엮으면 · engineer 관점" in out      # 개인화 재정박 = 해석 블록(UX 채택 조건)
+    assert "사실들을 엮으면 · Engineer 관점" in out      # 개인화 재정박 = 해석 블록(UX 채택 조건)
 
 
 # ── 날짜 포맷터(헤더용) ──────────────────────────────────
@@ -184,17 +185,17 @@ def test_format_briefing_date_empty_or_invalid_is_blank():
 
 
 # ── 헤드라인 칸(제목·링크 전용 소스): 검증 카드 아래, "요약·검증 없음" 명시 ──────
-def _hl(title="국내 AI <칩> 공개", url="https://www.aitimes.com/a?x=1&y=2", group=""):
-    return Headline("aitimes", "AI Times", title, url, "2026-10-17T01:00:00+00:00", group)
+def _hl(title="국내 AI <칩> 공개", url="https://www.aitimes.com/a?x=1&y=2", group="", area=""):
+    return Headline("aitimes", "AI Times", title, url, "2026-10-17T01:00:00+00:00", group, area)
 
 
-def test_headlines_section_on_top_and_labelled_unverified():
+def test_headlines_section_above_cards_and_labelled_unverified():
     out = render_email([_gated()], _user(), None, headlines=[_hl()])
     assert "요약·검증 없음" in out
     assert 'href="https://www.aitimes.com/a?x=1&amp;y=2"' in out     # URL 이스케이프
     assert "국내 AI &lt;칩&gt; 공개" in out                          # 제목 이스케이프(원제목 그대로)
-    assert out.index("요약·검증 없음") < out.index("요약문장.")      # 카드 위(아침에 먼저 훑는 칸)
-    assert "소식 1개" in out                                         # 헤더 개수 = 검증 카드만
+    assert out.index("요약·검증 없음") < out.index("요약문장.")      # 카드 위 — 메일 맨 위(아침에 먼저 훑는 칸)
+    assert "헤드라인 1건 · 요약 1건" in out                          # 부제 = 메일 순서대로 헤드라인 → 요약
 
 
 def test_headlines_show_media_once_in_section_title():
@@ -202,12 +203,15 @@ def test_headlines_show_media_once_in_section_title():
     assert out.count("AI Times") == 1                                # 줄마다 반복하지 않고 칸 제목에 한 번
 
 
-def test_seal_and_footer_scope_verification_to_cards_when_headlines_present():
+def test_seal_scopes_verification_to_summaries_with_or_without_headlines():
+    """인장 = "요약은" — 요약이 있는 것은 카드뿐이라 헤드라인(요약·검증 없음)이 위에 있어도 범위가 저절로 맞고,
+    해석(관점)까지 원문 대조한 것처럼 읽히지 않는다(검증줄 "요약의 사실 N건"과 같은 범위)."""
     out = render_email([_gated()], _user(), None, headlines=[_hl()])
-    assert "아래 카드는 AI 에이전트 원문 대조" in out                # 인장이 헤드라인까지 검증한 것처럼 읽히지 않게
-    assert "맨 위 헤드라인은 요약·검증 없이" in out
     plain = render_email([_gated()], _user(), None)
-    assert "아래 카드는" not in plain and "맨 위 헤드라인" not in plain   # 헤드라인 없는 메일은 기존 그대로
+    for o in (out, plain):
+        assert "✓ 요약은 다른 AI 에이전트가 원문 대조" in o and "아래 카드는" not in o
+    assert "헤드라인 칸은 요약·검증 없이" in out                      # 위치("맨 위") 대신 칸 이름 — 순서가 바뀌어도 맞다
+    assert "헤드라인 칸" not in plain and "헤드라인 " not in plain.split("</h1>")[1].split("</p>")[0]   # 부제에도 없음
 
 
 def test_headlines_not_rendered_without_published_cards():
@@ -220,12 +224,78 @@ def test_headline_with_non_http_url_is_dropped():
     assert "javascript:" not in out
 
 
-def test_headlines_grouped_overseas_then_domestic():
-    out = render_email([_gated()], _user(), None,
-                       headlines=[_hl("국내 소식 A", group="국내"), _hl("해외 소식 B", group="해외"), _hl("해외 소식 C", group="해외")])
-    assert out.index("해외 2") < out.index("해외 소식 B") < out.index("해외 소식 C") < out.index("국내 1") < out.index("국내 소식 A")
+def _box(out):
+    return out.split("요약·검증 없음")[1].split("</div>")[0]
 
 
-def test_headlines_empty_group_is_hidden():
-    out = render_email([_gated()], _user(), None, headlines=[_hl("해외 소식", group="해외")])
-    assert "해외 1" in out and "국내 0" not in out and "국내 " not in out.split("요약·검증 없음")[1].split("</div>")[0]
+def test_headlines_grouped_by_area_in_fixed_order_and_empty_hidden():
+    out = render_email([_gated()], _user(), None, headlines=[
+        _hl("정책 소식", area="Policy & Security"), _hl("에이전트 소식 A", area="AI Agents"),
+        _hl("에이전트 소식 B", area="AI Agents")])
+    box = _box(out)
+    assert box.index("AI Agents 2") < box.index("에이전트 소식 A") < box.index("에이전트 소식 B") \
+        < box.index("Policy &amp; Security 1") < box.index("정책 소식")          # 분야 순서 고정, 분야 안은 선별 순서
+    assert "Research" not in box and "Models" not in box                       # 빈 분야는 소제목째 숨김
+
+
+def test_headlines_without_area_render_as_one_list():
+    box = _box(render_email([_gated()], _user(), None,
+                            headlines=[_hl("소식 A", area="AI Agents"), _hl("소식 B")]))   # 하나라도 분야 없음
+    assert "AI Agents" not in box and "소식 A" in box and "소식 B" in box      # 소제목 없이 한 목록(섞여 보이지 않게)
+
+
+def test_headlines_show_no_region_marks():
+    """지역(국내/해외)은 화면에 내지 않는다 — 소제목도, 줄 끝 표시(KR)도 없음(2026-10-18 사용자 결정).
+    지역 판정은 선별 안에서만 쓴다(상한 초과 시 해외 끝에서 잘라 국내를 남김)."""
+    box = _box(render_email([_gated()], _user(), None,
+                            headlines=[_hl("국내 소식", group="국내"), _hl("해외 소식", group="해외")]))
+    assert "KR" not in box and "해외 1" not in box and "국내 1" not in box
+
+
+def test_briefing_date_is_recipient_local_date_of_send_time():
+    """05:00 KST 발송 = 전날 20:00 UTC — 머리 날짜는 받는 사람 시간대의 날짜다(10-18 일). run_date(발송 기록의 UTC 날짜
+    키 10-17)를 그대로 찍으면 일요일 아침 메일에 "10월 17일 (토)"가 나간다(2026-10-18 실제 발송)."""
+    from datetime import datetime, timezone
+
+    from briefing.core.render import briefing_date
+    sent = datetime(2026, 10, 17, 20, 0, tzinfo=timezone.utc)
+    assert briefing_date("2026-10-17", sent, "Asia/Seoul") == "10월 18일 (일)"
+    assert briefing_date("2026-10-17", sent, "America/Los_Angeles") == "10월 17일 (토)"
+    assert briefing_date("2026-10-17", datetime(2026, 10, 17, 20, 0), "Asia/Seoul") == "10월 18일 (일)"  # naive = UTC
+    assert briefing_date("2026-10-17", None, "Asia/Seoul") == "10월 17일 (토)"   # 발송 시각이 없으면 run_date
+
+
+# ── 오늘의 핵심 3 (top_picks) ───────────────────────────
+def _six():
+    """분야 3개에 걸친 발행 카드 6장 — a1·a2(News), b1·b2(AWS), c1·c2(Google)."""
+    sids = ["a1", "a2", "b1", "b2", "c1", "c2"]
+    cats = {"a1": "News & Media", "a2": "News & Media", "b1": "Amazon (AWS)", "b2": "Amazon (AWS)",
+            "c1": "Google", "c2": "Google"}
+    return [_gated(source_id=s, headline=f"제목-{s}") for s in sids], cats
+
+
+def test_headlines_then_top_picks_then_bands():
+    cards, cats = _six()
+    out = render_email(cards, _user(), None, source_categories=cats, top_picks=["c1", "a1", "a2"],
+                       headlines=[_hl()])
+    top, heads, aws, google = (out.index(x) for x in ("오늘의 핵심", "요약·검증 없음", "◆ Amazon (AWS)", "◆ Google"))
+    assert heads < top < aws < google                           # 헤드라인 칸 → 핵심 3 → 분야 섹션(2026-10-18 사용자 결정)
+    assert "◆ News &amp; Media" not in out                      # News 카드가 전부 핵심으로 → 0건 밴드를 그리지 않음
+    assert out.count("제목-c1") == 1 and top < out.index("제목-c1") < aws      # 핵심 카드는 원래 섹션에서 빠짐(중복 없음)
+    assert out.index("제목-c1") < out.index("제목-a1") < out.index("제목-a2")  # 판정 순서 그대로
+    assert "요약 6건" in out                                                   # 부제 = 발행 카드 전체 기준(핵심 포함)
+    assert "◆ Google" in out and ">1건<" in out.split("◆ Google")[1][:200]     # 밴드 개수 = 남은 카드
+
+
+def test_top_picks_keep_band_even_when_rest_is_one_category():
+    cards = [_gated(source_id=f"s{i}", headline=f"제목{i}") for i in range(6)]
+    cats = {f"s{i}": "Amazon (AWS)" for i in range(6)}
+    out = render_email(cards, _user(), None, source_categories=cats, top_picks=["s3", "s4", "s5"])
+    assert out.index("오늘의 핵심") < out.index("◆ Amazon (AWS)") < out.index("제목0")   # 핵심과 나머지를 밴드로 구분
+
+
+def test_no_top_section_without_picks_and_unknown_ids_ignored():
+    cards, cats = _six()
+    assert "오늘의 핵심" not in render_email(cards, _user(), None, source_categories=cats)
+    out = render_email(cards, _user(), None, source_categories=cats, top_picks=["zz"])
+    assert "오늘의 핵심" not in out and "요약 6건" in out          # 모르는 id 는 무시 — 카드 유실 없음
