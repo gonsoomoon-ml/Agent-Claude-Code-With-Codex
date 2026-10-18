@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -193,10 +194,11 @@ def revise_claims(
     failed_ids: tuple[str, ...],
     recorder=None,
 ) -> DraftCard:
-    """Maker-Checker 재도출 — 실패한 claim(`failed_ids`)만 source 에서 다시 도출 (gate 가 호출).
+    """Maker-Checker 재도출 — 실패한 claim(`failed_ids`)과 그 claim 이 덮는 요약 문장만 고친다 (gate 가 호출).
 
     ★ decorrelation 보존: 피드백 = `failed_ids`(*어떤* claim 이 실패했는지)만 — certifier 의 *이유/정답* 은 안 줌.
-    author 는 자기 이전 claims + 동결본을 다시 보고 실패분만 재도출; 통과 claim 은 유지(thrashing 방지).
+    author 는 이전 요약·claims + 동결본을 다시 보고 고칠 문장만 바로잡는다(S4); 통과 claim 과 다른 문장은 유지
+    (thrashing 방지 — 범위 밖을 바꾸면 gate 의 diff guard 가 버린다).
     `recorder`(옵션) — `_run_author` 로 그대로 전달(비용 기록).
     """
     system_prompt = build_system_prompt(
@@ -371,21 +373,80 @@ def _extract_claude_cost(stdout: str) -> float:
     return 0.0
 
 
+# ── S4(2026-10-18): 다시 쓰기 범위 — 막힌 claim 이 덮는 요약 문장만 고친다 ──────────────────────────
+# 고칠 문장은 코드가 정한다(낱말 겹침). gate 의 diff guard(revise_within_targets)도 같은 정의를 쓴다 —
+# 지시가 보여 준 문장과 가드가 허용하는 문장이 어긋나지 않게 한 곳에 둔다.
+_SENT_SPLIT = re.compile(r"(?<=[.!?])\s+")
+_TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9.\-]*[A-Za-z0-9]|\d[\d,.]*|[가-힣]{2,}")
+_PARTICLE = re.compile(r"(?:으로|에서|에게|까지|부터|이며|이고|은|는|이|가|을|를|의|에|로|와|과|도|만)$")
+_TARGET_MIN_OVERLAP = 0.3   # 막힌 claim 낱말 중 이만큼은 겹쳐야 그 문장을 '덮는 문장'으로 본다
+
+
+def summary_sentences(summary: str) -> list[str]:
+    """요약을 문장으로 — 마침표·느낌표·물음표 뒤 공백에서 나눈다('4.5배' 같은 소수점은 안 나뉜다)."""
+    return [s for s in _SENT_SPLIT.split((summary or "").strip()) if s]
+
+
+def _tokens(text: str) -> set[str]:
+    """숫자·영문 이름·두 글자 이상 한글 낱말(끝 조사 제거)."""
+    out = set()
+    for w in _TOKEN.findall(text or ""):
+        w = _PARTICLE.sub("", w) if "가" <= w[0] <= "힣" else w.rstrip(".,")
+        if w:
+            out.add(w)
+    return out
+
+
+def revise_targets(prior: DraftCard, failed_ids: tuple[str, ...]) -> tuple[int, ...]:
+    """막힌 claim 이 덮는 요약 문장 번호(0부터) — claim 마다 낱말이 가장 많이 겹치는 문장(동점이면 모두).
+    겹침이 기준 미만이면 그 claim 은 요약 밖 사실로 보고 고칠 문장을 두지 않는다."""
+    failed = set(failed_ids)
+    sents = [_tokens(s) for s in summary_sentences(prior.summary)]
+    out: set[int] = set()
+    for c in prior.claims:
+        want = _tokens(c.text) if c.id in failed else set()
+        if not want:
+            continue
+        scores = [len(want & st) / len(want) for st in sents]
+        best = max(scores, default=0.0)
+        if best >= _TARGET_MIN_OVERLAP:
+            out.update(i for i, s in enumerate(scores) if s == best)
+    return tuple(sorted(out))
+
+
 def _build_revise_prompt(
     source: FrozenSource, prior: DraftCard, failed_ids: tuple[str, ...], *, today: str | None = None
 ) -> str:
-    """재도출 user turn — 실패 claim *표시*만(최소 피드백) + 자기 이전 claims + 동결본. certifier 추론 미포함."""
+    """재도출 user turn(S4) — 실패 claim *표시*만(최소 피드백) + 이전 요약·claims + 고칠 문장 + 동결본.
+
+    ★ decorrelation 보존: certifier 의 판정 이유·근거는 넣지 않는다(받지도 않는다). 고칠 문장 = 실패 claim 이 덮는
+    요약 문장(revise_targets). 그 밖의 문장을 바꾸거나 문장을 늘리면 gate 가 다시 쓴 카드를 버린다(⚠ 로 발송).
+    왜 바꿨나(2026-10-18): 예전엔 이전 요약을 안 보여 주고 카드 전체를 새로 쓰게 해서, 멀쩡한 문장이 바뀌거나
+    막힌 사실이 고쳐지지 않고 통째로 빠질 수 있었다(리서치 §2-6 '제약형 재작성').
+    """
     failed = set(failed_ids)
     prior_lines = "\n".join(
         f'- {c.id} [{"재도출 필요" if c.id in failed else "유지"}]: {c.text}' for c in prior.claims
     )
+    sents = summary_sentences(prior.summary)
+    target_lines = "\n".join(f"- {sents[i]}" for i in revise_targets(prior, failed_ids)) or (
+        "- (대응하는 요약 문장을 찾지 못했다 — 요약은 그대로 두고 claim 만 다시 도출한다)")
     today = today or date.today().isoformat()
     return (
         f"오늘 날짜: {today} (원문에 없는 날짜 생성 금지).\n\n"
-        "이전 초안의 일부 claim 이 독립 검증에 실패했다. **실패로 표시된 claim 만** 원문에서 다시 도출하고 "
-        "'유지' claim 은 그대로 둬라(왜 실패인지는 주어지지 않는다 — 원문만 다시 보라).\n\n"
+        "이전 초안의 일부 claim 이 독립 검증에 실패했다(왜 실패인지는 주어지지 않는다 — 원문만 다시 보라).\n\n"
+        f"이전 요약:\n{prior.summary}\n\n"
+        f"이전 '왜 중요한가':\n{prior.why_it_matters}\n\n"
         f"이전 claims:\n{prior_lines}\n\n"
-        f"동일 JSON 형식으로 전체 카드를 다시 출력하라. 동결 원문:\n\n{source.text}"
+        f"고칠 요약 문장(실패 claim 이 덮는 문장):\n{target_lines}\n\n"
+        "규칙:\n"
+        "1. 위 '고칠 요약 문장'만 고친다. 원문대로 바로잡는 것을 먼저 한다 — 숫자·이름·범위·귀속·유보 표현을 원문에 맞춘다. "
+        "원문이 어떤 형태로도 뒷받침하지 않을 때만 그 문장(또는 그 절)을 지운다.\n"
+        "2. 다른 요약 문장은 글자 그대로 둔다. 새 문장·새 사실을 넣지 않고, 문장을 나누거나 순서를 바꾸지 않는다.\n"
+        "3. '유지' claim 은 그대로 두고, '재도출 필요' claim 은 고친 문장에 맞게 원문에서 다시 도출한다"
+        "(지운 문장의 claim 은 뺀다).\n"
+        "4. why_it_matters 는 그대로 둔다 — 실패한 사실이 들어 있으면 그 부분만 지운다.\n\n"
+        f"동일 JSON 형식으로 전체 카드를 출력하라. 동결 원문:\n\n{source.text}"
     )
 
 

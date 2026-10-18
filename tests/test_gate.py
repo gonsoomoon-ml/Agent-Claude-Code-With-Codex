@@ -249,3 +249,60 @@ def test_interpret_card_fallback_claims_no_basis():
                          interp_fn=lambda *a: Interpretation("생산성이 300% 오른다.", ("C1",)))  # 수치 밀수 → 폴백
     assert out.card.why_it_matters == "일반 해석."
     assert out.card.based_on == ()
+
+
+# ── S4(2026-10-18): 다시 쓰기 범위 가드 — 막힌 claim 이 덮는 요약 문장 밖을 바꾸면 다시 쓴 카드를 버린다 ──
+
+_S4_PRIOR = DraftCard("sid", "h", "A사는 신제품을 출시했다. 신제품 점수는 72%다. 가격은 비싸다.", "w",
+                      (Claim("C1", "A사는 신제품을 출시했다.", "entailment", "core"),
+                       Claim("C2", "신제품 점수는 72%다.", "arithmetic", "core"),
+                       Claim("C3", "가격은 비싸다.", "entailment", "core")))
+
+
+def _s4_revised(summary):
+    return DraftCard("sid", "h", summary, "w", _S4_PRIOR.claims)
+
+
+def test_revise_guard_allows_target_sentence_fix_or_deletion():
+    from briefing.core.gate import revise_within_targets
+    assert revise_within_targets(_S4_PRIOR, _s4_revised("A사는 신제품을 출시했다. 신제품 점수는 70%다. 가격은 비싸다."), ("C2",))
+    assert revise_within_targets(_S4_PRIOR, _s4_revised("A사는 신제품을 출시했다. 가격은 비싸다."), ("C2",))
+    assert revise_within_targets(_S4_PRIOR, _s4_revised("A사는  신제품을 출시했다.\n신제품 점수는 70%다. 가격은 비싸다."), ("C2",))
+
+
+def test_revise_guard_rejects_other_sentence_edit_new_sentence_or_reorder():
+    from briefing.core.gate import revise_within_targets
+    s = "A사는 신제품을 정식 출시했다. 신제품 점수는 70%다. 가격은 비싸다."           # 대상 아닌 문장 수정
+    assert not revise_within_targets(_S4_PRIOR, _s4_revised(s), ("C2",))
+    s = "A사는 신제품을 출시했다. 신제품 점수는 70%다. 가격은 비싸다. 출시일은 미정이다."  # 문장 추가(새 사실)
+    assert not revise_within_targets(_S4_PRIOR, _s4_revised(s), ("C2",))
+    s = "가격은 비싸다. 신제품 점수는 70%다. A사는 신제품을 출시했다."                 # 순서 바꿈
+    assert not revise_within_targets(_S4_PRIOR, _s4_revised(s), ("C2",))
+
+
+def test_produce_card_discards_out_of_scope_revision_and_flags_prior():
+    """가드 위반 → 다시 쓴 카드는 검증하지 않고 버린다. 이전 카드가 막힌 claim 과 함께 ⚠(QUARANTINE)로 나간다."""
+    calls = {"n": 0}
+
+    def vf(_c):
+        calls["n"] += 1
+        return (_v("VERIFIED", "C1"), _v("BLOCKED", "C2"), _v("VERIFIED", "C3"))
+
+    bad = _s4_revised("A사는 신제품을 정식 출시했다. 신제품 점수는 70%다. 가격은 비싸다.")
+    g = produce_card(None, None, None, None, max_attempts=2, draft_fn=lambda *a: _S4_PRIOR,
+                     revise_fn=lambda *a, **k: bad, verify_fn=vf)
+    assert (g.decision, g.card.summary, g.attempts, calls["n"]) == ("QUARANTINE", _S4_PRIOR.summary, 2, 1)
+    assert [v.verdict for v in g.verdicts] == ["VERIFIED", "BLOCKED", "VERIFIED"]
+
+
+def test_produce_card_reverifies_in_scope_revision():
+    n = {"i": 0}
+
+    def vf(_c):
+        n["i"] += 1
+        return (_v("BLOCKED", "C2"),) if n["i"] == 1 else (_v("VERIFIED", "C2"),)
+
+    good = _s4_revised("A사는 신제품을 출시했다. 신제품 점수는 70%다. 가격은 비싸다.")
+    g = produce_card(None, None, None, None, max_attempts=2, draft_fn=lambda *a: _S4_PRIOR,
+                     revise_fn=lambda *a, **k: good, verify_fn=vf)
+    assert (g.decision, g.card.summary, g.attempts) == ("PUBLISH", good.summary, 2)
