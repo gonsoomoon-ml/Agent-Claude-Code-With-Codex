@@ -34,8 +34,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 # ── 듀얼 하니스: author=claude(@anthropic-ai/claude-code) · certifier=codex(@openai/codex) ──
 # ★ 버전 pin = 호스트의 *검증된* 버전과 일치(재현성 + codex 0.142.3 regression 회피):
 #   codex 0.142.3 의 `exec` 는 stdin 처리가 바뀌어 "Reading additional input from stdin"(rc=1)로 실패 →
-#   호스트가 e2e 검증한 0.142.2 로 고정. claude 도 호스트 버전 고정.
-RUN npm install -g @anthropic-ai/claude-code@2.1.195 @openai/codex@0.142.2
+#   호스트가 e2e 검증한 0.142.2 로 고정.
+# ★ claude 2.1.195 → 2.1.301(2026-10-18, U8 ①): 같은 Sonnet 5 로 품질 차이 없음·카드당 약 44초 빠름(다턴 루프 감소)·
+#   비용을 공식 단가로 보고(2.1.195 는 옛 단가표라 1.5배). 근거 = docs/work_note/…/upgrade-comparison-report.md(A1).
+#   codex 는 검증 모델 교체(U8 ③)와 함께 올린다 — 0.163.0 에는 GPT-5.5 연결 설정이 없다.
+RUN npm install -g @anthropic-ai/claude-code@2.1.301 @openai/codex@0.142.2
 
 # ── Python 의존성 (컨테이너 최소 목록 + OTEL) ──
 COPY requirements.txt requirements.txt
