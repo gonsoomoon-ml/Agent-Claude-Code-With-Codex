@@ -69,10 +69,13 @@ def match_kind(candidate: Iterable[str], seen: Collection[str]) -> str:
 
 def published_keys(ledger: Any, store: Any, user_id: str, run_date: str, lookback_days: int,
                    memo: dict[str, SourceMeta | None]) -> frozenset[str]:
-    """user 가 run_date 이전 lookback_days 안에 PUBLISH 로 받은 기사들의 신원 키 합집합.
+    """user 가 run_date 이전 lookback_days 안에 메일로 받은 기사들(PUBLISH·QUARANTINE)의 신원 키 합집합.
 
-    의미론(선행 설계 2026-07-11, 재론 금지): PUBLISH 만(QUARANTINE 은 재도전) · strictly-earlier(run_date 미만 —
-    같은 날 재실행 = 강제 재발송 런북 보존). 경계: 정확히 lookback_days 일 전은 포함(sk >= since).
+    의미론(선행 설계 2026-07-11): strictly-earlier(run_date 미만 — 같은 날 재실행 = 강제 재발송 런북 보존).
+    경계: 정확히 lookback_days 일 전은 포함(sk >= since).
+    ★ 2026-10-18 변경(N5): 예전엔 'PUBLISH 만(QUARANTINE 은 재도전)'이었다 — 격리 카드를 보내지 않던 때의 전제.
+      이제 격리 카드도 ⚠ 표시로 메일에 실리므로(사용자 결정) 받은 기사로 센다. 안 그러면 48h 창 소스의 같은
+      기사가 다음 날 다시 나간다(캐시된 같은 QUARANTINE 카드라 재도전으로 달라지는 것도 없다).
     memo = run 동안 사용자 간 공유하는 {source_id: SourceMeta | None} — 같은 기사를 받은 두 번째 사용자부터는
     source-store 를 다시 읽지 않는다. None = 원본 없음(2026-08-01 이전 TTL 만료분) → 해시 키만(fail-open).
     ledger: `query(user_id, since_date)` · store: `get_meta(ids)` 를 가진 객체(Local·Dynamo 공통).
@@ -82,9 +85,9 @@ def published_keys(ledger: Any, store: Any, user_id: str, run_date: str, lookbac
         title_since = (date.fromisoformat(run_date) - timedelta(days=TITLE_KEY_WINDOW_DAYS)).isoformat()
     except ValueError:
         since = title_since = ""  # 형식 밖 run_date — 전체 조회(기존 동작 유지)
-    latest: dict[str, str] = {}  # source_id → 가장 최근 PUBLISH run_date (제목 키 창 판단용)
+    latest: dict[str, str] = {}  # source_id → 가장 최근에 받은 run_date (제목 키 창 판단용)
     for r in ledger.query(user_id, since_date=since):
-        if r.get("decision") == "PUBLISH" and r.get("run_date", "") < run_date:
+        if r.get("decision") in ("PUBLISH", "QUARANTINE") and r.get("run_date", "") < run_date:
             latest[r["source_id"]] = max(latest.get(r["source_id"], ""), r["run_date"])
     missing = [i for i in latest if i not in memo]
     if missing:

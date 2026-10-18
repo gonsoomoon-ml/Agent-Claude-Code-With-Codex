@@ -4,7 +4,9 @@
 - 카드 = **요약(검증 대상) → 점선 → 사실들을 엮으면(해석, 시각 구분) → 검증줄**. depth 로 밀도(title-only/summary/full).
 - 검증줄 = **"다른 AI 에이전트가 사실 N건 검증"** (decorrelation 을 평이하게) + `<details>` 근거. 개별 claim 텍스트는 비노출(불변식).
 - 분야(Area) = 출처 카탈로그 category 로 그룹 — **분야 2개 이상일 때만 밴드**, 번호 분야별 리셋(`source_categories` 주입).
-- decision == "PUBLISH" 카드만 · QUARANTINE 제외 · 0건이면 폴백. 순수 함수(LLM·AWS 불필요), 이메일 클라이언트용 인라인 CSS.
+- PUBLISH 카드 + QUARANTINE 카드(⚠ 확인 못 함 표시, N5) · 0건이면 폴백. 순수 함수(LLM·AWS 불필요), 이메일 클라이언트용 인라인 CSS.
+  격리 카드도 싣는 이유(2026-10-18 사용자 결정): 법률·금융·보안이 아닌 비중요 브리핑이라 빼는 쪽이 손해다
+  (30일 감사: 숫자 검사가 막은 claim 64건 중 틀린 것 0건). 대신 검증된 카드처럼 보이면 안 된다 — 검증줄이 밝힌다.
 """
 from __future__ import annotations
 
@@ -104,6 +106,13 @@ def _trust_line(card: GatedCard) -> str:
     더 깊이는 카드의 '원문 →' 링크 / 주간 'Withheld-and-Why' 다이제스트(후속)로. 개별 claim 텍스트 비노출.
     """
     n = {k: sum(1 for v in card.verdicts if v.verdict == k) for k in ("VERIFIED", "DEMOTED", "BLOCKED")}
+    if card.decision == "QUARANTINE":
+        # 격리 카드(N5) — '✓ … 검증' 문구를 붙이지 않는다(검증된 카드처럼 보이면 안 된다).
+        # 확인 못 한 사실 = BLOCKED + DEMOTED — 둘 다 원문에서 확인되지 않았다.
+        bits = [f"⚠ 요약의 사실 {n['BLOCKED'] + n['DEMOTED']}건을 원문에서 확인하지 못함"]
+        if n["VERIFIED"]:
+            bits.append(f"확인 {n['VERIFIED']}건")
+        return f'<p style="font-size:12px;color:{_AMBER};margin:8px 0 0">{" · ".join(bits)}</p>'
     # "요약의" = 검증 범위 정직화(card-layering §5) — 배지는 요약(사실층)만 커버, 해석(관점)은 라벨로 구분.
     bits = [f"✓ 다른 AI 에이전트가 요약의 사실 {n['VERIFIED']}건 검증" if n["VERIFIED"] else "✓ 검증 완료"]
     if n["DEMOTED"]:
@@ -212,7 +221,7 @@ def render_email(
     headlines: Sequence[Headline] = (),
     top_picks: Sequence[str] = (),
 ) -> str:
-    """PUBLISH 카드만 → 검증 명세서 HTML 이메일.
+    """PUBLISH 카드 + QUARANTINE 카드(⚠ 확인 못 함 표시) → 검증 명세서 HTML 이메일.
 
     source_categories: source_id → 분야(category). 발행 카드가 **2개 이상 분야**에 걸치면 밴드로 그룹(번호 분야별 리셋),
     아니면 평평(전역 번호). today: 헤더 날짜(없으면 생략). 0건이면 폴백.
@@ -220,7 +229,8 @@ def render_email(
     top_picks: 오늘의 핵심 3 으로 올릴 카드의 source_id(순서 = 판정 순서). 맨 앞 칸에 싣고 원래 분야 밴드에서는 뺀다
       (중복 없음). 모르는 id 는 무시. 핵심 칸이 있으면 나머지는 분야가 하나여도 밴드로 구분한다.
     """
-    published = [c for c in cards if c.decision == "PUBLISH"]
+    # 검증 카드 + 격리 카드(⚠ 표시, N5) — 순서는 파이프라인이 준 그대로(분야·핵심 3 규칙은 아래에서 같게 적용)
+    shown = [c for c in cards if c.decision in ("PUBLISH", "QUARANTINE")]
     lens = getattr(user, "lens", "") or ""
     lens = lens_label(lens) if lens else ""   # 표시 = 영문 이름(engineer → Engineer); 키는 프로필 그대로
     depth = getattr(user, "depth", "full") or "full"
@@ -228,7 +238,7 @@ def render_email(
     # ── 분야 그룹: 발행 카드의 distinct category(첫 등장 순서) ──
     cats = source_categories or {}
     distinct: list[str] = []
-    for g in published:
+    for g in shown:
         ct = cats.get(g.card.source_id, "")
         if ct and ct not in distinct:
             distinct.append(ct)
@@ -236,7 +246,7 @@ def render_email(
 
     # ── 헤더(인장 · 날짜; user.id 비노출) ──
     title = "오늘의 브리핑" + (f" · {html.escape(today)}" if today else "")
-    heads_html = _headlines_html(headlines) if published else ""
+    heads_html = _headlines_html(headlines) if shown else ""
     # 인장 = 검증 범위(요약) + 누가(요약을 만들지 않은 다른 AI). 요약이 있는 것은 카드뿐이라 헤드라인 칸(요약·검증
     # 없음)이 위에 있어도 범위가 저절로 맞고, 해석까지 원문 대조한 것처럼 읽히지 않는다(검증줄 "요약의 사실 N건"과 같은 범위).
     seal_text = "✓ 요약은 다른 AI 에이전트가 원문 대조"
@@ -249,11 +259,10 @@ def render_email(
         'justify-content:space-between;align-items:baseline">'
         f'<h1 style="font-size:22px;margin:0">{title}</h1>{seal}</div>'
     )
-    if not published:
+    if not shown:
         return (
             _WRAP + header
-            + '<p style="margin:14px 0">오늘은 검증을 통과한 새 소식이 없습니다. '
-            "(확인되지 않은 항목은 보내지 않았어요.)</p></div>"
+            + '<p style="margin:14px 0">오늘은 전할 새 소식이 없습니다.</p></div>'
         )
 
     # 부제 = 콘텐츠(개수·관점)만, 메일 순서대로 헤드라인 → 요약 — 검증 문구는 인장·카드 검증줄·푸터가 소유(중복 제거).
@@ -261,7 +270,7 @@ def render_email(
     # 분야 수는 뺐다(2026-10-18): 헤드라인 칸의 분야(AI Agents…)와 뜻이 겹치고, 핵심 3 으로 밴드 수와 어긋난다.
     # "관점 해석"(≠ 관점 요약) — 2층화 후 lens 가 소유하는 것은 해석이므로 카피도 그렇게 말한다.
     n_heads = len(_valid_headlines(headlines)) if heads_html else 0
-    bits = ([f"헤드라인 {n_heads}건"] if n_heads else []) + [f"요약 {len(published)}건"] \
+    bits = ([f"헤드라인 {n_heads}건"] if n_heads else []) + [f"요약 {len(shown)}건"] \
         + ([f"{html.escape(lens)} 관점 해석"] if lens else [])
     subtitle = f'<p style="{_MONO};font-size:12px;color:{_META};margin:4px 0 0">{" · ".join(bits)}</p>'
     coral_rule = f'<div style="border-top:2px solid {_CORAL};margin:10px 0 4px"></div>'
@@ -271,11 +280,12 @@ def render_email(
 
     # ── 오늘의 핵심 3: 판정 순서대로 맨 앞 칸, 원래 밴드에서는 뺀다. 부제("요약 N건")는 발행 카드 전체 기준(핵심 포함) ──
     by_sid: dict[str, GatedCard] = {}
-    for g in published:
-        by_sid.setdefault(g.card.source_id, g)
+    for g in shown:
+        if g.decision == "PUBLISH":   # 핵심 3 은 검증된 카드만(N5) — 격리 카드는 id 가 와도 원래 자리에 남는다
+            by_sid.setdefault(g.card.source_id, g)
     top = [by_sid[sid] for sid in dict.fromkeys(top_picks) if sid in by_sid]
     top_ids = {g.card.source_id for g in top}
-    rest = [g for g in published if g.card.source_id not in top_ids]
+    rest = [g for g in shown if g.card.source_id not in top_ids]
     top_html = (_band("오늘의 핵심", len(top)) + "\n" + _cards(top)) if top else ""
 
     # 밴드 = 남은 카드의 분야(첫 등장 순서) — 카드가 전부 핵심으로 올라간 분야는 0건 밴드를 그리지 않는다
@@ -296,8 +306,8 @@ def render_email(
         f'font-size:12px;color:{_META}">'
         f'<p style="margin:0 0 6px">이 브리핑은 어떻게 만드나요? — AI 에이전트가 원문 기사를 '
         "요약하면, 요약을 만들지 않은 다른 AI 에이전트가 그 요약을 원문과 대조해 확인하고, "
-        f"확인된 요약 위에 {html.escape(lens)} 관점의 해석을 덧붙입니다. "
-        f"확인되지 않은 내용은 보내지 않습니다.{heads_note}</p>"
+        f"확인된 사실을 근거로 {html.escape(lens)} 관점의 해석을 덧붙입니다. "
+        f"원문에서 확인하지 못한 사실이 있는 요약에는 ⚠ 표시를 붙입니다.{heads_note}</p>"
         f'<p style="margin:0">다음 브리핑 내일 {int(send_hour):02d}:00 · 관점 바꾸기 · 구독 해지</p></div>'
     )
     # 순서(2026-10-18 사용자 결정): 헤드라인 칸 → 오늘의 핵심 3 → 분야 섹션(News & Media → AWS → …)

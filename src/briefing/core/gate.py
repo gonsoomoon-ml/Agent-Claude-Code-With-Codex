@@ -8,7 +8,7 @@
 - certifier 호출 주체 = gate (이 모듈이 certify 를 import·호출; author 는 못 함). **verify 는 user-blind**.
 - envelope 외 author 산출(narration) 누설 0 — _build_envelope 가 동결본에서 4필드만 추출.
 - 실패 정책(graceful degradation, 스케일): DEMOTED='(미확인)' 라벨로 남김; BLOCKED 소진 시 *그 claim 만 드롭*하고
-  검증분 발행 — **핵심(core) claim 막힘 or VERIFIED 0** 일 때만 카드 QUARANTINE(드묾·표본 감사). 미검증은 발행 안 됨(fail-closed).
+  검증분 발행 — **핵심(core) claim 막힘 or VERIFIED 0** 일 때만 카드 QUARANTINE(드묾·표본 감사). QUARANTINE 카드도 ⚠ 표시로 메일에 실린다(N5, 2026-10-18 사용자 결정 — gate 결정은 그대로, 행선지만 바뀜).
 - ★ 루프 decorrelation 보존: 다른 계열(Claude↔Codex) + 피드백은 *실패 claim id 만*(certifier 추론 미전달)
   + 실패 claim 만 재도출(thrashing 방지) + 캡 + 소진 시 QUARANTINE.
   (*같은-모델·전체-재생성* 루프가 thrashing 하는 것과 대조 — 우리는 cross-family + 최소 피드백.)
@@ -230,14 +230,13 @@ def interpret_card(
 ) -> GatedCard:
     """검증된 사실층 위에 lens 해석(why)만 교체 — 가드 통과 시에만. 실패는 **해석만 강등**(층별 격리).
 
-    - QUARANTINE 사실층 → 해석 생성 자체를 차단(gate 결정 재사용, LLM 비용 0).
+    - QUARANTINE 사실층도 해석한다(N5, 2026-10-18 사용자 결정 — 격리 카드도 ⚠ 표시로 메일에 싣는다).
+      재료·가드는 같다: 근거는 VERIFIED claim 뿐이고 lint 가 미검증 수치 밀수를 막는다.
     - interp 실패(예외)·lint 실패 → 사실층(일반 lens) why 그대로 반환 — 카드·브리핑은 무붕괴
       (2026-07-02 인시던트의 격리 교훈을 카드→층 단위로 하강).
     - verdicts·decision·summary·claims 는 불변 — 해석층은 검증 결과를 절대 못 건드린다.
     `recorder`(옵션) — 기본 DI 경로(interp_fn 미주입 시)에만 partial 바인딩(주입된 fake 는 recorder 무관).
     """
-    if fact.decision == "QUARANTINE":
-        return fact
     interp_fn = interp_fn or partial(author.draft_interpretation, recorder=recorder)  # 기본 = 같은 headless `claude -p`(짧은 출력)
     try:
         # summary 를 5번째 위치인자로 — 해석층이 **자기가 무엇을 반복하는지** 봐야 한다(interp-v1.2).

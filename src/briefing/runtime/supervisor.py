@@ -82,7 +82,7 @@ def verify_and_produce_card(source_id: str) -> str:
 
 @tool
 def render_briefing() -> str:
-    """Render the final email from PUBLISH cards only (QUARANTINE excluded). Call LAST, exactly once."""
+    """Render the final email: PUBLISH cards plus QUARANTINE cards flagged with ⚠ (N5). Call LAST, exactly once."""
     cards: list[GatedCard] = _CTX.get("cards", [])
     user: UserConfig = _CTX["user"]
     settings: Settings = _CTX["settings"]

@@ -240,8 +240,11 @@ def test_run_briefing_same_day_rerun_not_deduped(tmp_path):
     assert r1[0].published == 1 and r2[0].published == 1     # 멱등 재실행 보존
 
 
-def test_run_briefing_quarantined_retries_next_day(tmp_path):
-    """전날 QUARANTINE(사용자 미수신) 기사는 다음날 재도전 — PUBLISH 만 dedup."""
+def test_run_briefing_quarantined_is_sent_once(tmp_path):
+    """격리 카드도 ⚠ 표시로 메일에 실린다(N5, 2026-10-18 사용자 결정) → 받은 기사이므로 다음날 다시 안 보낸다.
+
+    (예전 의미론 'QUARANTINE 은 다음날 재도전'은 격리 카드를 보내지 않던 때의 전제였다.)
+    """
     from briefing.core.stores.ledger import LocalLedger
 
     store = SourceStore(str(tmp_path / "store"))
@@ -250,8 +253,33 @@ def test_run_briefing_quarantined_retries_next_day(tmp_path):
     d1 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-07-10",
                       **_dedup_kw(published_verdict="BLOCKED"))   # core BLOCKED → QUARANTINE
     assert d1[0].quarantined == 1 and d1[0].published == 0
+    assert "⚠ 요약의 사실" in d1[0].email                     # D1: 격리 카드도 메일에 실림
     d2 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-07-11", **_dedup_kw())
-    assert d2[0].published == 1                              # 격리됐던 기사는 다음날 재도전 성공
+    assert len(d2[0].cards) == 0                              # D2: 이미 받은 기사 — 중복 발송 없음
+
+
+def test_quarantined_fact_gets_lens_interpretation(tmp_path):
+    """격리 카드도 관점 해석을 붙인다(사용자 요청) — 근거는 확인된 claim 만."""
+    from briefing.core.authoring.author import Interpretation
+
+    store = SourceStore(str(tmp_path / "store"))
+    claims = (Claim("C1", "막힌 주장", "entailment", "core"), Claim("C2", "확인된 주장", "entailment", "supporting"))
+    seen: list = []
+
+    def interp(source, verified, user, settings, summary=""):
+        seen.append(tuple(c.id for c in verified))
+        return Interpretation("engineer 관점 해석", ("C2",))
+
+    out = run_briefing(
+        SimpleNamespace(), store, [_user("u", ["aws-ml"], lens="engineer")], window_hours=0, fetch_article_fn=_fetch,
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "H", "S", "일반 해석", claims),
+        revise_fn=lambda *_a, **_k: DraftCard("sid", "H", "S", "일반 해석", claims),
+        verify_fn=lambda c: (CertVerdict("C1", "BLOCKED", "ev"), CertVerdict("C2", "VERIFIED", "ev")),
+        interp_fn=interp,
+    )
+    assert out[0].quarantined == 1
+    assert seen == [("C2",)]                                   # 확인된 claim 만 해석 재료로
+    assert "engineer 관점 해석" in out[0].email
 
 
 # ── 기사 신원 dedup (2026-10-16 — 해시·URL·제목 키 + source-store join + 90일) ──

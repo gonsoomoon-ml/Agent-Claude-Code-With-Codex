@@ -75,12 +75,13 @@ def _briefing(recipient, email, published, quarantined=0):
                            published=published, quarantined=quarantined)
 
 
-def test_should_deliver_only_when_published():
+def test_should_deliver_when_any_card():
+    """격리 카드도 ⚠ 표시로 싣는다(N5, 2026-10-18 사용자 결정) — 카드가 하나라도 있으면 발송, 빈 브리핑만 미발송."""
     from briefing.scheduler.deliver import should_deliver
 
     assert should_deliver(_briefing("a@x.com", "<h1>hi</h1>", published=1))
-    assert not should_deliver(_briefing("a@x.com", "", published=0, quarantined=1))  # QUARANTINE-only
-    assert not should_deliver(_briefing("a@x.com", "", published=0))                 # 빈 발행
+    assert should_deliver(_briefing("a@x.com", "<h1>hi</h1>", published=0, quarantined=1))  # 격리 카드만
+    assert not should_deliver(_briefing("a@x.com", "", published=0))                       # 빈 브리핑
 
 
 class _FakeSES:
@@ -107,14 +108,23 @@ def test_ses_deliver_sends_publishable_with_correct_envelope():
     assert "아침 브리핑" in msg["Message"]["Body"]["Html"]["Data"]
 
 
-def test_ses_deliver_skips_quarantine_and_empty():
+def test_ses_deliver_skips_only_empty():
     from briefing.scheduler.deliver import make_ses_deliver
 
     ses = _FakeSES()
     deliver = make_ses_deliver(SimpleNamespace(ses_sender="b@x.com", region="us-east-1"), client=ses)
-    deliver(_briefing("a@x.com", "", published=0, quarantined=1))   # 미발송
-    deliver(_briefing("a@x.com", "", published=0))                  # 미발송
+    deliver(_briefing("a@x.com", "", published=0))                  # 빈 브리핑 — 미발송
     assert ses.sent == []
+
+
+def test_ses_deliver_subject_counts_quarantined_cards():
+    """제목의 건수 = 메일에 실린 카드 전부(검증 + ⚠ 격리)."""
+    from briefing.scheduler.deliver import make_ses_deliver
+
+    ses = _FakeSES()
+    deliver = make_ses_deliver(SimpleNamespace(ses_sender="b@x.com", region="us-east-1"), client=ses)
+    deliver(_briefing("a@x.com", "<h1>hi</h1>", published=2, quarantined=1))
+    assert ses.sent[0]["Message"]["Subject"]["Data"] == "데일리 브리핑 (3건)"
 
 
 # ───────────────────────── dispatch (due → run_briefing → deliver) ─────────────────────────

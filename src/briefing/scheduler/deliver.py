@@ -1,8 +1,8 @@
-"""deliver — C5 DeliverFn. 기본 = SES SendEmail. **검증 발행분이 있을 때만** 발송(fail-closed).
+"""deliver — C5 DeliverFn. 기본 = SES SendEmail. **카드가 하나라도 있을 때만** 발송(빈 브리핑은 미발송).
 
 DeliverFn = Callable[[UserBriefing], dict | None] — briefing 만 받는다. settings/client 는 클로저로 캡처
 (`make_ses_deliver`). SES 응답 dict(발송 시) 또는 None(미발송) 반환. 테스트는 fake client 주입 → 실 SES 무접촉.
-★ QUARANTINE/빈 발행은 발송 안 함 — render 가 PUBLISH 만 담지만, 여기서도 한 번 더 게이트(이중 안전).
+★ 격리(QUARANTINE) 카드도 ⚠ 표시로 싣는다(N5, 2026-10-18 사용자 결정 — 비중요 브리핑). 빈 브리핑만 발송 안 함.
 ★ SES sandbox: 수신자 사전 verify · @gmail 발신은 DMARC 거부 → 커스텀 도메인 발신(settings.ses_sender).
 """
 from __future__ import annotations
@@ -14,8 +14,13 @@ DeliverFn = Callable[[Any], dict | None]   # Callable[[UserBriefing], dict | Non
 
 
 def should_deliver(briefing: Any) -> bool:
-    """발송 조건 = 검증 발행분 1개 이상. 0 이면(QUARANTINE-only·빈) 미발송."""
-    return briefing.published > 0
+    """발송 조건 = 메일에 실린 카드(검증 + ⚠ 격리) 1장 이상. 빈 브리핑만 미발송."""
+    return _card_count(briefing) > 0
+
+
+def _card_count(briefing: Any) -> int:
+    """메일에 실린 카드 수 — 검증 카드 + 격리 카드(⚠). quarantined 가 없는 덕타입(옛 fake)은 0 으로 본다."""
+    return briefing.published + getattr(briefing, "quarantined", 0)
 
 
 def make_ses_deliver(settings: Any, *, client: Any = None, subject: str | None = None) -> DeliverFn:
@@ -35,7 +40,7 @@ def make_ses_deliver(settings: Any, *, client: Any = None, subject: str | None =
             Source=settings.ses_sender,
             Destination={"ToAddresses": [briefing.recipient]},
             Message={
-                "Subject": {"Data": subject or f"데일리 브리핑 ({briefing.published}건)"},
+                "Subject": {"Data": subject or f"데일리 브리핑 ({_card_count(briefing)}건)"},
                 "Body": {"Html": {"Data": briefing.email}},
             },
         )

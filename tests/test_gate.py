@@ -194,17 +194,18 @@ def test_interpret_card_isolates_interp_failure():
     assert out.card.why_it_matters == "일반 해석." and out.decision == "PUBLISH"
 
 
-def test_interpret_card_skips_quarantined_fact():
-    # QUARANTINE 사실층엔 해석층 생성 차단(gate 결정 재사용) — interp 호출 자체가 없어야 함
+def test_interpret_card_interprets_quarantined_fact_too():
+    # 격리 카드도 ⚠ 표시로 메일에 실리므로(N5, 2026-10-18 사용자 결정) 관점 해석도 붙인다.
+    # 재료·가드는 그대로 — 확인된 claim 만 근거로 쓰고, decision·verdicts 는 해석층이 못 바꾼다.
     called = {"n": 0}
 
     def spy(*_a):
         called["n"] += 1
-        return Interpretation("x", ("C1",))
+        return Interpretation("관점 해석.", ("C1",))
 
-    fact = _fact(decision="QUARANTINE")
-    out = interpret_card(fact, _SRC, None, None, interp_fn=spy)
-    assert called["n"] == 0 and out is fact
+    out = interpret_card(_fact(decision="QUARANTINE"), _SRC, None, None, interp_fn=spy)
+    assert called["n"] == 1
+    assert out.card.why_it_matters == "관점 해석." and out.decision == "QUARANTINE"
 
 
 def test_interpret_card_passes_only_verified_claims():

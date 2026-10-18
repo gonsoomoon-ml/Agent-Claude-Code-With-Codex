@@ -5,7 +5,7 @@
   → 중복 발송 방지(sent_log; v1 은 None=stateless 가능, v1.5 는 ③ ledger/DDB 로 백킹).
 
 ★ 순수 오케스트레이션(시계·DI fns·deliver 주입) → 클라우드 없이 전 경로 테스트. 비가역 조치(발송)는
-  should_deliver 게이트 통과분만(QUARANTINE/빈 미발송) + dedup → 같은 run_date 재실행해도 1회.
+  should_deliver 게이트 통과분만(빈 브리핑 미발송 — 격리 카드는 ⚠ 표시로 실림, N5) + dedup → 같은 run_date 재실행해도 1회.
 """
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ def dispatch(
 
     delivered: list[str] = []
     for b in briefings:
-        if not should_deliver(b):                                   # QUARANTINE/빈 발행 → skip
+        if not should_deliver(b):                                   # 빈 브리핑 → skip
             continue
         if sent_log is not None and sent_log.already_sent(b.user_id, rd):
             continue                                                # 중복 발송 방지

@@ -1,6 +1,6 @@
 """_trial — 체험하기 코어(DI). entrypoint(mode=trial)가 실 ses/run_briefing/sleep 을 배선.
 
-검증(Success)까지 polling → 그 후에만 run_briefing → published>0 발송 / ==0 폴백.
+검증(Success)까지 polling → 그 후에만 run_briefing → 카드(검증 + ⚠ 격리)>0 발송 / 0 폴백.
 부수효과는 전부 인자(주입) — fake 로 결정론 단위테스트.
 """
 from __future__ import annotations
@@ -71,7 +71,7 @@ def run_trial(settings: Settings, store: Any, card_cache: Any, payload: dict, *,
     """검증 polling → run_briefing → 발송/폴백. 상태 문자열 반환(로깅용).
 
     미검증(timeout) 시 run_briefing 호출 금지 (LLM 비용 0).
-    published>0 → deliver_fn; ==0 또는 empty → fallback_fn.
+    카드(검증 + ⚠ 격리, N5)>0 → deliver_fn; 0 또는 empty → fallback_fn.
     각 단계마다 status_fn 콜백 호출(DI, 테스트용 상태 추적).
 
     Args:
@@ -103,10 +103,11 @@ def run_trial(settings: Settings, store: Any, card_cache: Any, payload: dict, *,
         status_fn("fallback")
         return f"trial empty: {email}"
     b = briefs[0]
-    if b.published > 0:
+    n = b.published + getattr(b, "quarantined", 0)   # 격리 카드도 ⚠ 표시로 싣는다(N5, 2026-10-18 사용자 결정)
+    if n > 0:
         deliver_fn(b)
-        status_fn("sent", b.published)
-        return f"trial delivered({b.published}): {email}"
+        status_fn("sent", n)
+        return f"trial delivered({n}): {email}"
     fallback_fn(email)
     status_fn("fallback")
-    return f"trial fallback(published=0): {email}"
+    return f"trial fallback(cards=0): {email}"
