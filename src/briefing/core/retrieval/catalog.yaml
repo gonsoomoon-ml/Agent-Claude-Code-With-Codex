@@ -243,7 +243,8 @@
   category: Community
   article_path: /t/  # Discourse 글 = /t/<slug>/<id> — 목록 경로(/c/news/14) 밖이라 접두 경로로 지정
   window_hours: 48   # 글 페이지 날짜가 날짜만 → late-post 보정(W≥U+P). 하루 겹침 중복은 ledger cross-day dedup
-  max_items: 3       # 평일 6~9건/일 자동 큐레이션(:30 정각 발행) — 브리핑 편중/비용 상한
+  max_items: 5       # 평일 평균 4.7건(최대 6)·주말 3.2건(2026-10-18 실측, 7월 추정 6~9건보다 적음) → 사실상 전부
+                     #   (2026-10-18 3→5, 사용자 결정 — 글이 선별 기준 P2b(에이전트·Applied AI)와 잘 맞아 자를 이유가 약함)
   select: llm        # 최신순 잘림 = 고정 시간대 사각지대(실측) → Haiku pick-3(폴백=최신순)
   # Discourse news(읽을거리&정보공유) 카테고리 스코프 — qna/lounge 원천 제외(사이트맵은 전 카테고리라 안 씀).
   # 2026-10-17 정정: robots `Disallow: /c/*.rss` 가 예전 url(/c/news/14.rss)을 막고 있었다 → 허용된 카테고리 목록 페이지.

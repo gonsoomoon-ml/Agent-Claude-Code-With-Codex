@@ -30,11 +30,11 @@ def test_catalog_loaded_from_yaml():
 
 
 def test_catalog_max_items_and_select():
-    """pytorch-kr-news = 고볼륨(일 6~9건) 커뮤니티 큐레이션 → 캡 3 + LLM 선별.
+    """pytorch-kr-news = 커뮤니티 큐레이션(평일 평균 4.7건, 2026-10-18 실측) → 캡 5 + LLM 선별.
     the-decoder = 일 5~6건 → 기본 캡 5 + LLM 선별(최신순이면 가장 이른 글이 잘린다). 나머지 소스는 기본(0="")."""
     by_key = {s.key: s for s in CATALOG}
     p = by_key["pytorch-kr-news"]
-    assert p.max_items == 3 and p.select == "llm" and p.lang == "ko"
+    assert p.max_items == 5 and p.select == "llm" and p.lang == "ko"
     assert by_key["the-decoder"].max_items == 0 and by_key["the-decoder"].select == "llm"
     assert by_key["aws-ml"].max_items == 0 and by_key["aws-ml"].select == ""   # 기존 소스 무변경
 
