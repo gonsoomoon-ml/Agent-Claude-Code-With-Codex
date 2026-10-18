@@ -171,6 +171,13 @@ def launch_runtime(runtime, settings: Settings):
 
 # ───────────────────────── [4] IAM extras (Bedrock + SES) ─────────────────────────
 
+# ③ DB: 런타임 코드가 부르는 DynamoDB 작업 전부(dynamo.py·sent_log.py·trial). 새 호출을 넣으면 여기에도 추가 —
+# test_runtime_iam_allows_every_dynamodb_call_the_runtime_makes 가 소스에서 대조한다.
+# ★ BatchGetItem(2026-10-18 추가): source-store 메타 join(article-identity dedup)이 쓰는데 빠져 있어서
+#   10-16(v47)부터 매 run AccessDenied → dedup 전체 fail-open(전날 기사 재발행).
+DYNAMO_ACTIONS = ("dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:Scan",
+                  "dynamodb:UpdateItem", "dynamodb:BatchGetItem")
+
 def attach_runtime_extras(result, region: str) -> None:
     """toolkit 자동 role 에 *우리 워크로드* 권한만 inline 부착 — Bedrock invoke(author) + SES send(⑤).
 
@@ -213,8 +220,7 @@ def attach_runtime_extras(result, region: str) -> None:
                 # ledger Query(GSI→index/*) · users list_users 는 Scan(H4, 전 사용자 열거) · prefix=briefing-(CFN ddb.yaml).
                 "Sid": "DynamoStores",
                 "Effect": "Allow",
-                "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query",
-                           "dynamodb:Scan", "dynamodb:UpdateItem"],
+                "Action": list(DYNAMO_ACTIONS),
                 "Resource": [
                     f"arn:aws:dynamodb:*:{account}:table/briefing-*",
                     f"arn:aws:dynamodb:*:{account}:table/briefing-*/index/*",

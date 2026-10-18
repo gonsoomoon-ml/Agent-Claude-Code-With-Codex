@@ -236,3 +236,27 @@ def test_runtime_env_forwards_effort_and_interp_only_when_set(tmp_path):
                                 interp_model_id="global.anthropic.claude-sonnet-5", interp_effort="default"))
     assert (env["AUTHOR_EFFORT"], env["INTERP_MODEL_ID"], env["INTERP_EFFORT"]) == (
         "medium", "global.anthropic.claude-sonnet-5", "default")
+
+
+# ── 런타임 IAM: 코드가 부르는 DynamoDB 작업 ⊆ 정책 (2026-10-18 결함) ──────────
+
+def test_runtime_iam_allows_every_dynamodb_call_the_runtime_makes():
+    """런타임이 부르는 boto3 DynamoDB 작업마다 deploy_runtime 정책에 그 액션이 있어야 한다.
+
+    2026-10-18 실측: article-identity dedup(96dee74, v47)이 source-store `batch_get_item` 을 새로 썼는데 정책에
+    `dynamodb:BatchGetItem` 이 없어 매 run AccessDenied → dedup 전체 fail-open(10-17 아침 전날 기사 3건 재발행).
+    fake 로 도는 단위 테스트는 IAM 을 못 보므로, 호출 목록과 정책을 소스에서 직접 대조한다.
+    """
+    import re
+    from pathlib import Path
+
+    from briefing.runtime.deploy_runtime import DYNAMO_ACTIONS
+
+    pkg = Path(__file__).resolve().parents[1] / "src" / "briefing"
+    files = ["core/stores/dynamo.py", "scheduler/sent_log.py", "runtime/agentcore_runtime.py"]   # boto3 DDB 를 직접 부르는 런타임 코드
+    ops = {m for f in files for m in re.findall(
+        r"\.(get_item|put_item|query|scan|update_item|delete_item|batch_get_item|batch_write_item)\(",
+        (pkg / f).read_text(encoding="utf-8"))}
+    needed = {"dynamodb:" + "".join(w.capitalize() for w in op.split("_")) for op in ops}
+    assert "dynamodb:BatchGetItem" in needed                       # 검사가 실제로 이 호출을 본다(자기 검증)
+    assert needed <= set(DYNAMO_ACTIONS), f"정책에 없는 DynamoDB 액션: {sorted(needed - set(DYNAMO_ACTIONS))}"
