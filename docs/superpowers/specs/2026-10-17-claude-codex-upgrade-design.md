@@ -2,11 +2,11 @@
 
 - **상태:** **승인(2026-10-17) · 실험 완료(2026-10-17).** U2–U7 을 실행했고 결과는 작업 노트 `upgrade-comparison-report.md`(추천: 요약 Sonnet 5.5 + CLI 2.1.301, 검증 GPT-6 Luna + codex 0.163.0). 결정 D1–D6 확정. U8 조합 확정(2026-10-18). 배포 착수(2026-10-18): F3·F7 배선 + U8 ① CLI 2.1.301 = runtime v54. 다음 = 아침 발송 2–3회 관찰 뒤 ② 요약 모델 → F5 → ③ 검증 모델, 한 단계씩.
 - **발단:** PRD `docs/work_note/Oct-2026/261016-upgrade-claude-codex/claude-codex-upgrade-prd.md` — ① AgentCore Runtime 의 Claude Code·Codex CLI 업그레이드 ② 최신 모델로 교체 ③ 전후 품질·비용 비교.
-- **관련 작업 노트(같은 work_note 폴더, 미커밋):**
+- **관련 작업 노트(같은 work_note 폴더, 미커밋 — 색인 `README.md`):**
   - `work-list.md`: 항목과 결정의 원본
-  - `summary-evaluation-guide.md`: 좋은 요약의 기준과 다섯 질문
-  - `criteria-application-audit.md`: 현 시스템 점검
-  - `author-summarization-research.md`: 리서치
+  - `01-research/summary-evaluation-guide.md`: 좋은 요약의 기준과 다섯 질문
+  - `01-research/criteria-application-audit.md`: 현 시스템 점검
+  - `01-research/author-summarization-research.md`: 리서치
 - **선행 설계:** `2026-07-17-represent-v3-prompt-design.md`(요약 지시 v3.x), `2026-07-27-ai-relevance-axis-design.md`(v3.4)
 
 ## 요약
