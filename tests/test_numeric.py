@@ -338,6 +338,75 @@ def test_decades_convert_to_years(text: str, val: int) -> None:
     assert numeric.scan(text).values == {val}    # 기수(4·2)는 따로 새지 않는다(SY15)
 
 
+# ── F2 2차: 운영 재생에서 나온 파서 버그 8종 ────────────────────────────────────────
+
+def test_year_is_not_a_fraction_denominator() -> None:
+    """'45,000 in 2025' 는 'one in four' 같은 분수가 아니다 — 두 값이 그대로 남아야 한다."""
+    assert numeric.scan("approximately 45,000 in 2025, 32,000 in 2024").values == {45000, 2025, 32000, 2024}
+    assert numeric.scan("One in four posts is AI-generated").values == {0.25}     # 진짜 분수는 그대로
+
+
+@pytest.mark.parametrize(("text", "vals"), [
+    ("binned to 2k-step means", {2000}),
+    ("Through ~800k steps", {800000}),
+    ("over the full ~5.93T-token / 1.41M-step budget", {5.93e12, 1.41e6}),
+    ("a 128k context window", {128000}),
+])
+def test_lowercase_k_and_T_suffix(text: str, vals: set[float]) -> None:
+    assert numeric.scan(text).values == vals
+
+
+@pytest.mark.parametrize(("text", "val"), [
+    ("while using about an eighth of the output tokens", 0.125),
+    ("about a tenth of traditional production costs", 0.1),
+    ("at one-tenth of the cost", 0.1),
+])
+def test_fraction_of_beyond_fifth(text: str, val: float) -> None:
+    assert numeric.scan(text).values == {val}
+
+
+def test_sixth_without_of_stays_ordinal() -> None:
+    """'A sixth agent'(여섯째)는 분수가 아니다 — 'of' 가 없으면 서수로 남는다(SY24)."""
+    n = numeric.scan("A sixth agent, the Nakama's coordinator, is the fleet's operations manager.")
+    assert n.values == set() and n.ordinals == {6}
+
+
+def test_percentile_bae_is_not_hundred() -> None:
+    """'11백분위'의 백은 보조배수(100)가 아니다 — 1100 으로 읽으면 원문 '11-percentile' 과 안 맞는다."""
+    assert numeric.scan("약 11백분위 포인트 상승").values == {11}
+
+
+def test_je_inside_word_is_not_ordinal_prefix() -> None:
+    """'과제 17'의 제는 서수 접두어가 아니다 — '제3자'처럼 낱말 첫머리일 때만 서수."""
+    n = numeric.scan("자동 생성 과제 17개 × 시드 3개")
+    assert n.values == {17, 3} and n.ordinals == set()
+    assert numeric.scan("제3자 감사").ordinals == {3}
+
+
+def test_latex_thousands_separator() -> None:
+    assert numeric.scan("첫 토큰 지연이 508 ms에서 3{,}420 ms로 늘었습니다").values == {508, 3420}
+
+
+@pytest.mark.parametrize(("text", "vals"), [
+    ("Twenty-five Fields Medal winners", {25}),
+    ("a thirty-two layer network", {32}),
+    ("twenty-five million users", {25e6}),
+])
+def test_hyphenated_compound_cardinals(text: str, vals: set[float]) -> None:
+    """'Twenty-five'를 twenty·five 로 쪼개면 거짓 '20명'·'5명'이 통과한다(SY28·SY29)."""
+    assert numeric.scan(text).values == vals
+
+
+@pytest.mark.parametrize(("text", "val"), [
+    ("That's roughly two and a half times higher.", 2.5),
+    ("after one and a half hours", 1.5),
+    ("two and a half million users", 2.5e6),
+])
+def test_and_a_half(text: str, val: float) -> None:
+    """'two and a half' = 2.5 — two(2)·a half(0.5)로 쪼개면 거짓 '2배'가 통과한다(SY30)."""
+    assert numeric.scan(text).values == {val}
+
+
 # ── 알려진 잔여 위양성 (값 대조로는 못 고침 — 문서화해 둔다) ─────────────────────
 #
 # 둘 다 "원문에 그 숫자가 *수사로* 없지만 근거는 텍스트에 있다"는 종류라, 결정론 산술이 아니라

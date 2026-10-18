@@ -42,7 +42,7 @@ _KO_RANK = {"만": 1, "억": 2, "조": 3}  # 체이닝 판정용(내림차순 �
 
 _EN_SCALE = {"hundred": 10**2, "thousand": 10**3, "million": 10**6,
              "billion": 10**9, "trillion": 10**12}
-_EN_SUFFIX = {"k": 10**3, "m": 10**6, "b": 10**9}  # '27B' = 27e9 (모델 파라미터 표기 관행)
+_EN_SUFFIX = {"k": 10**3, "m": 10**6, "b": 10**9, "t": 10**12}  # '27B' = 27e9 · '5.93T' = 5.93e12 (ML 표기 관행)
 
 _EN_CARD = {
     "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
@@ -76,8 +76,17 @@ _MONTHS = {  # ★ 대소문자 구분 — 'may'(조동사)를 월 5 로 읽으�
 }
 _EN_DENOM = {"half": 2, "halves": 2, "third": 3, "thirds": 3, "quarter": 4, "quarters": 4,
              "fourth": 4, "fourths": 4, "fifth": 5, "fifths": 5}
+# 다섯째 넘는 분모 — 'an eighth of'·'a tenth of'(F2). 이 낱말들은 서수로 훨씬 자주 쓰여서('A sixth agent')
+# 뒤에 'of' 가 붙을 때만 분수로 읽는다(SY24). 복수형('three tenths of')은 패턴이 받는다.
+_EN_DENOM_OF = {"sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10,
+                "twentieth": 20, "hundredth": 100, "thousandth": 1000}
+# 하이픈 복합 기수 — 'Twenty-five' = 25(F2). twenty·five 로 쪼개면 거짓 '20명'·'5명'이 통과한다(SY28·SY29).
+_EN_TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90}
+_EN_UNITS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9}
 
 _CARD_ALT = "|".join(sorted(_EN_CARD, key=len, reverse=True))
+_COMPOUND = rf"(?:{'|'.join(_EN_TENS)})-(?:{'|'.join(_EN_UNITS)})"
+_DENOM_OF_ALT = "|".join(sorted(_EN_DENOM_OF, key=len, reverse=True))
 _ORD_ALT = "|".join(sorted(_EN_ORD, key=len, reverse=True))
 _DENOM_ALT = "|".join(sorted(_EN_DENOM, key=len, reverse=True))
 _MONTH_ALT = "|".join(_MONTHS)
@@ -98,13 +107,21 @@ _RE_FRAC_KO_IN = re.compile(rf"({_NUM})\s*개\s*중\s*({_NUM})\s*개")
 _RE_FRAC_SCALE = re.compile(
     rf"\b(?:(a|{_CARD_ALT}|{_NUM})[\s-]+)?({_DENOM_ALT})\s+(?:of\s+)?(?:a|an|one)\s+({_SCALE_ALT})s?\b", re.I)
 _RE_FRAC_EN = re.compile(rf"\b(a|{_CARD_ALT}|{_NUM})[\s-]+({_DENOM_ALT})\b", re.I)
-_RE_FRAC_EN_IN = re.compile(rf"\b({_CARD_ALT}|{_NUM})\s+in\s+({_CARD_ALT}|{_NUM})\b", re.I)
+# 'N in M' 분수('One in four'). ★ M 이 연도면 분수가 아니다 — '45,000 in 2025' 를 45000/2025 로 읽으면
+# 두 값이 다 사라져 '2025년 약 45,000건' claim 이 막혔다(F2, 30일 재생 3건).
+_RE_FRAC_EN_IN = re.compile(rf"\b({_CARD_ALT}|{_NUM})\s+in\s+(?!(?:19|20)\d\d\b)({_CARD_ALT}|{_NUM})\b", re.I)
+_RE_FRAC_EN_OF = re.compile(rf"\b(a|an|{_CARD_ALT}|{_NUM})[\s-]+({_DENOM_OF_ALT})s?\s+of\b", re.I)
+# 'two and a half (million)' = 2.5(e6)(F2). 분수 규칙보다 먼저 — 아니면 'a half'(0.5)와 'two'(2)로 쪼개져
+# 거짓 '2배'가 통과한다(SY30).
+_RE_AND_HALF = re.compile(
+    rf"\b({_COMPOUND}|{_CARD_ALT}|{_NUM})\s+and\s+a\s+half(?:\s+({_SCALE_ALT})s?)?\b", re.I)
 # 어휘화된 숫자 — 수량 주장이 아니라 고정 표현의 일부('1인당' = per capita; 원문엔 대응 수사가 없다).
 _RE_LEXICAL = re.compile(rf"{_NUM}\s*인당")
 _RE_ISO_DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 _RE_MONTH_KO = re.compile(rf"({_NUM})\s*월")  # '8개월'(기간)은 digit 뒤가 '개'라 미매치
 _RE_MONTH_EN = re.compile(rf"\b({_MONTH_ALT})\b")  # ★ re.I 금지 — 'may' 오독 방지
-_RE_ORD_KO = re.compile(rf"제\s*({_NUM})")  # 제3자·제2차
+# 제3자·제2차. ★ 제가 낱말 첫머리일 때만 — '과제 17'·'문제 3'의 제를 서수로 읽으면 수량이 사라진다(F2).
+_RE_ORD_KO = re.compile(rf"(?<![가-힣])제\s*({_NUM})")
 _RE_ORD_EN = re.compile(rf"\b({_ORD_ALT})\b", re.I)
 _RE_ORD_DIGIT = re.compile(r"\b(\d+)(?:st|nd|rd|th)\b", re.I)
 # ★ 만/억/조 뒤 경계 — 한국어에서 이 글자들은 *다른 단어의 일부*이거나 *조사*이기도 하다(실측 회귀):
@@ -126,7 +143,8 @@ _RE_KO_DIGIT_TAIL = re.compile(r"[ \t]*(\d,\d{3}|\d{1,4})(?!\d|[.,]\d|\s*[십백
 # 만/억/조 **없이** 쓰이는 보조배수 — '5천 명'(=5,000)·'3백 명'(=300). _RE_KO_GROUP 은 만/억/조를
 # 필수로 요구해 이걸 놓쳤고, 그러면 뒤의 맨숫자 스캔이 '5' 만 주워 **1000배 축소된 값**이 된다
 # → 원문의 무관한 맨숫자 5 가 '5천 명' claim 을 인증한다(적대 검증에서 실증). _RE_KO_GROUP 뒤에 적용.
-_RE_KO_SUB_ONLY = re.compile(rf"({_NUM})\s*({'|'.join(_KO_SUB)}){_KO_BOUND}")
+# '11백분위'·'백분율'의 백은 보조배수가 아니다(F2) — 1100 으로 읽으면 원문 '11-percentile' 과 안 맞는다.
+_RE_KO_SUB_ONLY = re.compile(rf"({_NUM})\s*({'|'.join(_KO_SUB)})(?!분위|분율){_KO_BOUND}")
 # 등위 생략(coordination ellipsis) — 'Orca was trained at 0.8 and 4 billion parameters' 는
 # 0.8**billion** 과 4billion 을 뜻한다. 이걸 못 읽으면 claim '0.8B' 가 원문 맨숫자 0.8 과 어긋나
 # 위양성이 된다(실측). 반드시 _RE_EN_SCALE 보다 먼저 소비.
@@ -145,14 +163,16 @@ _RE_PROPER_BEFORE = re.compile(r"\b[A-Z][A-Za-z0-9.\-]*\s*$")
 # 위험이 있어 eval set 케이스를 먼저 만들고 착수할 것.
 # 'a' 를 분자 1 로 받는다 — 'a trillion parameters'(→1조)·'A million lines'(→100만). 관사 뒤가
 # 스케일 단어일 때로 한정되므로 흔한 'a' 오독 위험 없음.
-_RE_EN_SCALE = re.compile(rf"\b(?:({_NUM})|(a|{_CARD_ALT}))[\s-]+({_SCALE_ALT})s?\b", re.I)
+_RE_EN_SCALE = re.compile(rf"\b(?:({_NUM})|(a|{_COMPOUND}|{_CARD_ALT}))[\s-]+({_SCALE_ALT})s?\b", re.I)
 # 뒤 경계를 `\b` 로 쓰면 안 된다 — 한글은 단어문자라 '27B를'(조사 결합)에서 경계가 안 생겨
 # 접미사를 놓치고 맨숫자 27 로 새어나간다(회귀셋 FP10). 라틴 문자/숫자만 아니면 경계로 본다.
-_RE_EN_SUFFIX = re.compile(rf"\b({_NUM})\s*([BMK])(?![A-Za-z0-9])")
+# 소문자 k('800k steps'·'128k context')는 숫자에 붙어 있을 때만 — m·b 소문자는 분·미터·비트와 겹쳐 받지 않는다(F2).
+_RE_EN_SUFFIX = re.compile(rf"\b({_NUM})(?:\s*([BMKT])|(k))(?![A-Za-z0-9])")
 # 관용구의 'one' 은 수량 주장이 아니다 — 'one of the co-chairs'(여럿 중 하나)·'one of its'.
 # 이걸 값 1 로 수확하면 원문에 널린 관용구가 claim 의 '1명'·'1개'를 무상으로 인증한다(리뷰 지적).
 # 'one of three co-chairs' 처럼 뒤에 수가 있으면 그 수는 별도로 잡히므로 손실 없음.
 _RE_IDIOM_ONE = re.compile(r"\bone of (?:the|its|his|her|their|our)\b", re.I)
+_RE_EN_COMPOUND = re.compile(rf"\b({_COMPOUND})\b", re.I)
 _RE_EN_CARD = re.compile(rf"\b({_CARD_ALT})\b", re.I)
 _RE_PLAIN = re.compile(_NUM)
 # decades·centuries — 'nearly four decades' = 40(년)(F2). 통째로 소비해 기수 4 가 따로 새지 않게 한다(SY15).
@@ -213,6 +233,9 @@ def _num_or_word(tok: str) -> float:
     low = tok.lower()
     if low in ("a", "an"):  # 'a third' = 1/3 — 영어는 분자 1 을 관사로 쓴다
         return 1.0
+    if "-" in low:          # 'twenty-five' = 25
+        tens, units = low.split("-")
+        return float(_EN_TENS[tens] + _EN_UNITS[units])
     return float(_EN_CARD[low]) if low in _EN_CARD else _val(tok)
 
 
@@ -240,7 +263,8 @@ def scan(text: str) -> Nums:
     # 수량 값과 그 값이 원문에서 끝나는 위치 — 끝에서 한국어 문맥 표지('당·배·위·분기')가 붙었는지 본다.
     # 마스킹은 같은 길이의 공백으로 덮으므로 work 의 위치가 곧 원문(orig)의 위치다.
     occ: list[tuple[float, int]] = []
-    orig = text or ""
+    # KaTeX 천 단위 구분 '3{,}420' → '3,420'(F2 — 마크다운 원문의 수식 표기).
+    orig = (text or "").replace("{,}", ",")
     work = orig
 
     def val(v: float, end: int) -> None:
@@ -271,6 +295,10 @@ def scan(text: str) -> Nums:
         (_num_or_word(m.group(1)) if m.group(1) else 1.0)
         / _EN_DENOM[m.group(2).lower()] * _EN_SCALE[m.group(3).lower()], m.end()))
 
+    # ②-b 'two and a half (million)' = 2.5(e6) — ③ 의 'a half'(0.5)보다 먼저 통째로.
+    consume(_RE_AND_HALF, lambda m: val(
+        (_num_or_word(m.group(1)) + 0.5) * (_EN_SCALE[m.group(2).lower()] if m.group(2) else 1), m.end()))
+
     # ③ 분수 — 맨숫자보다 먼저. 'two-thirds'를 {2,3}으로 흘리면 순서 반전 오류를 놓친다.
     #    분모 0 은 값을 만들지 않는다(_ratio → None). 소비는 하므로 뒤 패턴이 재해석하지 않는다.
     def _add_ratio(numer: float, denom: float, end: int) -> None:
@@ -280,6 +308,7 @@ def scan(text: str) -> Nums:
     consume(_RE_FRAC_KO, lambda m: _add_ratio(_val(m.group(2)), _val(m.group(1)), m.end()))
     consume(_RE_FRAC_KO_IN, lambda m: _add_ratio(_val(m.group(2)), _val(m.group(1)), m.end()))
     consume(_RE_FRAC_EN, lambda m: _add_ratio(_num_or_word(m.group(1)), _EN_DENOM[m.group(2).lower()], m.end()))
+    consume(_RE_FRAC_EN_OF, lambda m: _add_ratio(_num_or_word(m.group(1)), _EN_DENOM_OF[m.group(2).lower()], m.end()))
     consume(_RE_FRAC_EN_IN, lambda m: _add_ratio(_num_or_word(m.group(1)), _num_or_word(m.group(2)), m.end()))
 
     # ④ 어휘화된 숫자 — 값으로 세지 않고 버린다.
@@ -328,7 +357,8 @@ def scan(text: str) -> Nums:
     consume(_RE_EN_SCALE, lambda m: val(
         (_val(m.group(1)) if m.group(1) else _num_or_word(m.group(2)))
         * _EN_SCALE[m.group(3).lower()], m.end()))
-    consume(_RE_EN_SUFFIX, lambda m: val(_val(m.group(1)) * _EN_SUFFIX[m.group(2).lower()], m.end()))
+    consume(_RE_EN_SUFFIX, lambda m: val(
+        _val(m.group(1)) * _EN_SUFFIX[(m.group(2) or m.group(3)).lower()], m.end()))
 
     # ⑧ 배수 동사('tripled'=3배) — 관용구(doubled down·double-digit)는 _RE_MULT 가 배제.
     consume(_RE_MULT, lambda m: val(float(_EN_MULT[m.group(1).lower()]), m.end()))
@@ -340,6 +370,9 @@ def scan(text: str) -> Nums:
 
     # ⑧-b 관용구의 'one' 소비(값 없음) — 기수 스캔 전이라야 1 로 새지 않는다.
     consume(_RE_IDIOM_ONE, lambda m: None)
+
+    # ⑧-c 하이픈 복합 기수('Twenty-five'=25) — 기수 스캔 전에 통째로(twenty·five 로 새면 SY28·SY29).
+    consume(_RE_EN_COMPOUND, lambda m: val(_num_or_word(m.group(1)), m.end()))
 
     # ⑨ 남은 기수 단어. 스케일 구 뒤라야 'one million' 의 'one' 이 1 로 새지 않는다.
     consume(_RE_EN_CARD, lambda m: val(float(_EN_CARD[m.group(1).lower()]), m.end()))
