@@ -7,8 +7,9 @@
 불변식:
 - certifier 호출 주체 = gate (이 모듈이 certify 를 import·호출; author 는 못 함). **verify 는 user-blind**.
 - envelope 외 author 산출(narration) 누설 0 — _build_envelope 가 동결본에서 4필드만 추출.
-- 실패 정책(graceful degradation, 스케일): DEMOTED='(미확인)' 라벨로 남김; BLOCKED 소진 시 *그 claim 만 드롭*하고
-  검증분 발행 — **핵심(core) claim 막힘 or VERIFIED 0** 일 때만 카드 QUARANTINE(드묾·표본 감사). 미검증은 발행 안 됨(fail-closed).
+- 실패 정책: DEMOTED='(미확인)' 라벨로 남김. 다시 쓰기(캡)를 거쳐도 BLOCKED 가 남으면 카드 QUARANTINE(F4 —
+  핵심 여부 무관; 예전의 'claim 만 드롭하고 발행'은 render 가 요약을 그대로 내보내 허구였다). QUARANTINE 카드도
+  ⚠ 표시로 메일에 실린다(N5, 2026-10-18 사용자 결정 — gate 결정은 그대로, 행선지만 바뀜).
 - ★ 루프 decorrelation 보존: 다른 계열(Claude↔Codex) + 피드백은 *실패 claim id 만*(certifier 추론 미전달)
   + 실패 claim 만 재도출(thrashing 방지) + 캡 + 소진 시 QUARANTINE.
   (*같은-모델·전체-재생성* 루프가 thrashing 하는 것과 대조 — 우리는 cross-family + 최소 피드백.)
@@ -110,7 +111,7 @@ def produce_card(
     """★ Maker-Checker 루프 (author↔certifier) — **decorrelation 보존형**.
 
     author(초안) → verify → 실패 claim 있으면 author 재도출(실패 claim 만, 피드백=실패 id 만) → 재verify …
-    캡(max_attempts) 소진 시 **QUARANTINE**(BLOCKED 남음 → 자동 발행 금지, 사람 검토).
+    캡(max_attempts) 소진 시 **QUARANTINE**(BLOCKED 남음 → ⚠ 표시로 메일에 실림, F4·N5).
     *피드백에 certifier 추론·정답을 안 줌* → 라운드 간에도 'teaching to the test'(상관) 회피.
     (draft_fn/revise_fn/verify_fn = 의존성 주입 — 테스트용; 기본은 author·verify_card.)
     `recorder`(옵션) — 기본 DI 경로(draft_fn/revise_fn/verify_fn 미주입 시)에만 partial 바인딩되어
@@ -134,31 +135,23 @@ def produce_card(
         if attempt < max_attempts:
             _debug.dprint("gate → revise", f"failed={list(failed)} → 실패 claim 재도출 (attempt {attempt + 1})", "yellow")
             card = reroute_claim_types(revise_fn(source, user, settings, prior=card, failed_ids=failed))
-    # 캡 소진: BLOCKED 가 남음 → claim-단위 graceful degradation (카드 통째 격리 대신)
-    return _degrade_or_quarantine(card, verdicts, max_attempts)
+    # 캡 소진: BLOCKED 가 남음 → QUARANTINE(⚠ 표시로 발송 — F4·N5)
+    return _quarantine_on_exhaustion(card, verdicts, max_attempts)
 
 
-def _degrade_or_quarantine(
+def _quarantine_on_exhaustion(
     card: DraftCard, verdicts: tuple[CertVerdict, ...], attempts: int
 ) -> GatedCard:
-    """캡 소진 후 BLOCKED 잔존 시 — 카드 통째 격리 대신 **claim-단위 graceful degradation**.
+    """캡 소진 후 BLOCKED 잔존 → 카드 QUARANTINE(F4, 2026-10-18). 핵심(core)이든 아니든 같다.
 
-    스케일 근거: "QUARANTINE → 사람 전수검토"는 대량 처리에서 비현실적(큐가 안 읽히면 silent drop) →
-    BLOCKED claim 만 *드롭*하고 검증된 부분집합을 발행. 처분은 사람 큐가 아니라 드롭 + 표본 감사 + 집계율 모니터링.
-      - **핵심(core) claim 이 BLOCKED** → 카드 spine 붕괴 → QUARANTINE(드묾, 표본 감사 대상).
-      - VERIFIED ≥1 + 핵심 안 막힘 → **PUBLISH**(BLOCKED 는 render 가 생략 + '보류' 표시 — graceful degradation).
-      - VERIFIED 0 (남은 게 DEMOTED/BLOCKED 뿐) → QUARANTINE(확실히 발행할 게 없음).
-    fail-closed 유지: 미검증 claim 은 *발행되지 않음*(드롭 ≠ 발행).
+    예전엔 핵심이 아닌 BLOCKED 는 'claim 만 드롭'하고 PUBLISH 했다(graceful degradation). 하지만 드롭은 허구였다 —
+    render 는 요약 문장을 그대로 내보내고 검증줄에 '제외 N건'만 붙였고, claim 은 계약상 요약의 사실을 담는다
+    (represent-v3.3 요약 커버리지). 즉 확인 못 한 사실이 ✓ 카드 안에 실렸다(30일 실측 2건 — 둘 다 F2 로 고친 숫자 오탐).
+    이제 QUARANTINE 카드도 ⚠ 표시로 메일에 실리므로(N5, 사용자 결정) 카드를 잃지 않고 표시만 정직해진다.
     """
-    by_id = {v.claim_id: v.verdict for v in verdicts}
-    core_blocked = any(c.importance == "core" and by_id.get(c.id) == "BLOCKED" for c in card.claims)
-    has_verified = any(v.verdict == "VERIFIED" for v in verdicts)
-    if core_blocked or not has_verified:
-        _debug.dprint("gate decision", "QUARANTINE (core BLOCKED 또는 VERIFIED 0 — 표본 감사)", "red")
-        return GatedCard(card, verdicts, "QUARANTINE", attempts)
-    dropped = sum(1 for v in verdicts if v.verdict == "BLOCKED")
-    _debug.dprint("gate decision", f"PUBLISH degraded — BLOCKED {dropped}개 드롭, 검증분 발행", "green")
-    return GatedCard(card, verdicts, "PUBLISH", attempts)
+    blocked = sum(1 for v in verdicts if v.verdict == "BLOCKED")
+    _debug.dprint("gate decision", f"QUARANTINE — BLOCKED {blocked}건 잔존 → ⚠ 표시로 발송(F4·N5)", "red")
+    return GatedCard(card, verdicts, "QUARANTINE", attempts)
 
 
 # ───────────────────────── 해석층 (interpretation layer) — card-layering §5 ─────────────────────────
@@ -230,14 +223,13 @@ def interpret_card(
 ) -> GatedCard:
     """검증된 사실층 위에 lens 해석(why)만 교체 — 가드 통과 시에만. 실패는 **해석만 강등**(층별 격리).
 
-    - QUARANTINE 사실층 → 해석 생성 자체를 차단(gate 결정 재사용, LLM 비용 0).
+    - QUARANTINE 사실층도 해석한다(N5, 2026-10-18 사용자 결정 — 격리 카드도 ⚠ 표시로 메일에 싣는다).
+      재료·가드는 같다: 근거는 VERIFIED claim 뿐이고 lint 가 미검증 수치 밀수를 막는다.
     - interp 실패(예외)·lint 실패 → 사실층(일반 lens) why 그대로 반환 — 카드·브리핑은 무붕괴
       (2026-07-02 인시던트의 격리 교훈을 카드→층 단위로 하강).
     - verdicts·decision·summary·claims 는 불변 — 해석층은 검증 결과를 절대 못 건드린다.
     `recorder`(옵션) — 기본 DI 경로(interp_fn 미주입 시)에만 partial 바인딩(주입된 fake 는 recorder 무관).
     """
-    if fact.decision == "QUARANTINE":
-        return fact
     interp_fn = interp_fn or partial(author.draft_interpretation, recorder=recorder)  # 기본 = 같은 headless `claude -p`(짧은 출력)
     try:
         # summary 를 5번째 위치인자로 — 해석층이 **자기가 무엇을 반복하는지** 봐야 한다(interp-v1.2).

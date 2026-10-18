@@ -167,7 +167,7 @@ def _process(fs, u, settings, store, card_cache, ledger, run_date,
 
     - 사실층: fact_memo(run 내) → card_cache(fact_key) → produce_card(_FACT_USER). 전 사용자 공유.
     - 해석층: lens=general 이면 사실층 그대로(동일물). 아니면 interp_memo → card_cache(interp_key)
-      → gate.interpret_card(가드·격리·폴백 소유). QUARANTINE 사실층은 interpret_card 가 스스로 차단.
+      → gate.interpret_card(가드·격리·폴백 소유). QUARANTINE 사실층도 해석한다(N5 — ⚠ 표시로 메일에 실림).
     - ledger 는 사용자가 실제 받은 카드의 키(fact_key 또는 interp_key)로 기록 — history join 유지.
     """
     fact_key = fact_card_key(fs.source_id, getattr(settings, "author_model_id", ""), PROMPT_VERSION)
@@ -183,7 +183,7 @@ def _process(fs, u, settings, store, card_cache, ledger, run_date,
     fact_memo[fs.source_id] = fact
 
     lens = resolve_lens(getattr(u, "lens", "") or "").key   # 미상 lens 는 general 로 폴백(기존 계약)
-    if lens == DEFAULT_LENS or fact.decision == "QUARANTINE":
+    if lens == DEFAULT_LENS:
         gated, key = fact, fact_key                          # 사실층 = general 카드 그 자체
     else:
         key = interp_card_key(fs.source_id, lens, fact_key, INTERP_PROMPT_VERSION)

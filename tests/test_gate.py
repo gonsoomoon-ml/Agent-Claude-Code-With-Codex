@@ -48,13 +48,15 @@ def test_produce_card_quarantine_on_exhaustion():
     assert g.decision == "QUARANTINE" and g.attempts == 2
 
 
-def test_produce_card_degrades_dropping_blocked_supporting():
-    # graceful degradation: supporting claim 만 BLOCKED + 다른 claim VERIFIED → PUBLISH(미검증만 드롭)
+def test_produce_card_flags_card_when_supporting_claim_stays_blocked():
+    # F4(2026-10-18): 핵심이 아닌 claim 이 막혀도 QUARANTINE — 예전의 'PUBLISH + 드롭'은 허구였다
+    # (render 는 요약 문장을 그대로 내보낸다 → 확인 못 한 사실이 ✓ 카드에 실림). claim 은 계약상 요약의 사실을 담는다.
+    # N5 이후 QUARANTINE 은 ⚠ 표시로 메일에 실리므로 카드를 잃지 않는다 — 표시만 정직해진다.
     card = DraftCard("sid", "h", "s", "w",
                      (Claim("C1", "ok", "entailment", "core"), Claim("C2", "bad", "arithmetic", "supporting")))
     g = produce_card(None, None, None, None, max_attempts=1, draft_fn=lambda *a: card,
                      verify_fn=lambda c: (_v("VERIFIED", "C1"), _v("BLOCKED", "C2")))
-    assert g.decision == "PUBLISH"  # 검증분 발행, 미검증만 드롭(카드 안 잃음)
+    assert g.decision == "QUARANTINE"
 
 
 def test_produce_card_quarantine_when_core_blocked():
@@ -194,17 +196,18 @@ def test_interpret_card_isolates_interp_failure():
     assert out.card.why_it_matters == "일반 해석." and out.decision == "PUBLISH"
 
 
-def test_interpret_card_skips_quarantined_fact():
-    # QUARANTINE 사실층엔 해석층 생성 차단(gate 결정 재사용) — interp 호출 자체가 없어야 함
+def test_interpret_card_interprets_quarantined_fact_too():
+    # 격리 카드도 ⚠ 표시로 메일에 실리므로(N5, 2026-10-18 사용자 결정) 관점 해석도 붙인다.
+    # 재료·가드는 그대로 — 확인된 claim 만 근거로 쓰고, decision·verdicts 는 해석층이 못 바꾼다.
     called = {"n": 0}
 
     def spy(*_a):
         called["n"] += 1
-        return Interpretation("x", ("C1",))
+        return Interpretation("관점 해석.", ("C1",))
 
-    fact = _fact(decision="QUARANTINE")
-    out = interpret_card(fact, _SRC, None, None, interp_fn=spy)
-    assert called["n"] == 0 and out is fact
+    out = interpret_card(_fact(decision="QUARANTINE"), _SRC, None, None, interp_fn=spy)
+    assert called["n"] == 1
+    assert out.card.why_it_matters == "관점 해석." and out.decision == "QUARANTINE"
 
 
 def test_interpret_card_passes_only_verified_claims():

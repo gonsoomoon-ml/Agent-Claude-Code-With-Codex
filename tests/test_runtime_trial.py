@@ -35,7 +35,8 @@ def test_poll_verified_false_on_timeout():
 
 
 class _Brief:
-    def __init__(self, published): self.published, self.recipient, self.email = published, "u@x.com", "<p>"
+    def __init__(self, published, quarantined=0):
+        self.published, self.quarantined, self.recipient, self.email = published, quarantined, "u@x.com", "<p>"
 
 
 def test_run_trial_delivers_when_verified_and_published():
@@ -45,6 +46,16 @@ def test_run_trial_delivers_when_verified_and_published():
                     deliver_fn=lambda b: delivered.append(b), fallback_fn=lambda e: fellback.append(e),
                     sleep_fn=lambda s: None, run_date="2026-06-28")
     assert delivered and not fellback and "delivered" in out
+
+
+def test_run_trial_delivers_quarantined_only_briefing():
+    """격리 카드만 있어도 ⚠ 표시로 보낸다(N5, 2026-10-18 사용자 결정) — 안내 메일 아님."""
+    delivered, fellback = [], []
+    run_trial(_settings(), object(), None, {"email": "u@x.com", "sources": ["aitimes"]},
+              ses=_Ses(success_on=1), run_briefing_fn=lambda *a, **k: [_Brief(0, quarantined=2)],
+              deliver_fn=lambda b: delivered.append(b), fallback_fn=lambda e: fellback.append(e),
+              sleep_fn=lambda s: None, run_date="2026-06-28")
+    assert delivered and not fellback
 
 
 def test_run_trial_fallback_when_published_zero():

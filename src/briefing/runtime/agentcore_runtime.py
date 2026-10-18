@@ -177,7 +177,7 @@ async def briefing_entrypoint(payload, context):
                           card_cache=None if test_mode else card_cache,
                           ledger=None if test_mode else ledger,
                           run_date=run_date, sent_at=datetime.now(timezone.utc), **fns):
-        # TODO(deliver): SES send(b.recipient, b.email) · QUARANTINE → 사람-검토 큐(별도 행선지).
+        # 격리(QUARANTINE) 카드도 ⚠ 표시로 메일에 싣는다(N5, 2026-10-18 사용자 결정) — 별도 사람-검토 큐 없음.
         _debug.dprint("entrypoint ← briefing",
                       f"{b.user_id}: published={b.published} quarantined={b.quarantined}",
                       "green" if b.published else "yellow")
@@ -189,7 +189,7 @@ async def briefing_entrypoint(payload, context):
 
 
 def _send_trial_fallback(settings, recipient: str) -> None:
-    """published==0(QUARANTINE-only/빈/에러) — 침묵 대신 안내 메일 1통."""
+    """카드 0장(빈/에러) — 침묵 대신 안내 메일 1통. 격리 카드만 있으면 ⚠ 표시로 정상 발송(N5)."""
     import boto3
     html = ('<div style="font-family:system-ui;max-width:560px;margin:0 auto;padding:16px">'
             '<h2>체험 브리핑 준비 중 문제가 있었어요</h2>'

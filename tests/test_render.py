@@ -93,11 +93,47 @@ def test_trust_line_marks_held_when_blocked_present():
     assert "제외 1건" in out          # BLOCKED = 본문에서 제외(dropped)
 
 
-# ── QUARANTINE 제외 / 폴백 ─────────────────────────────
-def test_quarantine_excluded_and_fallback_when_empty():
-    out = render_email([_gated(decision="QUARANTINE", headline="격리카드")], _user(), None)
-    assert "격리카드" not in out
-    assert "없습니다" in out
+# ── 격리(QUARANTINE) 카드도 싣는다 — ⚠ 표시(N5) / 폴백 ─────────────────────
+# 2026-10-18 사용자 결정: 검증에서 막힌 기사도 메일에 넣는다 — 법률·금융·보안이 아닌 비중요 브리핑이라
+# 빼는 쪽이 손해(30일 감사: 숫자 검사가 막은 claim 64건 중 틀린 것 0건). 대신 검증된 카드처럼 보이면 안 된다.
+def _quarantined(**kw):
+    return _gated(decision="QUARANTINE",
+                  verdicts=(CertVerdict("C1", "BLOCKED", "ev"), CertVerdict("C2", "VERIFIED", "ev")),
+                  claims=(Claim("C1", "막힌 주장", "arithmetic", "core"),
+                          Claim("C2", "확인된 주장", "entailment", "supporting")), **kw)
+
+
+def test_quarantined_card_is_shown_with_warning():
+    out = render_email([_quarantined(headline="격리카드")], _user(), None)
+    assert "격리카드" in out
+    assert "⚠ 요약의 사실 1건을 원문에서 확인하지 못함" in out
+    assert "다른 AI 에이전트가 요약의 사실" not in out     # '✓ … 검증' 문구는 격리 카드에 붙지 않는다
+    assert "해석문장." in out                                # 관점 해석 칸도 싣는다
+    assert "없습니다" not in out                             # 폴백 아님
+
+
+def test_quarantined_card_never_goes_to_top_picks():
+    """오늘의 핵심 3 은 검증된 카드만 — 격리 카드 id 가 와도 핵심 칸에 올리지 않는다."""
+    cards = [_gated(source_id="p1", headline="검증1"), _quarantined(source_id="q1", headline="격리1")]
+    assert "오늘의 핵심" not in render_email(cards, _user(), None, top_picks=["q1"])
+    out = render_email(cards, _user(), None, top_picks=["q1", "p1"])
+    assert "오늘의 핵심" in out and out.count("격리1") == 1
+    assert out.index("검증1") < out.index("격리1")          # 핵심 칸(검증1) 다음에 나머지(격리1)
+
+
+def test_subtitle_counts_quarantined_cards_too():
+    out = render_email([_gated(source_id="p1"), _quarantined(source_id="q1")], _user(), None)
+    assert "요약 2건" in out
+
+
+def test_footer_no_longer_claims_unverified_is_withheld():
+    out = render_email([_gated()], _user(), None)
+    assert "확인되지 않은 내용은 보내지 않습니다" not in out
+    assert "⚠" in out.split("이 브리핑은 어떻게 만드나요?", 1)[1]   # 꼬리말이 ⚠ 표시의 뜻을 밝힌다
+
+
+def test_fallback_only_when_no_cards():
+    assert "없습니다" in render_email([], _user(), None)
 
 
 # ── 출처 줄(도메인·날짜·원문 링크) ──────────────────────────
@@ -160,8 +196,10 @@ def test_dark_mode_canvas_anchored():
 def test_footer_explains_decorrelation_plainly():
     out = render_email([_gated()], _user(lens="engineer"), None)
     assert "요약을 만들지 않은 다른 AI 에이전트가 그 요약을 원문과 대조" in out
-    assert "확인된 요약 위에 Engineer 관점의 해석" in out   # 2층 구조를 정직하게 설명(검증=요약, 해석=관점)
-    assert "확인되지 않은 내용은 보내지 않습니다" in out
+    # 2층 구조를 정직하게 설명(검증=요약, 해석=관점). '확인된 요약 위에'는 격리 카드(N5)엔 맞지 않아
+    # '확인된 사실을 근거로'로 — 해석은 VERIFIED claim 만 근거로 쓴다(based_on lint).
+    assert "확인된 사실을 근거로 Engineer 관점의 해석" in out
+    assert "원문에서 확인하지 못한 사실이 있는 요약에는 ⚠ 표시" in out   # N5: 막힌 기사도 싣고 표시한다
 
 
 # ── 2층화 카드 라벨 (card-layering §5): 요약=공통 사실, 해석=lens 소유 ──────
