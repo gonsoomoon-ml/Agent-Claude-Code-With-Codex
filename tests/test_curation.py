@@ -167,3 +167,12 @@ def test_curate_all_sources_failing_returns_empty(tmp_path, capsys):
     by_key = curate(store, [_src("a"), _src("b")], fetch_article_fn=boom)
     assert by_key == {}                                          # 전부 실패 → 빈 결과(예외 전파 아님)
     assert capsys.readouterr().err.count("[WARN curate skip]") == 2   # 두 출처 모두 경고 기록
+
+
+def test_default_fetch_dispatches_sitemap_kind(monkeypatch):
+    from briefing.core.retrieval import curation
+    from briefing.core.retrieval import sources as src
+    seen = {}
+    monkeypatch.setattr(src, "fetch_sitemap", lambda s, **kw: seen.update(key=s.key, **kw) or [])
+    curation._default_fetch(Source(key="sm", name="S", url="https://h/news-sitemap.xml", kind="sitemap", lang="en"), 24)
+    assert seen == {"key": "sm", "window_hours": 24, "max_items": 5}

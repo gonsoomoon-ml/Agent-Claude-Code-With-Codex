@@ -1,9 +1,10 @@
 # src/briefing/core/retrieval/catalog.yaml — 전역 vetted 출처 CATALOG.
 # 추가 = 이 파일 편집 + PR 리뷰(= vetting). 임의 URL 금지(큐레이션).
-# 필수: key · name · url · kind(rss|html|auto) · lang(en|ko) · category.  선택: fragile(기본 false; *진짜 차단* 출처 — 현재 없음).
+# 필수: key · name · url · kind(rss|html|auto|sitemap) · lang(en|ko) · category.  선택: fragile(기본 false; *진짜 차단* 출처 — 현재 없음).
 #   category = 발행처(publisher/brand) 그룹 → UI 섹션 + 이메일 분야 밴드 그룹핑 키. 비어있지 않음(로더 강제).
 #   ⚠️ 섹션 순서 = 이 파일의 첫 등장 순서(build_catalog 이 CATALOG 순서 보존) → 같은 발행처를 인접 배치해 순서를 통제한다.
-# kind: rss=피드 직접 / html=리스팅→trafilatura 추출 / auto=피드 자동발견 후 폴백.
+# kind: rss=피드 직접 / html=리스팅→trafilatura 추출(피드 발견 안 함) / auto=피드 자동발견 후 폴백 / sitemap=사이트맵 urlset→글 페이지 추출.
+# ⚠️ 모든 요청은 실행 중 robots.txt(RFC 9309) 검사를 거친다(retrieval/robots.py) — 막힌 경로는 요청하지 않는다.
 # ⚠️ sources._load_catalog() 가 로드 시 검증 — 형식 오류면 시작 시 크래시(silent failure 금지).
 # last-verified: 2026-06-24
 
@@ -25,12 +26,14 @@
 
 - key: the-decoder
   name: The Decoder
-  url: https://the-decoder.com/feed/
-  kind: rss
+  url: https://the-decoder.com/news-sitemap.xml
+  kind: sitemap
   lang: en
   category: 뉴스·미디어
   # 독립 AI 전문 매체(heise medien 소속). AI-scoped(전부 AI) → require_ai 불필요.
-  # robots.txt AI 봇 허용 확인(vetting 게이트). RSS 200 · fetch_clean_rss 8건 전문 추출(광고 0). last-verified: 2026-07-08
+  # 2026-10-17 정정: robots `Disallow: */feed/` 가 예전 url(/feed/)을 막고 있었다(urllib.robotparser 가 와일드카드를
+  # 무시해 "허용"으로 오판). → robots.txt `Sitemap:` 이 선언한 뉴스 사이트맵(최근 48h·정확한 발행 시각) + 기사 페이지(허용).
+  # 홈페이지 링크 = 호스트(https://the-decoder.com). last-verified: 2026-10-17
 
 # ── AWS (Amazon) ─────────────────────────────────────────────
 - key: aws-ml
@@ -158,12 +161,14 @@
 # ── 커뮤니티 ── ★ 맨 끝 고정: 2차 큐레이션은 1차 발행처들 뒤(공식성 내림차순 — UI 섹션·이메일 밴드 공통 순서) ──
 - key: pytorch-kr-news
   name: PyTorch Korea 읽을거리
-  url: https://discuss.pytorch.kr/c/news/14.rss
-  kind: rss
+  url: https://discuss.pytorch.kr/c/news/14
+  kind: html
   lang: ko
   category: 커뮤니티
-  homepage: https://discuss.pytorch.kr/c/news/14   # rss 는 피드 URL — 사람용 랜딩 명시
+  article_path: /t/  # Discourse 글 = /t/<slug>/<id> — 목록 경로(/c/news/14) 밖이라 접두 경로로 지정
+  window_hours: 48   # 글 페이지 날짜가 날짜만 → late-post 보정(W≥U+P). 하루 겹침 중복은 ledger cross-day dedup
   max_items: 3       # 평일 6~9건/일 자동 큐레이션(:30 정각 발행) — 브리핑 편중/비용 상한
   select: llm        # 최신순 잘림 = 고정 시간대 사각지대(실측) → Haiku pick-3(폴백=최신순)
-  # Discourse news(읽을거리&정보공유) 카테고리 스코프 — qna/lounge 원천 제외. 분초 timestamp → window 24h 그대로.
-  # 2차 큐레이션(커뮤니티 요약) — certifier 는 포럼 글 기준 검증. robots 일반 허용·전문 3~8k자. last-verified: 2026-07-11
+  # Discourse news(읽을거리&정보공유) 카테고리 스코프 — qna/lounge 원천 제외(사이트맵은 전 카테고리라 안 씀).
+  # 2026-10-17 정정: robots `Disallow: /c/*.rss` 가 예전 url(/c/news/14.rss)을 막고 있었다 → 허용된 카테고리 목록 페이지.
+  # 2차 큐레이션(커뮤니티 요약) — certifier 는 포럼 글 기준 검증. 전문 3~8k자. last-verified: 2026-10-17

@@ -389,3 +389,135 @@ def test_discover_feed_hard_deadline_falls_back_to_listing(capsys):
     assert out == ""
     assert elapsed < 5.0, f"데드라인을 무시하고 {elapsed:.1f}s 대기"
     assert "fetch timeout" in capsys.readouterr().err
+
+
+# ── robots 검사(2026-10-17): 막힌 경로는 요청하지 않는다 ─────────────────
+def _disallow(monkeypatch, text):
+    from briefing.core.retrieval import robots
+    monkeypatch.setattr(robots, "_fetch", lambda _u: text)
+
+
+def test_http_get_refuses_robots_disallowed_url(monkeypatch, capsys):
+    import trafilatura
+
+    from briefing.core.retrieval import sources as s
+    _disallow(monkeypatch, "User-agent: *\nDisallow: */feed/\n")
+    monkeypatch.setattr(trafilatura, "fetch_url", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("요청 금지")))
+    assert s._http_get("https://the-decoder.com/feed/") == ""
+    assert "robots" in capsys.readouterr().err                   # non-silent
+
+
+def test_fetch_feed_refuses_robots_disallowed_feed(monkeypatch):
+    import feedparser
+
+    from briefing.core.retrieval import sources as s
+    _disallow(monkeypatch, "User-agent: *\nDisallow: /c/*.rss\n")
+    monkeypatch.setattr(feedparser, "parse", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("요청 금지")))
+    assert s._fetch_feed("https://discuss.pytorch.kr/c/news/14.rss", "pytorch-kr-news") == []
+
+
+def test_html_kind_goes_straight_to_listing_without_feed_discovery(monkeypatch):
+    """kind: html = 리스팅 직행. 피드 자동발견(trafilatura)은 광고된 피드를 *내부에서* 직접 받아 와서
+    robots 검사를 거치지 않는다 — PyTorch KR 목록 페이지는 막힌 `/c/news/14.rss` 를 광고한다."""
+    from briefing.core.retrieval import sources as s
+    monkeypatch.setattr(s, "discover_feed", lambda _u: (_ for _ in ()).throw(AssertionError("발견 금지")))
+    monkeypatch.setattr(s, "_http_get", lambda u: '<a href="/news/opus">Opus</a>' if u.endswith("/news") else _ARTICLE_HTML)
+    assert len(s.fetch_generic_html(_src("html"), window_hours=0, max_items=3)) == 1
+
+
+def test_article_links_article_path_reads_single_quoted_links_outside_listing_path():
+    """Discourse: 목록 `/c/news/14` 의 글은 `/t/<slug>/<id>`(목록 경로 밖) + 작은따옴표 href."""
+    listing = ("<a itemprop='url' href='https://discuss.pytorch.kr/t/vllm-sglang/12212' class='title'>A</a>"
+               "<a href='/t/strata/12189'>B</a><a href='/c/news/14?page=1'>next</a><a href='/u/someone'>u</a>"
+               "<a href='https://discuss.pytorch.kr/t/vllm-sglang/12212'>dup</a>")
+    links = _article_links(listing, "https://discuss.pytorch.kr/c/news/14", article_path="/t/")
+    assert links == ["https://discuss.pytorch.kr/t/vllm-sglang/12212", "https://discuss.pytorch.kr/t/strata/12189"]
+
+
+def test_fetch_generic_html_passes_article_path(monkeypatch):
+    from briefing.core.retrieval import sources as s
+    src = Source("pytorch-kr-news", "P", "https://discuss.pytorch.kr/c/news/14", "html", "ko", article_path="/t/")
+    monkeypatch.setattr(s, "_http_get",
+                        lambda u: "<a href='/t/opus/1'>x</a>" if u.endswith("/14") else _ARTICLE_HTML)
+    arts = s.fetch_generic_html(src, window_hours=0, max_items=3)
+    assert [a.url for a in arts] == ["https://discuss.pytorch.kr/t/opus/1"]
+
+
+# ── kind: sitemap — 사이트가 robots.txt 에 선언한 기계용 목록 ─────────────
+_NEWS_SITEMAP = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
+<url><loc>https://the-decoder.com/older/</loc><news:news><news:publication_date>{old}</news:publication_date>
+<news:title><![CDATA[Older]]></news:title></news:news></url>
+<url><loc>https://the-decoder.com/newest/</loc><news:news><news:publication_date>{new}</news:publication_date>
+<news:title><![CDATA[Newest]]></news:title></news:news></url>
+<url><loc>https://the-decoder.com/plain/</loc><lastmod>{mid}</lastmod></url>
+</urlset>"""
+
+
+def _iso(hours_ago):
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) - timedelta(hours=hours_ago)).isoformat(timespec="seconds")
+
+
+def test_sitemap_entries_newest_first_with_news_date_or_lastmod():
+    from briefing.core.retrieval.sources import _sitemap_entries
+    xml = _NEWS_SITEMAP.format(old=_iso(30), new=_iso(1), mid=_iso(5))
+    assert [u for u, _d in _sitemap_entries(xml)] == [
+        "https://the-decoder.com/newest/", "https://the-decoder.com/plain/", "https://the-decoder.com/older/"]
+
+
+def test_fetch_sitemap_keeps_window_and_uses_sitemap_timestamp(monkeypatch):
+    """페이지 추출 날짜는 날짜만(2026-05-28)이라 부정확 → 사이트맵의 정확한 발행 시각을 쓴다."""
+    from briefing.core.retrieval import sources as s
+    new = _iso(1)
+    xml = _NEWS_SITEMAP.format(old=_iso(30), new=new, mid=_iso(5))
+    fetched: list[str] = []
+
+    def get(u):
+        fetched.append(u)
+        return xml if u.endswith(".xml") else _ARTICLE_HTML
+
+    monkeypatch.setattr(s, "_http_get", get)
+    src = Source("the-decoder", "The Decoder", "https://the-decoder.com/news-sitemap.xml", "sitemap", "en")
+    arts = s.fetch_sitemap(src, window_hours=24, max_items=5)
+    assert [a.url for a in arts] == ["https://the-decoder.com/newest/", "https://the-decoder.com/plain/"]
+    assert arts[0].published_at == new
+    assert "https://the-decoder.com/older/" not in fetched        # 창 밖 글은 페이지를 열지도 않는다
+
+
+def test_fetch_sitemap_respects_cap(monkeypatch):
+    from briefing.core.retrieval import sources as s
+    xml = _NEWS_SITEMAP.format(old=_iso(3), new=_iso(1), mid=_iso(2))
+    monkeypatch.setattr(s, "_http_get", lambda u: xml if u.endswith(".xml") else _ARTICLE_HTML)
+    src = Source("the-decoder", "D", "https://the-decoder.com/news-sitemap.xml", "sitemap", "en")
+    assert len(s.fetch_sitemap(src, window_hours=24, max_items=2)) == 2
+
+
+def test_fetch_sitemap_rejects_index_and_failed_download(monkeypatch):
+    from briefing.core.retrieval import sources as s
+    src = Source("x", "X", "https://h/sitemap.xml", "sitemap", "en")
+    monkeypatch.setattr(s, "_http_get", lambda u: '<sitemapindex><sitemap><loc>https://h/s1.xml</loc></sitemap></sitemapindex>')
+    with pytest.raises(RuntimeError, match="sitemapindex"):
+        s.fetch_sitemap(src)
+    monkeypatch.setattr(s, "_http_get", lambda u: "")
+    with pytest.raises(RuntimeError, match="sitemap"):
+        s.fetch_sitemap(src)
+
+
+# ── 카탈로그: 두 소스를 robots 가 허용한 경로로 ──────────────────────
+def test_catalog_moves_blocked_feeds_to_allowed_paths():
+    by_key = {s.key: s for s in CATALOG}
+    d = by_key["the-decoder"]
+    assert (d.kind, d.url) == ("sitemap", "https://the-decoder.com/news-sitemap.xml")
+    p = by_key["pytorch-kr-news"]
+    assert (p.kind, p.url, p.article_path) == ("html", "https://discuss.pytorch.kr/c/news/14", "/t/")
+    assert p.window_hours == 48                                     # 글 페이지 날짜가 날짜만 → late-post 보정
+
+
+@pytest.mark.parametrize("bad", [
+    "- {key: x, name: X, url: u, kind: html, lang: en, category: C, article_path: t/}",   # / 로 시작해야
+    "- {key: x, name: X, url: u, kind: html, lang: en, category: C, article_path: 3}",    # 문자열이어야
+])
+def test_catalog_rejects_bad_article_path(bad):
+    with pytest.raises(ValueError, match="article_path"):
+        _load_catalog(_yaml(bad))

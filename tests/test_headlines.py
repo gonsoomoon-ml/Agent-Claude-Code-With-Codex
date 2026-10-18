@@ -165,3 +165,12 @@ def test_curate_skips_headlines_only_sources(tmp_path):
     by_key = curate(SourceStore(str(tmp_path)), [_src(), _src("the-decoder", headlines_only=False)],
                     fetch_article_fn=fetch)
     assert calls == ["the-decoder"] and "aitimes" not in by_key
+
+
+def test_feed_fetch_refuses_robots_disallowed_feed(monkeypatch):
+    import feedparser
+
+    from briefing.core.retrieval import robots
+    monkeypatch.setattr(robots, "_fetch", lambda _u: "User-agent: *\nDisallow: /rss/\n")
+    monkeypatch.setattr(feedparser, "parse", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("요청 금지")))
+    assert H.fetch_headline_feed(_src(url="https://www.aitimes.com/rss/allArticle.xml"), 24) == []

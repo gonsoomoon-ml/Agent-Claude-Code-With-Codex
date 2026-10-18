@@ -24,7 +24,8 @@ _SELECT_POOL = 12        # select=llm 소스의 후보 풀 — 캡 안에서 판
 
 
 def _default_fetch(source: Source, window_hours: int) -> Sequence[FetchedArticle]:
-    """source.kind/fragile 로 디스패치: fragile→fetch_fragile(미구현·진짜 차단), html/auto→제너릭(trafilatura), rss→clean RSS.
+    """source.kind/fragile 로 디스패치: fragile→fetch_fragile(미구현·진짜 차단), html/auto→제너릭(trafilatura),
+    sitemap→사이트맵 urlset, rss→clean RSS.
 
     소스별 오버라이드 우선: window_hours(late-post 보정, W≥U+P) · max_items(캡).
     select=llm 소스는 캡 대신 후보 풀(_SELECT_POOL)로 페치 — 최종 캡은 curate 의 선별 단계가 적용.
@@ -36,6 +37,8 @@ def _default_fetch(source: Source, window_hours: int) -> Sequence[FetchedArticle
         return src.fetch_fragile(source)
     if source.kind in ("html", "auto"):
         return src.fetch_generic_html(source, window_hours=win, max_items=pool)
+    if source.kind == "sitemap":
+        return src.fetch_sitemap(source, window_hours=win, max_items=pool)
     return src.fetch_clean_rss(source, window_hours=win, max_items=pool)
 
 

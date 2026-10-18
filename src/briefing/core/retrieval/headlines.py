@@ -19,6 +19,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 from .. import _debug
+from . import robots
 from . import sources as src
 from .relevance import RelevanceFn, is_ai_relevant
 from .selection import latest_k
@@ -79,6 +80,9 @@ def fetch_headline_feed(source: src.Source, window_hours: int) -> list[src.Fetch
     """
     import feedparser  # lazy — sources._fetch_feed 와 같은 이유
 
+    if not robots.allowed(source.url, robots.FEED_TOKEN):   # 막힌 피드는 요청하지 않는다(non-silent)
+        _debug.warn("robots", f"{source.key}: robots.txt 가 막은 피드 — 요청 안 함: {source.url}")
+        return []
     feed = src._with_deadline(lambda: feedparser.parse(source.url), src._FETCH_TIMEOUT_S,
                               f"headline feed {source.url}")
     if feed is None:   # 시간초과(warn 은 _with_deadline 이 이미 냄)

@@ -15,7 +15,7 @@ import re
 import threading
 import time
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -24,6 +24,7 @@ from urllib.parse import urljoin, urlparse
 import yaml
 
 from .. import _debug
+from . import robots
 
 
 @dataclass(frozen=True)
@@ -31,7 +32,7 @@ class Source:
     key: str
     name: str
     url: str
-    kind: str              # "rss" | "html" | "auto" (auto = 피드 자동발견 후 폴백)
+    kind: str              # "rss" | "html"(리스팅 직행) | "auto"(피드 자동발견 후 폴백) | "sitemap"(사이트맵 urlset)
     lang: str              # "en" | "ko"
     fragile: bool = False  # True = *진짜 차단*(Cloudflare challenge/JS-only) — v1 미구현, 현 catalog 엔 없음
     category: str = ""     # 관심 버킷(type 직교). catalog 필수(로더가 빈값 거부); UI 분야 그룹핑 키. 기본 ""=임시 Source()용
@@ -41,9 +42,10 @@ class Source:
     max_items: int = 0     # 소스별 캡 오버라이드(0=글로벌 기본 5). 고볼륨 소스의 브리핑 편중/비용 상한
     select: str = ""       # 캡 초과 시 선별 방식: ""|"latest"(최신순 잘림=현행) | "llm"(Haiku pick-K — curate 가 select_fn 주입 시)
     headlines_only: bool = False  # True = 제목·링크만(본문 미수집·카드 없음) — 기사별 "AI 활용 금지" 고지 소스(headlines.py)
+    article_path: str = ""  # html 리스팅의 글 링크 접두 경로(예 Discourse "/t/"). 빈값 = 리스팅 경로 바로 아래 한 단계만 글
 
 
-_KINDS = frozenset({"rss", "html", "auto"})
+_KINDS = frozenset({"rss", "html", "auto", "sitemap"})
 _LANGS = frozenset({"en", "ko"})
 _REQUIRED = ("key", "name", "url", "kind", "lang", "category")  # category 도 필수 → 루프가 빈값 거부(non-empty 강제)
 _CATALOG_PATH = Path(__file__).parent / "catalog.yaml"
@@ -81,6 +83,9 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
         ho = e.get("headlines_only", False)
         if not isinstance(ho, bool):  # 'yes' 같은 문자열이 조용히 True 가 되면 본문 수집 여부가 뒤바뀐다
             raise ValueError(f"catalog[{i}] '{e['key']}': headlines_only 는 true|false (got {ho!r})")
+        ap = e.get("article_path", "")
+        if not isinstance(ap, str) or (ap and not ap.startswith("/")):
+            raise ValueError(f"catalog[{i}] '{e['key']}': article_path 는 '/' 로 시작하는 경로 (got {ap!r})")
         out.append(
             Source(
                 key=e["key"],
@@ -96,6 +101,7 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
                 max_items=mi,
                 select=sel,
                 headlines_only=ho,
+                article_path=ap,
             )
         )
     return tuple(out)
@@ -211,6 +217,9 @@ def _fetch_feed(
     """
     import feedparser  # lazy — feedparser 미설치 환경에서도 sources 모듈 import 가능
 
+    if not robots.allowed(feed_url, robots.FEED_TOKEN):   # 막힌 피드는 요청하지 않는다(non-silent)
+        _debug.warn("robots", f"{source_key}: robots.txt 가 막은 피드 — 요청 안 함: {feed_url}")
+        return []
     # ★ feedparser.parse(url) 는 *자체 네트워크 다운로드* — `_http_get` 과 같은 무제한 구멍이라 같은 상한.
     feed = _with_deadline(lambda: feedparser.parse(feed_url), timeout_s, f"feed {feed_url}")
     if feed is None:                                  # 시간초과(warn 은 _with_deadline 이 이미 냄)
@@ -300,8 +309,14 @@ def discover_feed(url: str, *, timeout_s: float = _FETCH_TIMEOUT_S) -> str:
 
 
 def _http_get(url: str, *, timeout_s: float = _FETCH_TIMEOUT_S) -> str:
-    """trafilatura.fetch_url — UA·재시도 처리된 평문 GET(접근통제 우회 없음). 실패·시간초과 시 ""."""
+    """trafilatura.fetch_url — UA·재시도 처리된 평문 GET(접근통제 우회 없음). 실패·시간초과 시 "".
+
+    robots.txt 가 막은 경로면 요청하지 않고 ""(+warn) — 호출자 입장에선 페치 실패와 같다(그 글만 skip).
+    """
     import trafilatura
+    if not robots.allowed(url):
+        _debug.warn("robots", f"robots.txt 가 막은 경로 — 요청 안 함: {url}")
+        return ""
     return _with_deadline(lambda: trafilatura.fetch_url(url), timeout_s, url) or ""
 
 
@@ -314,17 +329,21 @@ def _excerpt(text: str, limit: int = MAX_SOURCE_CHARS) -> str:
     return (cut[:sp] if sp > limit * 0.6 else cut).strip()
 
 
-def _article_links(listing_html: str, listing_url: str) -> list[str]:
-    """리스팅에서 기사 링크만(listing path 한 단계 아래 `{path}/{slug}`) — 제너릭 휴리스틱, 사이트별 코드 아님."""
+def _article_links(listing_html: str, listing_url: str, article_path: str = "") -> list[str]:
+    """리스팅에서 기사 링크만 — 제너릭 휴리스틱, 사이트별 코드 아님.
+
+    기본: listing path 한 단계 아래 `{path}/{slug}`. article_path 를 주면 그 접두 경로 아래 링크(예 Discourse
+    목록 `/c/news/14` 의 글 = `/t/<slug>/<id>` — 목록 경로 밖). href 는 큰·작은따옴표 둘 다(Discourse = 작은따옴표).
+    """
     base = urlparse(listing_url)
-    path = base.path.rstrip("/")
+    path = (article_path or base.path).rstrip("/")
     out: list[str] = []
     seen: set[str] = set()
-    for href in re.findall(r'href="([^"]+)"', listing_html):
+    for href in re.findall(r"""href=["']([^"']+)["']""", listing_html):
         clean = href.split("#")[0].split("?")[0]
         p = urlparse(urljoin(f"{base.scheme}://{base.netloc}", clean)).path.rstrip("/")
         tail = p[len(path) + 1:]
-        if p.startswith(path + "/") and tail and "/" not in tail:
+        if p.startswith(path + "/") and tail and (article_path or "/" not in tail):
             absu = f"{base.scheme}://{base.netloc}{p}"
             if absu not in seen:
                 seen.add(absu)
@@ -425,14 +444,16 @@ def fetch_generic_html(
     예외가 아니라 `break` 다(한 소스 때문에 브리핑을 죽이지 않는다; 카드별 격리와 같은 원리).
     """
     deadline = time.monotonic() + budget_s        # 예산 시계는 discover_feed·리스팅까지 포함해 진입 시점부터
-    feed = discover_feed(source.url)
+    # kind: html = 리스팅 직행. 피드 자동발견(trafilatura.find_feed_urls)은 페이지가 광고한 피드를 *내부에서*
+    # 직접 받아 와 robots 검사를 거치지 않는다(PyTorch KR 목록은 막힌 /c/news/14.rss 를 광고). auto 만 발견한다.
+    feed = discover_feed(source.url) if source.kind == "auto" else ""
     if feed:
         return _fetch_feed(feed, source.key, window_hours=window_hours, max_items=max_items)
     listing = _http_get(source.url)
     if not listing:
         raise RuntimeError(f"html listing fetch 실패: {source.url}")
     out: list[FetchedArticle] = []
-    for url in _article_links(listing, source.url):
+    for url in _article_links(listing, source.url, source.article_path):
         if len(out) >= max_items:
             break
         if time.monotonic() >= deadline:
@@ -444,6 +465,76 @@ def fetch_generic_html(
             continue
         art = _extract_article(page, url, source.key, source.url)
         if art and not _is_stale(art.published_at, window_hours):
+            out.append(art)
+    return out
+
+
+_SM_URL_RE = re.compile(r"<url>(.*?)</url>", re.S)
+
+
+def _sm_tag(block: str, name: str) -> str:
+    """사이트맵 <url> 블록에서 태그 값(CDATA·엔티티 해제). 없으면 ""."""
+    m = re.search(rf"<{name}>\s*(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?\s*</{name}>", block, re.S)
+    return _html.unescape(m.group(1).strip()) if m else ""
+
+
+def _epoch(date: str) -> float:
+    """ISO 날짜/시각 → epoch(정렬용). 모르면 0(맨 뒤)."""
+    try:
+        return datetime.fromisoformat(date.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 0.0
+
+
+def _sitemap_entries(xml: str) -> list[tuple[str, str]]:
+    """사이트맵 urlset → [(글 URL, 날짜)] 최신순. 날짜 = news:publication_date(뉴스 사이트맵, 정확) 우선, 없으면 lastmod.
+
+    정규식 파싱인 이유: 필요한 건 태그 3개뿐이고, 외부 XML 을 XML 파서에 넣지 않으니 엔티티 확장류 위험이 없다.
+    """
+    out: list[tuple[str, str]] = []
+    for block in _SM_URL_RE.findall(xml):
+        loc = _sm_tag(block, "loc")
+        if loc:
+            out.append((loc, _sm_tag(block, "news:publication_date") or _sm_tag(block, "lastmod")))
+    out.sort(key=lambda e: _epoch(e[1]), reverse=True)
+    return out
+
+
+def fetch_sitemap(
+    source: Source, *, window_hours: int = 24, max_items: int = 5, budget_s: float = _SOURCE_BUDGET_S
+) -> list[FetchedArticle]:
+    """사이트맵(urlset) 출처 — 사이트가 robots.txt `Sitemap:` 으로 선언한 기계용 글 목록.
+
+    피드를 robots 가 막은 사이트(the-decoder `Disallow: */feed/`)를 허용된 경로로 읽는 방법이다.
+    창 안의 글만 페이지를 열어 본문을 뽑고(`_extract_article` — html 리스팅과 같은 추출·스텁·offsite 검사),
+    발행 시각은 사이트맵 값을 쓴다(페이지 추출 날짜는 날짜만인 경우가 많아 late-post 오판의 원인).
+    sitemapindex(하위 사이트맵 목록)는 미지원 — catalog url 에 urlset 주소를 직접 적는다.
+    다운로드 실패·index 는 예외(curate 가 skip+warn); 개별 글 실패는 그 글만 skip. 예산은 fetch_generic_html 과 같다.
+    """
+    deadline = time.monotonic() + budget_s
+    xml = _http_get(source.url)
+    if not xml:
+        raise RuntimeError(f"sitemap fetch 실패: {source.url}")
+    if "<sitemapindex" in xml:
+        raise RuntimeError(f"sitemapindex 미지원 — urlset 주소를 catalog url 로: {source.url}")
+    out: list[FetchedArticle] = []
+    for url, date in _sitemap_entries(xml):
+        if len(out) >= max_items:
+            break
+        if _is_stale(date, window_hours):       # 창 밖 글은 페이지를 열지 않는다
+            continue
+        if time.monotonic() >= deadline:
+            _debug.warn("fetch budget", f"{source.key}: {budget_s:g}s 초과 — 남은 글 포기({len(out)}건 확보)")
+            break
+        page = _http_get(url)
+        if not page:
+            continue
+        art = _extract_article(page, url, source.key, source.url)
+        if art is None:
+            continue
+        if date:
+            art = replace(art, published_at=date)
+        if not _is_stale(art.published_at, window_hours):
             out.append(art)
     return out
 
