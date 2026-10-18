@@ -10,11 +10,12 @@ DI seam(fetch/draft/revise/verify/interp_fn) 그대로 통과 → 단위 테스�
 from __future__ import annotations
 
 import time
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from . import _debug, render
+from . import _debug, quality_checks, render
 from .article_identity import identity_keys, match_kind, published_keys
 from .retrieval import sources as src
 from .authoring.author import INTERP_PROMPT_VERSION, PROMPT_VERSION
@@ -94,6 +95,7 @@ def run_briefing(
     lookback_days = getattr(settings, "dedup_lookback_days", DEFAULT_DEDUP_LOOKBACK_DAYS)
     meta_memo: dict = {}   # source_id → SourceMeta | None — run 동안 사용자 간 공유(dedup join 은 사실상 run당 1회)
     top_memo: dict = {}    # 발행 카드 묶음 → 오늘의 핵심 3 source_id — 같은 묶음을 받는 사용자는 판정 1회 공유
+    shadow = {"cards": 0, "hits": Counter()}   # S3 그림자 검사 집계 — 이 run 에서 새로 만든 사실층 카드 기준
     for u in users:
         # 머리 날짜 = 발송 시각(sent_at)을 받는 사람 시간대로 바꾼 날짜(없으면 run_date). run_date 는 저장 키라 UTC 그대로.
         today = render.briefing_date(run_date, sent_at, getattr(u, "timezone", ""))
@@ -127,7 +129,7 @@ def run_briefing(
             try:
                 g = _process(fs, u, settings, store, card_cache, ledger, run_date,
                              draft_fn, revise_fn, verify_fn, interp_fn, fact_memo, interp_memo,
-                             recorder=rec)
+                             recorder=rec, shadow=shadow)
             except Exception as e:  # noqa: BLE001 — graceful degradation(스케일): 한 카드 유실이 배치를 막지 않게
                 _debug.warn("pipeline card", f"{u.id}/{fs.source_id}: {type(e).__name__}: {e}")
                 continue            # silent drop 아님 — 위 warn 로 관측 가능(빈-발송 알림은 별도 계층)
@@ -154,6 +156,9 @@ def run_briefing(
                 duration_ms=int((time.monotonic() - t0) * 1000),
             )
         )
+    if shadow["cards"]:  # S3 — run 마다 한 줄(CloudWatch). M1 정기 지표·U8 ② 전후 비교의 원자료
+        hits = " · ".join(f"{k} {v}" for k, v in sorted(shadow["hits"].items())) or "걸림 0"
+        _debug.warn("quality shadow 집계", f"새 사실층 카드 {shadow['cards']}장 · {hits}")
     unresolved = sum(1 for m in meta_memo.values() if m is None)
     if unresolved:  # 07-24 이전 행(TTL 만료분)이 90일 창을 벗어나면 0 으로 수렴 — 다시 늘면 source-store 이상 신호
         _debug.warn("pipeline dedup", f"source-store 에 원본 없는 이전 발행 {unresolved}건 — 해시로만 비교(fail-open)")
@@ -162,7 +167,7 @@ def run_briefing(
 
 def _process(fs, u, settings, store, card_cache, ledger, run_date,
              draft_fn, revise_fn, verify_fn, interp_fn, fact_memo, interp_memo,
-             recorder=None) -> GatedCard:
+             recorder=None, shadow=None) -> GatedCard:
     """2층 처리: 공유 사실층(작성+검증, general·무skill) → lens 해석층(가드된 why 교체) + 캐시 2키 + ledger.
 
     - 사실층: fact_memo(run 내) → card_cache(fact_key) → produce_card(_FACT_USER). 전 사용자 공유.
@@ -180,6 +185,7 @@ def _process(fs, u, settings, store, card_cache, ledger, run_date,
                             recorder=recorder)
         if card_cache is not None:
             card_cache.put(fact_key, fact)
+        _shadow_log(fact, fs, shadow)   # 새로 만든 카드만 — 캐시 히트는 만들 때 이미 검사했다
     fact_memo[fs.source_id] = fact
 
     lens = resolve_lens(getattr(u, "lens", "") or "").key   # 미상 lens 는 general 로 폴백(기존 계약)
@@ -201,3 +207,21 @@ def _process(fs, u, settings, store, card_cache, ledger, run_date,
     if ledger is not None:
         ledger.append(run_date, u.id, fs.source_id, key, gated.decision, gated.card.headline)
     return gated
+
+
+def _shadow_log(fact: GatedCard, fs, shadow) -> None:
+    """S3 그림자 검사(2026-10-18) — 걸린 검사를 CloudWatch 에 한 줄씩 남긴다. **로그만**: 판정·메일·캐시는 그대로.
+
+    검사 실패도 삼킨다 — 품질 측정이 브리핑을 막으면 안 된다(카드별 격리와 같은 원칙).
+    """
+    if shadow is None:
+        return
+    try:
+        found = quality_checks.shadow_checks(fact.card, fs.text)
+    except Exception as e:  # noqa: BLE001 — 그림자 검사는 보조 장치
+        _debug.warn("quality shadow", f"{fs.source_id[:12]} 검사 실패(무시): {type(e).__name__}: {e}")
+        return
+    shadow["cards"] += 1
+    for f in found:
+        shadow["hits"][f.check] += 1
+        _debug.warn("quality shadow", f"{fs.source_id[:12]} {f.check}: {f.detail}")
