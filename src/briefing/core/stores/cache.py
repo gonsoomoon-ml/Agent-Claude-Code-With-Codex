@@ -74,7 +74,8 @@ def _serialize(card: GatedCard) -> dict:
     """GatedCard(전부 frozen dataclass)를 JSON-안전 dict 로 바꾼다(asdict 재귀라 Claim·CertVerdict 도 dict)."""
     return {
         "card": asdict(card.card),
-        "verdicts": [asdict(v) for v in card.verdicts],
+        # 검증 AI 토큰 사용량(usage)은 그 run 의 비용 기록용 — 캐시 형식에 넣지 않는다(되돌린 이전 버전도 새 항목을 읽게).
+        "verdicts": [{k: x for k, x in asdict(v).items() if k != "usage"} for v in card.verdicts],
         "decision": card.decision,
         "attempts": card.attempts,
     }

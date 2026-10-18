@@ -24,8 +24,8 @@ from . import _debug
 from .config import Settings, UserConfig
 from .authoring import author
 from .authoring.author import Claim, DraftCard, Interpretation
-from .stores.usage import EST_CERTIFY_USD_PER_ENTAILMENT
-from .verification.certifier import _NUM_RE, CertVerdict, Envelope, certify
+from .stores.usage import certify_cost_usd
+from .verification.certifier import _NUM_RE, CertVerdict, Envelope, certify, codex_model_id
 from .stores.source_store import FrozenSource, SourceStore
 
 _SCHEMA = '{"verdict":"VERIFIED|DEMOTED|BLOCKED","evidence":"str"}'
@@ -67,8 +67,8 @@ def _build_envelope(source: FrozenSource, claim: Claim) -> Envelope:
 def verify_card(card: DraftCard, store: SourceStore, *, recorder=None) -> tuple[CertVerdict, ...]:
     """카드의 각 claim 을 certifier 로 독립 검증 (gate 가 호출, **user-blind**). per-claim verdicts 반환.
 
-    `recorder`(옵션) — entailment claim 1건당 `EST_CERTIFY_USD_PER_ENTAILMENT` 추정치를 기록(certifier 무수정 —
-    certifier 는 자기 비용을 모름·envelope-only 불변식 보존; 추정은 gate 가 claim_type 개수로 계산).
+    `recorder`(옵션) — 검증 AI 의 실측 토큰 × 단가를 기록(F5). 토큰은 verdict 에 실려 오고, 단가는 codex 설정의
+    모델로 고른다. 산술(코드)은 0, codex 실패는 토큰을 알 수 없어 빠진다. 단가표에 없는 모델은 경고만 남긴다.
     """
     source = store.get_source(card.source_id)
     # TODO(fail-closed): certify 실패(codex 오류·타임아웃)는 *보수적으로* — DEMOTED/BLOCKED, **절대 VERIFIED 아님**.
@@ -81,9 +81,12 @@ def verify_card(card: DraftCard, store: SourceStore, *, recorder=None) -> tuple[
         _debug.dprint(f"certifier ⊢ {c.id}", f"{v.verdict} ({v.model}) — {v.evidence}",
                       "red" if v.verdict == "BLOCKED" else "yellow")
         verdicts.append(v)
-    if recorder is not None:
-        n_entail = sum(1 for c in card.claims if c.claim_type == "entailment")
-        recorder.add(n_entail * EST_CERTIFY_USD_PER_ENTAILMENT)
+    if recorder is not None and any(v.usage for v in verdicts):
+        model = codex_model_id()
+        costs = [certify_cost_usd(model, v.usage) for v in verdicts if v.usage]
+        if None in costs:
+            _debug.warn("certify cost", f"검증 AI 단가 미상 — 모델 {model!r} 은 비용 기록에서 빠진다")
+        recorder.add(sum(c for c in costs if c is not None))
     return tuple(verdicts)
 
 
