@@ -358,8 +358,9 @@ def _article_links(listing_html: str, listing_url: str, article_path: str = "") 
 # 그러면 "6개 조직과 협력" 류의 근거 없는 claim 이 통과한다(적대 검증에서 실증).
 # relevance._FOOTER_RE(aitimes 푸터의 'AI' 가 관련성 필터를 무력화)와 같은 계열의 문제.
 # 마커 앞이 본문이므로 마커부터 끝까지 자른다. 소스별 코드 0(매체 무관 패턴만).
+# "More recent articles" = 블로그 본문 끝 다른 글 목록(simonwillison.net 15건 중 11건 — 제목·날짜의 숫자가 섞인다).
 _BOILER_RE = re.compile(
-    r"(?is)\n\s*(?:AI News Without the Hype|Subscribe to THE DECODER|About the authors?)\b.*",
+    r"(?is)\n\s*(?:AI News Without the Hype|Subscribe to THE DECODER|About the authors?|More recent articles)\b.*",
 )
 
 

@@ -30,11 +30,44 @@ def test_catalog_loaded_from_yaml():
 
 
 def test_catalog_max_items_and_select():
-    """pytorch-kr-news = 고볼륨(일 6~9건) 커뮤니티 큐레이션 → 캡 3 + LLM 선별. 나머지 소스는 기본(0="")."""
+    """pytorch-kr-news = 고볼륨(일 6~9건) 커뮤니티 큐레이션 → 캡 3 + LLM 선별.
+    the-decoder = 일 5~6건 → 기본 캡 5 + LLM 선별(최신순이면 가장 이른 글이 잘린다). 나머지 소스는 기본(0="")."""
     by_key = {s.key: s for s in CATALOG}
     p = by_key["pytorch-kr-news"]
     assert p.max_items == 3 and p.select == "llm" and p.lang == "ko"
-    assert by_key["the-decoder"].max_items == 0 and by_key["the-decoder"].select == ""   # 기존 소스 무변경
+    assert by_key["the-decoder"].max_items == 0 and by_key["the-decoder"].select == "llm"
+    assert by_key["aws-ml"].max_items == 0 and by_key["aws-ml"].select == ""   # 기존 소스 무변경
+
+
+def test_catalog_independent_voices_and_english_category_names():
+    """섹션 값 = 바뀌지 않는 영문 이름(한국어판·영어판 공통 키 — 한국어 표시 이름은 두 언어판 때 표로 붙인다).
+    개인 이름으로 쓰는 블로그·뉴스레터 = Independent Voices, 공식성 순서상 Google 뒤·Community(맨 끝) 앞."""
+    by_key = {s.key: s for s in CATALOG}
+    sw = by_key["simon-willison"]
+    assert (sw.kind, sw.url, sw.lang) == ("rss", "https://simonwillison.net/atom/entries/", "en")
+    assert sw.category == "Independent Voices" and sw.require_ai   # Python 등 비AI 글이 섞인다
+    assert by_key["the-decoder"].category == "News & Media"
+    assert by_key["pytorch-kr-news"].category == "Community"
+    order = list(dict.fromkeys(s.category for s in CATALOG))      # 섹션 순서 = 첫 등장 순서
+    assert all(c.isascii() for c in order)
+    assert order.index("Google") < order.index("Independent Voices") < order.index("Community") == len(order) - 1
+
+
+def test_catalog_anthropic_research_and_hf_blog():
+    """2026-10-18 리뷰 편입. 둘 다 날짜만 있는 글이 있어 48h 창 — 상한을 창 안 최대 글 수보다 크게 잡아 Haiku 선별이
+    사실상 안 돌게 한다(선별이 발송 기록 대조보다 먼저라 전날 보낸 글을 고르면 새 글이 밀려나는 문제를 비켜 감)."""
+    by_key = {s.key: s for s in CATALOG}
+    ar = by_key["anthropic-research"]
+    assert (ar.kind, ar.url, ar.category) == ("html", "https://www.anthropic.com/research", "Anthropic")
+    assert (ar.window_hours, ar.max_items, ar.select) == (48, 10, "llm")
+    hf = by_key["hf-blog"]
+    assert (hf.kind, hf.url, hf.category) == ("rss", "https://huggingface.co/blog/feed.xml", "Engineering Blogs")
+    assert (hf.window_hours, hf.max_items, hf.select) == (48, 6, "llm")
+    order = list(dict.fromkeys(s.category for s in CATALOG))
+    assert order.index("Google") < order.index("Engineering Blogs") < order.index("Independent Voices")
+    assert [s.category for s in CATALOG].count("Anthropic") == 5      # 같은 발행처는 한 블록(섹션이 둘로 갈리지 않게)
+    anth = [i for i, s in enumerate(CATALOG) if s.category == "Anthropic"]
+    assert anth == list(range(anth[0], anth[0] + 5))
 
 
 def test_catalog_window_hours_default_and_html_override():
@@ -228,6 +261,16 @@ def test_strip_boilerplate_keeps_plain_article():
     """마커가 없으면 아무것도 자르지 않는다(과잉 절단 방지)."""
     from briefing.core.retrieval.sources import _strip_boilerplate
     assert _strip_boilerplate(_ARTICLE) == _ARTICLE.strip()
+
+
+def test_strip_boilerplate_removes_recent_articles_list():
+    """simonwillison.net 본문 끝 "More recent articles" 목록(2026-10-18 실측 15건 중 11건) — 다른 글의 제목·날짜
+    (값 3.15·5.5 등)가 동결본에 섞이면 본문에 없는 수치의 알리바이가 된다(the-decoder 구독 안내와 같은 계열)."""
+    from briefing.core.retrieval.sources import _strip_boilerplate
+    body = "Here's a product feature the world is going to need: default hard budget caps."
+    raw = (body + "\nMore recent articles\n- Hello Python 3.15, goodbye 3.10 - 12th October 2026\n"
+           "- Claude Haiku 5.5 - 7th October 2026")
+    assert _strip_boilerplate(raw) == body
 
 
 def test_extract_article_drops_stub(capsys):

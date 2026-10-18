@@ -71,3 +71,13 @@ def test_llm_select_prompt_contains_numbered_titles_and_k():
     assert "1. 제목1" in seen["user"] and "4. 제목4" in seen["user"]   # 번호 목록
     assert "본문1" in seen["user"]                                     # 리드 포함
     assert "2" in seen["system"] and "JSON" in seen["system"]          # k·형식 지시가 system 에
+
+
+def test_llm_select_prompt_ranks_ai_agents_first():
+    """AI 에이전트 + Applied AI 를 1순위로(브리핑 관심사 = AI Agent·AI 인사이트) — 그다음 주요 모델 발표."""
+    seen = {}
+    llm_select(_arts(4), 2, invoke=lambda system, user: seen.update(system=system) or "[1, 2]")
+    s = seen["system"]
+    assert "(1) AI agents" in s and s.index("AI agents") < s.index("major model")
+    assert "applied AI — building and running AI in production" in s and s.index("applied AI") < s.index("major model")
+    assert "Rank lower:" in s and "Exception" not in s   # 예외 문장은 시험에서 기각(큰 뉴스 쪽으로 기울어 불안정)

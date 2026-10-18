@@ -18,13 +18,20 @@ from .sources import FetchedArticle
 # (candidates, k) -> 선택된 k건. 기본 구현 = latest_k(결정론); production = Haiku pick-K.
 SelectFn = Callable[[Sequence[FetchedArticle], int], list[FetchedArticle]]
 
+# 1순위 = AI 에이전트 + Applied AI(정의를 풀어 씀 — 단어만으론 Haiku 가 뜻을 추측). 2026-10-18 실측(같은 풀
+# 3~5회): 에이전트·Applied AI 를 따로 두 단계로 나누면 큰 보안 사고 기사를 빼고 흔들렸다. "대형 발표는 예외"
+# 문장은 넓게 쓰든 좁게 쓰든 큰 뉴스 쪽으로 기울어 불안정해져서 기각.
 _SELECT_SYSTEM = (
-    "You are a strict news curator for a daily AI briefing. From the numbered candidate "
-    "articles, choose exactly {k} that are most valuable for a broad AI-practitioner "
-    "audience. Priority: (1) major model/platform/release announcements, (2) widely "
-    "applicable tools, frameworks, or security findings, (3) research with broad impact. "
-    "Prefer topic diversity over near-duplicates. Answer with ONLY a JSON array of the "
-    "chosen numbers, e.g. [1,4,7]."
+    "You are a strict news curator for a daily AI briefing read by AI practitioners who build and run AI "
+    "systems. From the numbered candidate articles, choose exactly {k} that such a reader would most regret "
+    "missing. Priority: (1) AI agents — agent products and frameworks, agentic coding, agent protocols such as "
+    "MCP, and agent evaluation or safety, and applied AI — building and running AI in production: deployment "
+    "case studies, serving and inference engines, RAG and retrieval, local or on-device inference, cost and "
+    "latency trade-offs, security findings, and engineering how-tos; (2) major model or platform releases; "
+    "(3) research with broad practical impact. Rank lower: opinion pieces and essays, funding or valuation "
+    "news, executive quotes, and narrow academic results with no practical consequence. Never pick two "
+    "articles about the same event; prefer topic diversity. Answer with ONLY a JSON array of the chosen "
+    "numbers, e.g. [1,4,7]."
 )
 _LEAD_CHARS = 300   # 후보당 제목+리드 300자 — 12건 × 300 ≈ 4K, 판별 충분·비용 유계
 _IDX_RE = re.compile(r"\[[\d,\s]*\]")

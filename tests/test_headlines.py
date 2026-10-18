@@ -17,7 +17,7 @@ from briefing.core.stores.source_store import SourceStore
 
 def _src(key="aitimes", *, require_ai=True, max_items=0, select="", url="https://aitimes/rss",
          headlines_only=True):
-    return Source(key=key, name="AI Times", url=url, kind="rss", lang="ko", category="뉴스·미디어",
+    return Source(key=key, name="AI Times", url=url, kind="rss", lang="ko", category="News & Media",
                   require_ai=require_ai, max_items=max_items, select=select, headlines_only=headlines_only)
 
 

@@ -2,19 +2,22 @@
 # 추가 = 이 파일 편집 + PR 리뷰(= vetting). 임의 URL 금지(큐레이션).
 # 필수: key · name · url · kind(rss|html|auto|sitemap) · lang(en|ko) · category.  선택: fragile(기본 false; *진짜 차단* 출처 — 현재 없음).
 #   category = 발행처(publisher/brand) 그룹 → UI 섹션 + 이메일 분야 밴드 그룹핑 키. 비어있지 않음(로더 강제).
+#   ⚠️ category 값 = 바뀌지 않는 영문 이름(한국어판·영어판 공통 키 — 값이 곧 영어 표시. 한국어 표시는 두 언어판 때
+#      표 하나로 붙인다). 사용자 프로필엔 소스 키만 저장 → 이름을 바꿔도 데이터 이전 없음.
+#      소스 3개 이상 발행처 = 자기 섹션(AWS·Anthropic·Google), 나머지 = 성격별 묶음(Independent Voices 등).
 #   ⚠️ 섹션 순서 = 이 파일의 첫 등장 순서(build_catalog 이 CATALOG 순서 보존) → 같은 발행처를 인접 배치해 순서를 통제한다.
 # kind: rss=피드 직접 / html=리스팅→trafilatura 추출(피드 발견 안 함) / auto=피드 자동발견 후 폴백 / sitemap=사이트맵 urlset→글 페이지 추출.
 # ⚠️ 모든 요청은 실행 중 robots.txt(RFC 9309) 검사를 거친다(retrieval/robots.py) — 막힌 경로는 요청하지 않는다.
 # ⚠️ sources._load_catalog() 가 로드 시 검증 — 형식 오류면 시작 시 크래시(silent failure 금지).
 # last-verified: 2026-06-24
 
-# ── 뉴스·미디어 ──────────────────────────────────────────────
+# ── News & Media ─────────────────────────────────────────────
 - key: aitimes
   name: AI Times
   url: https://www.aitimes.com/rss/allArticle.xml
   kind: rss
   lang: ko
-  category: 뉴스·미디어
+  category: News & Media
   require_ai: false  # 헤드라인 전용: 제목별 판정 대신 Haiku 가 선별(select) — 제목만으론 신제품명을 AI 로
                      #   못 알아본다(30일 소급: Haiku 4.5 오판 13건). 선별 실패 시 키워드로 비AI 를 뺀 최신순
   # 2026-10-17 적법성 점검: 기사마다 "무단전재 및 재배포, AI학습 및 활용 금지" 고지 → 본문 수집·LLM 요약(카드) 중단.
@@ -29,7 +32,9 @@
   url: https://the-decoder.com/news-sitemap.xml
   kind: sitemap
   lang: en
-  category: 뉴스·미디어
+  category: News & Media
+  select: llm        # 일 5~6건 > 기본 캡 5 — 최신순이면 가장 이른 글이 잘린다(10-16: METR 감사 글 컷 실측) → Haiku pick-5
+                     #   (풀 12·폴백=최신순). 발행 시각이 정확해 24h 창이 전날과 안 겹침 → 이미 보낸 글을 고를 일 없음
   # 독립 AI 전문 매체(heise medien 소속). AI-scoped(전부 AI) → require_ai 불필요.
   # 2026-10-17 정정: robots `Disallow: */feed/` 가 예전 url(/feed/)을 막고 있었다(urllib.robotparser 가 와일드카드를
   # 무시해 "허용"으로 오판). → robots.txt `Sitemap:` 이 선언한 뉴스 사이트맵(최근 48h·정확한 발행 시각) + 기사 페이지(허용).
@@ -106,6 +111,20 @@
   category: Anthropic
   window_hours: 48   # pubDate 가 12:00 GMT 고정(사실상 날짜만) — late-post 보정
 
+- key: anthropic-research
+  name: Anthropic Research
+  url: https://www.anthropic.com/research
+  kind: html
+  lang: en
+  category: Anthropic
+  window_hours: 48   # 목록·본문에서 읽는 날짜에 시각이 없다(페이지 메타엔 있음 — 1b 후 24h 가능)
+  max_items: 10      # 월 약 12건·하루 최대 5건(10-16) → 사실상 전부. 선별이 발송 기록 대조보다 먼저라 상한이 작으면
+                     #   48h 창 둘째 날 전날 보낸 글을 골라 새 글이 밀린다 → 선별이 안 돌 만큼 크게
+  select: llm        # 48h 안에 11건 이상 몰리는 드문 날에만 작동하는 안전장치
+  # 에이전트 안전·보안·과학 연구(Frontier Red Team 이 /research 로 통합됨). /news 와 겹친 글 0. 적법성 B(Anthropic
+  #   Consumer Terms 일반 문구, robots Allow:/). 일부 글 맨 앞 "Subscribe to … newsletter" 한 줄(숫자 없음 — 그대로 둠).
+  # 실측 12/12 추출(4k~8k자), 10-16 하루 5건은 페이지 메타로 확인한 실제 발행. last-verified: 2026-10-18
+
 # ── OpenAI ───────────────────────────────────────────────────
 # ⚠️ 2026-07-17 비활성화(주석 처리) — **본문 수집 불가**. 피드(rss.xml)는 200 이지만 기사 본문 URL 이
 #    Cloudflare 로 **UA 무관 403**("Enable JavaScript and cookies to continue") → 전문 추출 실패 →
@@ -158,13 +177,41 @@
   window_hours: 48   # date-only 메타데이터(리스팅+trafilatura) — late-post 보정
   # 피드 자동발견 없음 → 리스팅+trafilatura 전문 200. last-verified: 2026-07-06
 
-# ── 커뮤니티 ── ★ 맨 끝 고정: 2차 큐레이션은 1차 발행처들 뒤(공식성 내림차순 — UI 섹션·이메일 밴드 공통 순서) ──
+# ── Engineering Blogs ── 개발 도구·플랫폼 회사의 기술 블로그 ─────────────────────────
+- key: hf-blog
+  name: Hugging Face Blog
+  url: https://huggingface.co/blog/feed.xml
+  kind: rss
+  lang: en
+  category: Engineering Blogs
+  window_hours: 48   # Hugging Face 직원 글은 시각 00:00(날짜만 — 페이지 메타도 같음), 협력사 글만 분 단위
+  max_items: 6       # 48h 안 최대 5~6건 → 사실상 전부(anthropic-research 와 같은 이유로 선별 회피)
+  select: llm        # 7건 이상 몰리는 날에만
+  # 오픈 모델 출시·에이전트 실무(평가·MCP·RL 환경). 30일 19건·하루 최대 3건. 적법성 B(자동 접근 금지 없음,
+  #   "reproduce, republish … proprietary materials" 금지만). ⚠️ 절반이 다른 회사 모델 출시 소개 → The Decoder·AWS·
+  #   PyTorch KR 과 같은 소식이 겹친다(Muse Spark Open·LFM2.5) — 중복 처리는 별도 과제. 실측 19/19 추출.
+  # last-verified: 2026-10-18
+
+# ── Independent Voices ── 회사가 아니라 개인 이름으로 쓰는 블로그·뉴스레터 ─────────────
+- key: simon-willison
+  name: Simon Willison
+  url: https://simonwillison.net/atom/entries/
+  kind: rss
+  lang: en
+  category: Independent Voices
+  require_ai: true   # Python 등 비AI 글이 섞인다(30일 8건 중 1건)
+  # 에이전트·LLM 을 직접 써 본 1차 관찰. 적법성 A: 약관 없음, robots 는 /admin/·/search/ 만 Disallow(피드·글 허용).
+  # entries 피드 = 장문 글만(atom/everything 은 짧은 링크 메모 섞임). 발행 시각 분 단위 → 기본 24h 창.
+  # 주 1.9건·하루 최대 2건 → 캡·선별 기본값. 본문 끝 "More recent articles" 목록은 _BOILER_RE 가 자른다.
+  # 실측 15/15 추출(1.9k~8k자). 홈페이지 링크 = 호스트(simonwillison.net). last-verified: 2026-10-18
+
+# ── Community ── ★ 맨 끝 고정: 2차 큐레이션은 1차 발행처들 뒤(공식성 내림차순 — UI 섹션·이메일 밴드 공통 순서) ──
 - key: pytorch-kr-news
   name: PyTorch Korea 읽을거리
   url: https://discuss.pytorch.kr/c/news/14
   kind: html
   lang: ko
-  category: 커뮤니티
+  category: Community
   article_path: /t/  # Discourse 글 = /t/<slug>/<id> — 목록 경로(/c/news/14) 밖이라 접두 경로로 지정
   window_hours: 48   # 글 페이지 날짜가 날짜만 → late-post 보정(W≥U+P). 하루 겹침 중복은 ledger cross-day dedup
   max_items: 3       # 평일 6~9건/일 자동 큐레이션(:30 정각 발행) — 브리핑 편중/비용 상한
