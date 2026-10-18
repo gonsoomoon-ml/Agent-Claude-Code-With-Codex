@@ -304,6 +304,22 @@ def decide(cards: dict[str, dict], per_article: dict[str, dict[str, dict[str, fl
 
 
 # ── CLI ──
+ORIGINAL_ARMS = "A0,A1,A2,A3,A4,A5"   # 원래 Stage A(설계 §7) — 기본값이 원래 성적표를 그대로 다시 만든다
+
+
+def parse_args(argv: list[str] | None = None):
+    import argparse
+    ap = argparse.ArgumentParser(prog="aggregate")
+    ap.add_argument("--arms", default=ORIGINAL_ARMS, help="콤마 구분 조건(기본 = 원래 Stage A 6조건)")
+    ap.add_argument("--baseline", default="A0")
+    ap.add_argument("--out-prefix", default="", help="결과 파일 이름 앞에 붙임(예 s1_) — 원래 성적표를 덮어쓰지 않게")
+    return ap.parse_args(argv)
+
+
+def out_names(prefix: str) -> tuple[str, str]:
+    return f"{prefix}scorecards.json", f"{prefix}decision.json"
+
+
 def main(argv: list[str] | None = None) -> None:
     from briefing.core.stores.source_store import SourceStore
 
@@ -315,6 +331,10 @@ def main(argv: list[str] | None = None) -> None:
         print("집계할 입력이 아직 없다 — Stage A 실행과 채점 뒤에 돈다: " + ", ".join(missing), file=sys.stderr)
         sys.exit(1)
     runs = read_jsonl(STAGE_A)
+    args = parse_args(argv)
+    wanted = args.arms.split(",")
+    arms = [a for a in ARMS if a in wanted and any(r.get("arm") == a for r in runs)]
+    runs = [r for r in runs if r.get("arm") in arms]
     judged = read_jsonl(JUDGE_DIR / "final.jsonl")
     keyfacts = {r["source_id"]: [KeyFact(**f) for f in r["facts"]] for r in read_jsonl(JUDGE_DIR / "keyfacts.jsonl")}
     store = SourceStore(str(EXP_ROOT / "sources"))
@@ -324,15 +344,15 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Stage A 검증기가 하나가 아니다: {verifiers}", file=sys.stderr)
         sys.exit(1)
     prices = costs.load_prices()
-    arms = [a for a in ARMS if any(r.get("arm") == a for r in runs)]
     cards = {a: scorecard(a, runs, judged, prices, verifiers[0], keyfacts=keyfacts, sources=sources) for a in arms}
     per = {a: per_article(a, runs, judged, keyfacts=keyfacts, sources=sources, prices=prices, verifier=verifiers[0])
            for a in arms}
-    decision = decide(cards, per)
+    decision = decide(cards, per, baseline=args.baseline)
     RESULTS.mkdir(parents=True, exist_ok=True)
-    (RESULTS / "scorecards.json").write_text(json.dumps({"verifier": verifiers[0], "cards": cards, "per_article": per},
+    sc_name, dec_name = out_names(args.out_prefix)
+    (RESULTS / sc_name).write_text(json.dumps({"verifier": verifiers[0], "cards": cards, "per_article": per},
                                                         ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-    (RESULTS / "decision.json").write_text(json.dumps(decision, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    (RESULTS / dec_name).write_text(json.dumps(decision, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     print(json.dumps({"eliminated": decision["eliminated"], "ranking": decision["ranking"]}, ensure_ascii=False, indent=2))
 
 

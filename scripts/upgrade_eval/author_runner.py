@@ -35,12 +35,19 @@ EVAL_TODAY = "2026-10-17"
 _CLAUDE_CONFIG = Path(__file__).resolve().parents[2] / "src" / "briefing" / "runtime" / "container" / "claude_config.json"
 
 
+# S1 초안 A — 리서치(01-research/author-summarization-research.md §5 초안 A) 문구 그대로.
+_S1_DRAFT_A = (Path(__file__).with_name("s1_draft_a.md")).read_text(encoding="utf-8")
+
+
 @dataclass(frozen=True)
 class Arm:
     key: str
     model_id: str
     cli_version: str
     effort: str | None
+    # 지시문 추가 규칙(S1) — '논조·귀속 보존' 절 바로 다음에 넣는다. 빈 값 = 운영 지시문 그대로. rules_name 은 실행 기록용 이름.
+    rules_patch: str = ""
+    rules_name: str = ""
 
 
 ARMS: dict[str, Arm] = {
@@ -50,7 +57,33 @@ ARMS: dict[str, Arm] = {
     "A3": Arm("A3", "global.anthropic.claude-sonnet-5-5", "2.1.301", "high"),
     "A4": Arm("A4", "global.anthropic.claude-opus-5-5", "2.1.301", "medium"),
     "A5": Arm("A5", "global.anthropic.claude-haiku-5-5", "2.1.301", "medium"),
+    # S1(2026-10-18): 초안 A('같은 확신도') 한 가지만 다른 쌍 — U8 ② 운영 예정 구성(A2)과 같은 모델·CLI·effort.
+    # 10-17 의 A2 를 대조군으로 쓰지 않는 이유: 그 뒤 F1(절단 경고)이 들어와 잘린 원문(기사 1/3)의 지시가 달라졌다.
+    "S1C": Arm("S1C", "global.anthropic.claude-sonnet-5-5", "2.1.301", "medium"),
+    "S1A": Arm("S1A", "global.anthropic.claude-sonnet-5-5", "2.1.301", "medium", _S1_DRAFT_A, "s1_draft_a"),
 }
+
+
+_RULES_ANCHOR = "## 논조·귀속 보존"
+
+
+def insert_rules(system_prompt: str, patch: str) -> str:
+    """추가 규칙을 '논조·귀속 보존' 절 바로 다음(다음 '## ' 절 앞)에 넣는다.
+
+    넣을 자리가 없으면 ValueError — 초안 없이 돈 실험은 무의미하므로 조용히 빠뜨리지 않는다.
+    """
+    i = system_prompt.find(_RULES_ANCHOR)
+    if i < 0:
+        raise ValueError(f"지시문에 '{_RULES_ANCHOR}' 절이 없다 — 추가 규칙을 넣을 자리를 못 찾음")
+    k = system_prompt.find("\n## ", i + len(_RULES_ANCHOR))
+    k = len(system_prompt) if k < 0 else k + 1
+    return system_prompt[:k] + patch.rstrip("\n") + "\n\n" + system_prompt[k:]
+
+
+def system_prompt_for(arm: Arm, user) -> str:
+    """조건의 system 지시문 = 운영 build_system_prompt(+ 조건의 추가 규칙)."""
+    s = build_system_prompt(lens_guidance=resolve_lens(user.lens).guidance, skill_md=user.skill_md)
+    return insert_rules(s, arm.rules_patch) if arm.rules_patch else s
 
 
 @dataclass
@@ -135,7 +168,7 @@ def make_author_fns(
         return run.text
 
     def _system(user) -> str:
-        return build_system_prompt(lens_guidance=resolve_lens(user.lens).guidance, skill_md=user.skill_md)
+        return system_prompt_for(arm, user)
 
     def draft_fn(source, user, settings) -> DraftCard:
         text = _call("draft", _system(user), build_user_prompt(source, today=EVAL_TODAY))

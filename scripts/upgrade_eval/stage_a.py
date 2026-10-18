@@ -99,6 +99,7 @@ def run_one(
     verify = verify_fn or make_verify_fn(verifier, store, codex_log)
     t0 = time.monotonic()
     record = {"arm": arm.key, "model_id": arm.model_id, "cli_version": arm.cli_version, "effort": arm.effort,
+              **({"rules": arm.rules_name} if arm.rules_name else {}),
               "verifier": verifier.name, "source_id": source.source_id, "rep": rep, "sequential": sequential}
     try:
         gated = produce_card(source, _FACT_USER, settings, store, draft_fn=draft_once, revise_fn=revise, verify_fn=verify)
