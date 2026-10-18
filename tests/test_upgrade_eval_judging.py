@@ -113,3 +113,16 @@ def test_pairwise_winner_labels_base_by_name():
     assert judging.pairwise_winner("first", "s1c_first", "S1C") == "S1C"
     assert judging.pairwise_winner("tie", "arm_first", "S1C") == "tie"
     assert judging.pairwise_winner(None, "arm_first", "A0") is None
+
+
+def test_pairwise_summary_counts_candidate_wins_by_arm_label():
+    """후보 조건의 승리는 'arm' 으로 기록된다 — 조건 이름으로 세면 후보 승리가 0 으로 빠진다(2026-10-18 S2 집계 실수).
+    기사 단위 다수결은 판정 4번(판정자 2 × 순서 2)을 기사별로 모아 정한다."""
+    rows = ([{"arm": "S2B", "source_id": "a", "winner": "arm"}] * 4
+            + [{"arm": "S2B", "source_id": "b", "winner": "S1C"}] * 3 + [{"arm": "S2B", "source_id": "b", "winner": "tie"}]
+            + [{"arm": "S2B", "source_id": "c", "winner": "arm"}] * 2 + [{"arm": "S2B", "source_id": "c", "winner": "S1C"}] * 2
+            + [{"arm": "S1A", "source_id": "a", "winner": "S1C"}] * 4                  # 다른 후보 조건 — 섞이면 안 된다
+            + [{"arm": "S2B", "source_id": "d", "winner": None}])                     # 판정 실패 — 빼고 센다
+    s = judging.pairwise_summary(rows, "S2B")
+    assert s["judgments"] == {"arm": 6, "S1C": 5, "tie": 1}
+    assert s["articles"] == {"arm": 1, "base": 1, "tie": 1}
