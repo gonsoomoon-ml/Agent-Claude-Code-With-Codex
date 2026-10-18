@@ -165,7 +165,18 @@ def test_prompt_version_matches_contract():
     """PROMPT_VERSION 은 fact_card_key 성분 — 계약을 바꾸고 안 올리면 구 카드가 새 것인 척 서빙된다."""
     from briefing.core.authoring.author import PROMPT_VERSION
 
-    assert PROMPT_VERSION == "represent-v3.4.1"   # v3.4.1 = 절단 경고가 실제로 붙음(F1) — 잘린 원문의 카드가 바뀐다
+    assert PROMPT_VERSION == "represent-v3.4.2"   # v3.4.2 = 음역 원문도 영문 이름으로(S5) · v3.4.1 = 절단 경고(F1)
+
+
+def test_author_system_prompt_names_rule_covers_transliterated_sources():
+    """S5(D4 결정 2026-10-17: 원어로 통일, 추측 금지). '원어 표기 그대로'만으론 한국어 원문의 음역('앤트로픽')을
+    '원문에 쓰인 대로'로 읽어 30일 카드의 26%에 음역 이름이 남았다 — 음역 원문도 영문으로, 확신 없으면 원문대로."""
+    from briefing.core.authoring.author import build_system_prompt
+
+    s = build_system_prompt(lens_guidance="", skill_md="")
+    assert "원문이 한글 음역" in s and "앤트로픽 → Anthropic" in s
+    assert "영문 이름을 확신할 수 없으면 원문 표기 그대로" in s     # 추측 금지 — 영문을 지어내지 않는다
+    assert "claim 도 같은 표기" in s
 
 
 def test_author_system_prompt_has_reader_relevance_axis():
