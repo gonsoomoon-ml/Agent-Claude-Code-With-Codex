@@ -409,6 +409,15 @@ def pairwise_tasks(groups: dict[tuple, list[dict]], *, base: str, arms: list[str
     return tasks
 
 
+def pairwise_winner(better: str | None, order: str, base: str) -> str | None:
+    """판정자의 'first/second/tie' → 승자 칸('arm' / 기준 조건 이름 / 'tie'). 판정 실패면 None."""
+    if better is None:
+        return None
+    if better == "tie":
+        return "tie"
+    return "arm" if (better == "first") == (order == "arm_first") else base
+
+
 def cmd_pairwise(base: str = "A0", arms: list[str] | None = None) -> None:
     """조건 vs 기준(기본 A0) 맞비교. 기준이 A0 가 아니면 pairwise_<기준>.jsonl 에 따로 쓴다(원래 A0 결과와 섞지 않게)."""
     sel = _judges()
@@ -422,12 +431,11 @@ def cmd_pairwise(base: str = "A0", arms: list[str] | None = None) -> None:
     tasks = pairwise_tasks(groups, base=base, arms=arms, judges=[sel["main"], sel["cross"]], done=done)
 
     def work(t):
-        arm, sid, j, order, cand, base = t
-        first, second = (cand, base) if order == "arm_first" else (base, cand)
+        arm, sid, j, order, cand, ref = t   # ref = 기준 요약 본문(기준 조건 이름 base 와 구분)
+        first, second = (cand, ref) if order == "arm_first" else (ref, cand)
         call = J.converse_json(_model(j), *J.pairwise_messages(store.get_source(sid).text, first, second), validate=J.parse_pairwise)
         better = J.parse_pairwise(call.obj) if call.obj else None
-        winner = None if better is None else ("tie" if better == "tie" else
-                                              ("arm" if (better == "first") == (order == "arm_first") else base))
+        winner = pairwise_winner(better, order, base)
         _write(out, {"arm": arm, "source_id": sid, "judge": j, "order": order, "winner": winner, "error": call.error,
                      "usage": call.usage})
 

@@ -104,3 +104,12 @@ def test_pairwise_default_base_keeps_a0_labels():
     groups = {("A2", "s1"): _recs("A2"), ("A0", "s1"): _recs("A0")}
     tasks = judging.pairwise_tasks(groups, base="A0", arms=None, judges=["astra"], done={("A2", "s1", "astra", "arm_first")})
     assert [(t[0], t[3]) for t in tasks] == [("A2", "a0_first")]
+
+
+def test_pairwise_winner_labels_base_by_name():
+    """승자 칸 = 'arm' / 기준 조건 이름 / 'tie'. (S1 실행에서 지역 변수가 인자를 가려 기준 요약 본문이 들어갔던 버그)"""
+    assert judging.pairwise_winner("first", "arm_first", "S1C") == "arm"
+    assert judging.pairwise_winner("second", "arm_first", "S1C") == "S1C"
+    assert judging.pairwise_winner("first", "s1c_first", "S1C") == "S1C"
+    assert judging.pairwise_winner("tie", "arm_first", "S1C") == "tie"
+    assert judging.pairwise_winner(None, "arm_first", "A0") is None
