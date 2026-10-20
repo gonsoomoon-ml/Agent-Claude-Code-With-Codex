@@ -14,7 +14,6 @@ from dataclasses import asdict
 
 import boto3
 from boto3.dynamodb.conditions import Key
-from boto3.dynamodb.types import TypeDeserializer
 from botocore.exceptions import ClientError
 
 from .. import _debug
@@ -143,20 +142,23 @@ class DynamoSourceStore:
 
         UnprocessedKeys(스로틀)는 짧은 backoff 로 최대 _BATCH_GET_ROUNDS 회 재시도, 그래도 남으면 warn 후 미해결로 둔다
         — dedup 은 미해결을 해시 비교로 fail-open 처리하므로 브리핑을 막지 않는다.
+
+        ★ `Table.meta.client` 는 resource 의 client 라 boto3 가 파이썬 값 ↔ DynamoDB 타입을 자동 변환한다 —
+          키는 파이썬 값 그대로 넘기고 응답도 이미 파이썬 값이다. {"S": ...} 를 넘기면 한 번 더 감싸져(Map)
+          ValidationException 이 난다(2026-10-16~20 운영 dedup 이 매 run 꺼졌던 원인).
         """
         ids = list(dict.fromkeys(source_ids))
-        client, name, td = self._t.meta.client, self._t.name, TypeDeserializer()
+        client, name = self._t.meta.client, self._t.name
         out: dict[str, SourceMeta] = {}
         for i in range(0, len(ids), _BATCH_GET_MAX):
             req: dict = {name: {
-                "Keys": [{"source_id": {"S": s}} for s in ids[i:i + _BATCH_GET_MAX]],
+                "Keys": [{"source_id": s} for s in ids[i:i + _BATCH_GET_MAX]],
                 "ProjectionExpression": "#s, #u, #t, #m",   # url 등 예약어 회피 — 전부 placeholder
                 "ExpressionAttributeNames": {"#s": "source_id", "#u": "url", "#t": "title", "#m": "media"},
             }}
             for attempt in range(_BATCH_GET_ROUNDS):
                 resp = client.batch_get_item(RequestItems=req)
-                for raw in resp.get("Responses", {}).get(name, []):
-                    it = {k: td.deserialize(v) for k, v in raw.items()}
+                for it in resp.get("Responses", {}).get(name, []):
                     out[it["source_id"]] = SourceMeta(url=it.get("url", ""), title=it.get("title", ""),
                                                       media=it.get("media", ""))
                 req = resp.get("UnprocessedKeys") or {}

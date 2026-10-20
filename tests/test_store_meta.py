@@ -12,7 +12,10 @@ def test_local_get_meta_returns_meta_and_skips_missing(tmp_path):
 
 
 class _FakeClient:
-    """batch_get_item 응답을 순서대로 내주는 가짜 저수준 클라이언트."""
+    """batch_get_item 응답을 순서대로 내주는 가짜 resource client — 요청·응답 모두 파이썬 값(boto3 가 변환한 뒤의 모양).
+
+    저수준 타입({"S": ...})을 쓰면 안 된다 — 운영 `Table.meta.client` 와 다른 가정이라 2026-10 버그를 숨겼다.
+    """
 
     def __init__(self, pages):
         self.pages, self.requests = list(pages), []
@@ -30,7 +33,7 @@ def _dynamo_store(client):
 
 
 def _item(sid, url="https://x.com/a", title="T", media="X"):
-    return {"source_id": {"S": sid}, "url": {"S": url}, "title": {"S": title}, "media": {"S": media}}
+    return {"source_id": sid, "url": url, "title": title, "media": media}
 
 
 def test_dynamo_get_meta_batches_by_100_and_follows_unprocessed(monkeypatch):
@@ -39,7 +42,7 @@ def test_dynamo_get_meta_batches_by_100_and_follows_unprocessed(monkeypatch):
     ids = [f"s{i}" for i in range(150)]
     client = _FakeClient([
         {"Responses": {"tbl": [_item(f"s{i}") for i in range(99)]},
-         "UnprocessedKeys": {"tbl": {"Keys": [{"source_id": {"S": "s99"}}]}}},
+         "UnprocessedKeys": {"tbl": {"Keys": [{"source_id": "s99"}]}}},
         {"Responses": {"tbl": [_item("s99")]}},
         {"Responses": {"tbl": [_item(f"s{i}") for i in range(100, 150)]}},
     ])
@@ -52,10 +55,39 @@ def test_dynamo_get_meta_batches_by_100_and_follows_unprocessed(monkeypatch):
 def test_dynamo_get_meta_gives_up_after_rounds_and_warns(monkeypatch, capsys):
     from briefing.core.stores import dynamo
     monkeypatch.setattr(dynamo.time, "sleep", lambda _s: None)
-    stuck = {"Responses": {"tbl": []}, "UnprocessedKeys": {"tbl": {"Keys": [{"source_id": {"S": "s0"}}]}}}
+    stuck = {"Responses": {"tbl": []}, "UnprocessedKeys": {"tbl": {"Keys": [{"source_id": "s0"}]}}}
     client = _FakeClient([stuck] * dynamo._BATCH_GET_ROUNDS)
     assert _dynamo_store(client).get_meta(["s0"]) == {}          # 죽지 않고 미해결로 진행(fail-open)
     assert "미처리" in capsys.readouterr().err
+
+
+def test_dynamo_get_meta_through_real_resource_client():
+    """★ 2026-10-20 회귀 — 진짜 boto3 resource 의 client 로 왕복한다(Stubber, 네트워크 없음).
+
+    `Table.meta.client` 는 저수준 client 가 아니다: boto3 가 파이썬 값 ↔ DynamoDB 타입을 자동 변환한다.
+    예전 코드는 {"S": sid} 를 넘겨 한 번 더 감싸졌고(→ Map) 운영 DDB 가 ValidationException
+    ("key element does not match the schema") → published_keys 예외 → dedup 전체가 매 run 꺼졌다.
+    가짜 client 테스트는 그 잘못된 가정을 그대로 품고 있어 통과했다 — 그래서 실물 client 로 검사한다.
+    """
+    import boto3
+    from botocore.stub import Stubber
+
+    from briefing.core.stores.dynamo import DynamoSourceStore
+    table = boto3.resource("dynamodb", region_name="us-east-1",
+                           aws_access_key_id="x", aws_secret_access_key="x").Table("tbl")
+    store = object.__new__(DynamoSourceStore)
+    store._t = table
+    wire = {"source_id": {"S": "s1"}, "url": {"S": "https://x.com/a"}, "title": {"S": "T"}, "media": {"S": "X"}}
+    with Stubber(table.meta.client) as stub:
+        stub.add_response(
+            "batch_get_item", {"Responses": {"tbl": [wire]}},
+            {"RequestItems": {"tbl": {
+                "Keys": [{"source_id": "s1"}],                       # 파이썬 값 그대로 — 변환은 boto3 몫
+                "ProjectionExpression": "#s, #u, #t, #m",
+                "ExpressionAttributeNames": {"#s": "source_id", "#u": "url", "#t": "title", "#m": "media"},
+            }}},
+        )
+        assert store.get_meta(["s1"]) == {"s1": SourceMeta(url="https://x.com/a", title="T", media="X")}
 
 
 def test_dynamo_ledger_query_follows_pages():
