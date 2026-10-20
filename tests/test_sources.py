@@ -85,11 +85,12 @@ def test_catalog_meta_research_and_gcloud_ai():
     assert len(goog) == 5 and goog == list(range(goog[0], goog[0] + 5))   # Google 은 한 블록
 
 
-def test_catalog_section_order_news_first():
-    """섹션 순서 = 메일 밴드·웹 UI 공통(catalog 첫 등장 순서). 2026-10-18 사용자 결정: News & Media 먼저(메일은 AI Times
-    헤드라인 칸 → 오늘의 핵심 3 → The Decoder 로 업계 흐름부터) → AWS → 원 발표처 → 2차(기술 블로그·개인 필진) → 커뮤니티(맨 끝)."""
+def test_catalog_section_order_publishers_then_news():
+    """섹션 순서 = 메일 밴드·웹 UI 공통(catalog 첫 등장 순서). 2026-10-20 사용자 결정: News & Media 를 Engineering Blogs
+    바로 위로 — 원 발표처(AWS·Anthropic·Google·AI Labs) 먼저, 매체 보도 다음, 2차(기술 블로그·개인 필진) → 커뮤니티(맨 끝).
+    (헤드라인 칸 AI Times 는 카탈로그 순서와 무관하게 메일 맨 위.)"""
     order = list(dict.fromkeys(s.category for s in CATALOG))
-    assert order == ["News & Media", "Amazon (AWS)", "Anthropic", "Google", "AI Labs",
+    assert order == ["Amazon (AWS)", "Anthropic", "Google", "AI Labs", "News & Media",
                      "Engineering Blogs", "Independent Voices", "Community"]
 
 

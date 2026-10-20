@@ -310,5 +310,5 @@ def render_email(
         f"원문에서 확인하지 못한 사실이 있는 요약에는 ⚠ 표시를 붙입니다.{heads_note}</p>"
         f'<p style="margin:0">다음 브리핑 내일 {int(send_hour):02d}:00 · 관점 바꾸기 · 구독 해지</p></div>'
     )
-    # 순서(2026-10-18 사용자 결정): 헤드라인 칸 → 오늘의 핵심 3 → 분야 섹션(News & Media → AWS → …)
+    # 순서: 헤드라인 칸 → 오늘의 핵심 3 → 분야 섹션(catalog 순서 — 2026-10-20 기준 AWS → … → News & Media → …)
     return _WRAP + header + subtitle + coral_rule + heads_html + top_html + body + footer + "</div>"

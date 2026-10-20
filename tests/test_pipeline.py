@@ -180,7 +180,9 @@ def test_run_briefing_top_picks_once_per_card_set_and_rendered_first(tmp_path):
     assert len(calls) == 1 and len(calls[0][0]) == 6 and calls[0][1] == 3
     for b in out:
         assert b.published == 6
-        assert b.email.index("오늘의 핵심") < b.email.index("◆ News &amp; Media")
+        # catalog 순서상 Anthropic(claude-blog) → News & Media(the-decoder) — 뒤 3장(decoder)이 핵심으로 올라가고
+        # 남는 밴드는 Anthropic 이다(2026-10-20 섹션 순서 변경).
+        assert b.email.index("오늘의 핵심") < b.email.index("◆ Anthropic")
 
 
 def test_run_briefing_skips_top_picks_under_threshold(tmp_path):
