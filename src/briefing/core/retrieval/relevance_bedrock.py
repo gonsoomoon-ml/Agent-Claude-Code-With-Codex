@@ -100,14 +100,15 @@ def make_bedrock_headline_areas(settings: Settings) -> HeadlineAreaFn:
 
 
 def make_bedrock_top_pick(settings: Settings) -> TopPickFn:
-    """settings → (발행 카드,k)->오늘의 핵심 K장. 소스 선별과 같은 Haiku·Converse 배관·같은 P2b 기준(재료=제목·요약).
+    """settings → (발행 카드,k,섹션)->오늘의 핵심 K장. 소스 선별과 같은 Haiku·Converse 배관(재료=제목·요약·섹션).
 
     실패는 llm_top_picks 안에서 [](핵심 칸 생략, non-silent) — 여기선 조립만.
+    maxTokens 3000: 카드마다 라벨 객체 1개(20장 ≈ 700~900 토큰) — 잘리면 파싱 실패 = 핵심 칸 생략.
     """
     client = _client(settings.region)
     model_id = settings.relevance_model_id
 
     def _invoke(system: str, user: str) -> str:
-        return _converse_text(client, model_id, system, user, 64)
+        return _converse_text(client, model_id, system, user, 3000)
 
-    return lambda cards, k: llm_top_picks(cards, k, invoke=_invoke)
+    return lambda cards, k, sections=(): llm_top_picks(cards, k, sections, invoke=_invoke)

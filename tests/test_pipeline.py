@@ -167,7 +167,7 @@ def test_run_briefing_top_picks_once_per_card_set_and_rendered_first(tmp_path):
     """같은 카드 묶음을 받는 사용자들은 판정 1회를 공유하고(lens 무관 — 재료는 사실층), 핵심 3 이 메일 맨 앞에 온다."""
     calls = []
 
-    def top(cards, k):
+    def top(cards, k, sections=()):
         calls.append(([g.card.headline for g in cards], k))
         return list(cards)[-3:]
 
@@ -186,7 +186,7 @@ def test_run_briefing_top_picks_once_per_card_set_and_rendered_first(tmp_path):
 
 
 def test_run_briefing_skips_top_picks_under_threshold(tmp_path):
-    def boom(_c, _k):
+    def boom(_c, _k, _s=()):
         raise AssertionError("발행 카드 6장 미만이면 판정 호출 금지(비용 0)")
 
     out = run_briefing(SimpleNamespace(), SourceStore(str(tmp_path / "store")), [_user("u", ["the-decoder"])],
@@ -195,7 +195,7 @@ def test_run_briefing_skips_top_picks_under_threshold(tmp_path):
 
 
 def test_run_briefing_top_pick_failure_sends_without_section(tmp_path, capsys):
-    def boom(_c, _k):
+    def boom(_c, _k, _s=()):
         raise RuntimeError("throttled")
 
     out = run_briefing(SimpleNamespace(), SourceStore(str(tmp_path / "store")),

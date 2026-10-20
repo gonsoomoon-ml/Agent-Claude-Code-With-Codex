@@ -139,7 +139,7 @@ def run_briefing(
         cards = tuple(g for g, _ in produced)
         # render 는 *카드의* source_id 로 분야를 찾는다(실 author 는 fs.source_id 복사) → 카드 기준으로 매핑
         source_categories = {g.card.source_id: cat for g, cat in produced}
-        top = top_source_ids(cards, top_pick_fn, top_memo)   # 발행 6장 미만·미주입·실패면 () = 핵심 칸 없음
+        top = top_source_ids(cards, top_pick_fn, top_memo, source_categories)   # 6장 미만·미주입·실패면 () = 핵심 칸 없음
         out.append(
             UserBriefing(
                 user_id=u.id,
