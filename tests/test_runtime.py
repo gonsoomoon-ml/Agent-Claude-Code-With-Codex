@@ -168,7 +168,7 @@ def test_production_fns_wires_judge_when_enabled(tmp_path):
 
     fns = _production_fns(_settings(tmp_path, relevance_llm_enabled=True))
     assert "relevance_fn" in fns and "select_fn" in fns and "headline_select_fn" in fns
-    assert "top_pick_fn" in fns   # 오늘의 핵심 3 — 정기·체험·수동이 같은 묶음을 쓴다
+    assert "label_fn" in fns   # 핵심 3 + 분야 라벨(한 호출) — 정기·체험·수동이 같은 묶음을 쓴다
     assert "headline_area_fn" in fns   # 헤드라인 칸 분야 묶음
 
 

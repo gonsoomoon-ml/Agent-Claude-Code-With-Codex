@@ -149,7 +149,7 @@ def test_run_briefing_header_date_follows_sent_at_in_recipient_timezone(tmp_path
     assert "10월 18일 (일)" in out[0].email and "10월 17일" not in out[0].email
 
 
-# ── 오늘의 핵심 3 (top_pick_fn) ─────────────────────────
+# ── 오늘의 핵심 3 + 분야 라벨 (label_fn) ─────────────────────────
 def _fetch_three(source, _w):
     """출처당 서로 다른 기사 3건 — 출처 2개면 발행 카드 6장(핵심 3 문턱)."""
     return [FetchedArticle(source.key, f"https://x/{source.key}/{i}", f"{source.key} AI 제목 {i}",

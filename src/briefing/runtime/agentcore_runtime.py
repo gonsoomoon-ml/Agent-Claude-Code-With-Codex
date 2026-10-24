@@ -31,19 +31,19 @@ def _production_fns(settings) -> dict:
     if settings.gateway_enabled:   # ① 승격: retrieval 을 Gateway MCP 로(opt-in; off 면 직접 — 현 기본)
         from ..core.retrieval.gateway_client import gateway_fetch_factory
         fns["fetch_article_fn"] = gateway_fetch_factory(settings)
-    if settings.relevance_llm_enabled:   # Haiku 판정자(같은 플래그): 관련성 + top-K 선별 + 헤드라인(선별·분야) + 오늘의 핵심 3
+    if settings.relevance_llm_enabled:   # 판정자(같은 플래그): 관련성 + top-K 선별 + 헤드라인 선별(Haiku) · 헤드라인 분야 + 핵심 3/분야 라벨(LABEL_MODEL_ID)
         from ..core.retrieval.relevance_bedrock import (
             make_bedrock_headline_areas,
             make_bedrock_headline_select,
+            make_bedrock_labels,
             make_bedrock_relevance,
             make_bedrock_select,
-            make_bedrock_top_pick,
         )
         fns["relevance_fn"] = make_bedrock_relevance(settings)   # require_ai 소스(키워드 폴백)
         fns["select_fn"] = make_bedrock_select(settings)         # select=llm 카드 소스(최신순 폴백)
         fns["headline_select_fn"] = make_bedrock_headline_select(settings)   # 헤드라인 칸(키워드·최신순 폴백)
         fns["headline_area_fn"] = make_bedrock_headline_areas(settings)       # 헤드라인 분야 소제목(실패 시 한 목록)
-        fns["top_pick_fn"] = make_bedrock_top_pick(settings)     # 오늘의 핵심 3(실패 시 칸 생략)
+        fns["label_fn"] = make_bedrock_labels(settings)          # 핵심 3 + 분야 라벨 1콜(LABEL_MODEL_ID; 실패 시 평평)
     return fns
 
 app = BedrockAgentCoreApp()
