@@ -49,8 +49,9 @@ AREA_DEFINITIONS: str = _CORE + (
     "whether the article is a guide or an announcement.\n"
     "4. Harm, attacks, incidents, audits and law are Safety, Security & Policy rather than AI Agents "
     "(capabilities and benchmarks stay in AI Agents); money, deals and markets alone are Industry & Business.\n"
-    "5. A named organization applying AI to its own work is Applied AI even when the technology is an agent "
-    "or a chip; a guide whose subject is the technology itself goes to the technology's area."
+    "5. A customer or case story - a named organization (other than the vendor itself) applying AI to its own "
+    "work - is Applied AI even when the technology is an agent or a chip; this rule wins over rules 1 and 3. A "
+    "guide whose subject is the technology itself goes to the technology's area."
 )
 
 AREA_DEFINITIONS_HEADLINES: str = _CORE + (
