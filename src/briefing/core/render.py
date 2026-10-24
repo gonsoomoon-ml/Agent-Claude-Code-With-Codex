@@ -18,7 +18,8 @@ from urllib.parse import urlparse
 from .config import Settings, UserConfig
 from .gate import GatedCard
 from .lenses import lens_label
-from .retrieval.headlines import HEADLINE_AREAS, Headline
+from .areas import AREAS
+from .retrieval.headlines import Headline
 from .stores.source_store import SourceStore
 
 # ── 검증 명세서 토큰 ──
@@ -173,7 +174,7 @@ def _headlines_html(headlines: Sequence[Headline]) -> str:
     """헤드라인 칸 — 제목·링크 전용 소스(본문 미수집). 메일 맨 위(오늘의 핵심 3 위), 검증 카드와 상자로 구분한다.
 
     원제목을 그대로 싣는다(재작성·요약 없음). http(s) 가 아닌 링크는 버린다(javascript: 등).
-    매체가 하나면 칸 제목에 한 번만 쓰고, 여럿일 때만 줄마다 붙인다. 모든 줄에 분야가 있으면 HEADLINE_AREAS 순서의
+    매체가 하나면 칸 제목에 한 번만 쓰고, 여럿일 때만 줄마다 붙인다. 모든 줄에 분야가 있으면 AREAS 순서의
     소제목으로 나누고(빈 분야 숨김, 분야 안은 선별 순서), 하나라도 없으면 소제목 없이 한 목록. 지역(국내/해외)은 표시하지 않는다.
     """
     ok = _valid_headlines(headlines)
@@ -192,9 +193,9 @@ def _headlines_html(headlines: Sequence[Headline]) -> str:
         )
         return f'<ul style="margin:4px 0 0;padding-left:18px;font-size:13px;line-height:1.5">{items}</ul>'
 
-    if all(h.area in HEADLINE_AREAS for h in ok):   # 분야 순서 고정 — 빈 분야는 소제목째 숨김
+    if all(h.area in AREAS for h in ok):   # 분야 순서 고정(공용 6칸) — 빈 분야는 소제목째 숨김
         body = ""
-        for area in HEADLINE_AREAS:
+        for area in AREAS:
             rows = [h for h in ok if h.area == area]
             if rows:
                 body += (f'<p style="font-size:12px;font-weight:700;color:{_META};margin:8px 0 0">'

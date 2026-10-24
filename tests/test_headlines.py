@@ -118,11 +118,11 @@ def test_headline_area_is_attached_from_area_fn_with_titles_only():
 
     def areas(titles):
         seen["titles"] = list(titles)
-        return ["Research", "AI Agents"]
+        return ["Applied AI", "AI Agents"]
 
     out = H.collect_headlines([_src(require_ai=False, max_items=2)], window_hours=24,
                               fetch_fn=lambda s, w: arts, headline_area_fn=areas)
-    assert [(h.title, h.area) for h in out["aitimes"]] == [("AI 기사 0", "Research"), ("AI 기사 1", "AI Agents")]
+    assert [(h.title, h.area) for h in out["aitimes"]] == [("AI 기사 0", "Applied AI"), ("AI 기사 1", "AI Agents")]
     assert seen["titles"] == ["AI 기사 0", "AI 기사 1"]                     # 분야 판정에도 제목만(고지 준수)
 
 
@@ -130,7 +130,7 @@ def test_headline_area_fn_failure_or_length_mismatch_leaves_no_area(capsys):
     def boom(_t):
         raise RuntimeError("throttled")
 
-    for fn in (boom, lambda t: ["Research"]):          # 예외 · 길이 불일치 → 분야 없음(소제목 없는 목록)
+    for fn in (boom, lambda t: ["Applied AI"]):          # 예외 · 길이 불일치 → 분야 없음(소제목 없는 목록)
         out = H.collect_headlines([_src(require_ai=False, max_items=2)], window_hours=24,
                                   fetch_fn=lambda s, w: _arts(3), headline_area_fn=fn)
         assert [h.area for h in out["aitimes"]] == ["", ""]
@@ -138,8 +138,8 @@ def test_headline_area_fn_failure_or_length_mismatch_leaves_no_area(capsys):
 
 
 def test_llm_headline_areas_maps_closed_list_in_order():
-    ans = '생각...\n{"Research": [2], "AI Agents": [1, 3]}'
-    assert H.llm_headline_areas(["a", "b", "c"], invoke=lambda s, u: ans) == ["AI Agents", "Research", "AI Agents"]
+    ans = '생각...\n{"Applied AI": [2], "AI Agents": [1, 3]}'
+    assert H.llm_headline_areas(["a", "b", "c"], invoke=lambda s, u: ans) == ["AI Agents", "Applied AI", "AI Agents"]
 
 
 def test_llm_headline_areas_all_or_nothing(capsys):
@@ -150,9 +150,10 @@ def test_llm_headline_areas_all_or_nothing(capsys):
     assert "WARN" in capsys.readouterr().err
 
 
-def test_headline_areas_are_the_five_user_approved_names_in_order():
-    assert H.HEADLINE_AREAS == ("AI Agents", "Models & Releases", "Research", "Policy & Security",
-                                "Industry & Business")   # 2026-10-18 사용자 결정 — 메일 소제목 순서
+def test_headline_areas_use_shared_six_area_list():
+    from briefing.core.areas import AREAS
+    assert H.AREAS is AREAS and len(AREAS) == 6                 # 2026-10-24 사용자 결정 — 헤드라인 칸·카드 밴드 한 어휘·한 순서
+    assert "Research" not in AREAS and "Applied AI" in H._AREA_SYSTEM   # 장르 이름(Research) 제거, 정의는 공용 상수에서
 
 
 def test_headline_carries_media_title_url_and_date():
