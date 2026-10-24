@@ -28,5 +28,6 @@ def test_render_briefing_passes_area_map_and_date():
     supervisor.render_briefing._tool_func()  # @tool 원함수 직접 호출
     email = supervisor._CTX["email"]
     assert "요약 2건" in email                                  # 부제 요약(카드) 수
-    assert "AI 뉴스" in email and "프런티어 AI 랩" in email       # 분야 밴드
+    assert "◆" not in email                                     # supervisor 는 라벨 미배선 → 평평(발행처 밴드 없음, 2026-10-24)
+    assert "출처 ·" not in email                                # 테스트 category 는 카탈로그 밖 → 집계 줄 생략
     assert "6월 29일" in email                                  # run_date → 헤더 날짜
