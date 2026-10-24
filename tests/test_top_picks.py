@@ -197,3 +197,15 @@ def test_areas_of_maps_every_shown_card():
     cards = _cards(2) + [_g("q", decision="QUARANTINE")]
     assert areas_of(cards, [_lb(0, area="AI Agents"), _lb(1, area="Applied AI"), _lb(2, area="Models & Releases")]) == {
         "s1": "AI Agents", "s2": "Applied AI", "q": "Models & Releases"}
+
+
+def test_label_cards_distribution_log_keeps_every_card(capsys):
+    """스펙 §7 월 1회 표본 점검은 run 로그의 카드별 분야를 쓴다 — 24장이 400자 절단에 잘리면 안 된다(리뷰 I1)."""
+    cards = [_g(f"s{i:02d}") for i in range(1, 25)]
+    for g in cards:
+        object.__setattr__(g.card, "headline", f"제목-{g.card.source_id}-" + "x" * 50)   # 실제 제목 길이(~60자)
+    fn = lambda c, s: [_lb(i, area="AI Agents" if i % 2 else "Applied AI") for i in range(len(c))]  # noqa: E731
+    assert label_cards(cards, fn, {}, {}) is not None
+    err = capsys.readouterr().err
+    line = next(ln for ln in err.splitlines() if "areas 라벨" in ln)
+    assert "제목-s24-" in line and "제목-s01-" in line                 # 첫 장도 마지막 장도 로그에 남는다

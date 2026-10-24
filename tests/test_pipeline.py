@@ -228,3 +228,362 @@ def test_run_briefing_labels_quarantined_cards_too(tmp_path):
                        [_user("u", ["the-decoder", "claude-blog", "aws-ml"])], label_fn=_label_fake(calls), **kw)
     assert out[0].published == 8 and out[0].quarantined == 1 and calls == [9]   # 보이는 9장(8+⚠1) 전부 라벨
     assert "◆ AI Agents" in out[0].email and "오늘의 핵심" in out[0].email
+
+
+# ── cross-day 발행 dedup (late-post window 겹침에서 "사용자당 기사 1회" — ledger 조회) ──
+
+
+def _dedup_kw(published_verdict="VERIFIED"):
+    """dedup 테스트 공용 kwargs — 결정론 draft/verify(+revise) fake."""
+    return dict(
+        window_hours=0, fetch_article_fn=_fetch,
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "H", "S", "W",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        revise_fn=lambda *_a, **_k: DraftCard("sid", "H", "S", "W",
+                                              (Claim("C1", "ok", "entailment", "core"),)),
+        verify_fn=lambda c: (CertVerdict("C1", published_verdict, "ev"),),
+    )
+
+
+def test_run_briefing_dedups_previously_published(tmp_path):
+    """전날 PUBLISH 된 기사는 다음날 run 에서 제외 — 48h 겹침 윈도우의 '정확히 1회' 보장."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store = SourceStore(str(tmp_path / "store"))
+    ledger = LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    d1 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-07-10", **_dedup_kw())
+    assert d1[0].published == 1                              # D1: 발행 + ledger 기록
+    d2 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-07-11", **_dedup_kw())
+    assert d2[0].published == 0 and len(d2[0].cards) == 0    # D2: 같은 기사 재수집돼도 제외
+
+
+def test_run_briefing_same_day_rerun_not_deduped(tmp_path):
+    """같은 run_date 재실행(강제 재발송 런북)은 dedup 에 안 걸린다 — strictly-earlier 비교."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store = SourceStore(str(tmp_path / "store"))
+    ledger = LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    r1 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-07-10", **_dedup_kw())
+    r2 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-07-10", **_dedup_kw())
+    assert r1[0].published == 1 and r2[0].published == 1     # 멱등 재실행 보존
+
+
+def test_run_briefing_quarantined_is_sent_once(tmp_path):
+    """격리 카드도 ⚠ 표시로 메일에 실린다(N5, 2026-10-18 사용자 결정) → 받은 기사이므로 다음날 다시 안 보낸다.
+
+    (예전 의미론 'QUARANTINE 은 다음날 재도전'은 격리 카드를 보내지 않던 때의 전제였다.)
+    """
+    from briefing.core.stores.ledger import LocalLedger
+
+    store = SourceStore(str(tmp_path / "store"))
+    ledger = LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    d1 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-07-10",
+                      **_dedup_kw(published_verdict="BLOCKED"))   # core BLOCKED → QUARANTINE
+    assert d1[0].quarantined == 1 and d1[0].published == 0
+    assert "⚠ 요약의 사실" in d1[0].email                     # D1: 격리 카드도 메일에 실림
+    d2 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-07-11", **_dedup_kw())
+    assert len(d2[0].cards) == 0                              # D2: 이미 받은 기사 — 중복 발송 없음
+
+
+def test_quarantined_fact_gets_lens_interpretation(tmp_path):
+    """격리 카드도 관점 해석을 붙인다(사용자 요청) — 근거는 확인된 claim 만."""
+    from briefing.core.authoring.author import Interpretation
+
+    store = SourceStore(str(tmp_path / "store"))
+    claims = (Claim("C1", "막힌 주장", "entailment", "core"), Claim("C2", "확인된 주장", "entailment", "supporting"))
+    seen: list = []
+
+    def interp(source, verified, user, settings, summary=""):
+        seen.append(tuple(c.id for c in verified))
+        return Interpretation("engineer 관점 해석", ("C2",))
+
+    out = run_briefing(
+        SimpleNamespace(), store, [_user("u", ["aws-ml"], lens="engineer")], window_hours=0, fetch_article_fn=_fetch,
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "H", "S", "일반 해석", claims),
+        revise_fn=lambda *_a, **_k: DraftCard("sid", "H", "S", "일반 해석", claims),
+        verify_fn=lambda c: (CertVerdict("C1", "BLOCKED", "ev"), CertVerdict("C2", "VERIFIED", "ev")),
+        interp_fn=interp,
+    )
+    assert out[0].quarantined == 1
+    assert seen == [("C2",)]                                   # 확인된 claim 만 해석 재료로
+    assert "engineer 관점 해석" in out[0].email
+
+
+# ── 기사 신원 dedup (2026-10-16 — 해시·URL·제목 키 + source-store join + 90일) ──
+
+
+def _fetch_one(url, title, text):
+    """고정된 기사 1건을 내주는 fetch fake — 날마다 본문/URL 을 바꿔 원문 수정·slug 변경을 재현한다."""
+    def f(source, _w):
+        return [FetchedArticle(source.key, url, title, text, "2026-10-08T00:00:00Z")]
+    return f
+
+
+def _kw(fetch, verdict="VERIFIED"):
+    kw = _dedup_kw(verdict)
+    kw["fetch_article_fn"] = fetch
+    return kw
+
+
+_MLDRIFT_URL = "https://developers.googleblog.com/ml-drift-next-gen-gpu-aiml-inference-at-the-edge/"
+_MLDRIFT = "ML Drift: Next-Gen GPU AI/ML Inference at the Edge"
+_AWSKR = "Strands Agents와 Amazon Bedrock AgentCore을 이용한 발전설비진단 구현하기"
+
+
+def test_dedup_catches_edited_article_by_url(tmp_path, capsys):
+    """원문이 고쳐져 해시가 바뀌어도 URL 이 같으면 다음날 제외 — ML Drift(10-08→10-09) 재현."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    d1 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-08",
+                      **_kw(_fetch_one(_MLDRIFT_URL, _MLDRIFT, "원문 v1. 직원 약 100명.")))
+    d2 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-09",
+                      **_kw(_fetch_one(_MLDRIFT_URL, _MLDRIFT, "원문 v2(한 문단 수정). 직원 약 100명.")))
+    assert d1[0].published == 1 and d2[0].published == 0
+    assert "url 키 일치" in capsys.readouterr().err
+
+
+def test_dedup_catches_slug_change_by_title(tmp_path, capsys):
+    """slug 오타 수정으로 URL·해시가 둘 다 바뀌어도 같은 매체·같은 제목이면 제외 — AWS KR(09-22→09-23) 재현."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-09-22",
+                 **_kw(_fetch_one("https://aws.amazon.com/ko/blogs/tech/arae-energy/", _AWSKR, "arae 본문. 직원 약 100명.")))
+    d2 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-09-23",
+                      **_kw(_fetch_one("https://aws.amazon.com/ko/blogs/tech/narae-energy/", _AWSKR, "narae 본문. 직원 약 100명.")))
+    assert d2[0].published == 0
+    assert "title 키 일치" in capsys.readouterr().err
+
+
+def test_dedup_lookback_boundary(tmp_path):
+    """정확히 lookback 일 전 발행은 막고, 그 하루 뒤에는 다시 보낸다(창 밖)."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    s = SimpleNamespace(dedup_lookback_days=90)
+    assert run_briefing(s, store, users, ledger=ledger, run_date="2026-07-18", **_dedup_kw())[0].published == 1
+    assert run_briefing(s, store, users, ledger=ledger, run_date="2026-10-16", **_dedup_kw())[0].published == 0  # 90일 전 = 포함
+    assert run_briefing(s, store, users, ledger=ledger, run_date="2026-10-17", **_dedup_kw())[0].published == 1  # 91일 전 = 창 밖
+
+
+def test_dedup_meta_missing_falls_back_to_hash(tmp_path, capsys):
+    """source-store 에 원본이 없는 과거 발행(2026-08-01 이전 TTL 만료분)은 해시로만 비교 — fail-open."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    ledger.append("2026-10-08", "u", "gone-sid", "k", "PUBLISH", "H")     # 원본 없는(dangling) 포인터
+    d = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-09",
+                     **_kw(_fetch_one(_MLDRIFT_URL, _MLDRIFT, "원문. 직원 약 100명.")))
+    assert d[0].published == 1                                            # 막을 근거가 없으면 막지 않는다
+    assert "원본 없는 이전 발행 1건" in capsys.readouterr().err
+
+
+class _CountingStore(SourceStore):
+    """get_meta 호출을 세는 store — run 메모(사용자 간 공유)가 재조회를 막는지 확인."""
+
+    def __init__(self, root):
+        super().__init__(root)
+        self.meta_calls: list[list[str]] = []
+
+    def get_meta(self, source_ids):
+        ids = list(source_ids)
+        self.meta_calls.append(ids)
+        return super().get_meta(ids)
+
+
+def test_dedup_meta_join_shared_across_users(tmp_path):
+    """같은 기사를 받은 두 번째 사용자는 source-store 를 다시 읽지 않는다(run 메모)."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = _CountingStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    users = [_user("a", ["aws-ml"]), _user("b", ["aws-ml"])]
+    run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-08",
+                 **_kw(_fetch_one(_MLDRIFT_URL, _MLDRIFT, "원문 v1. 직원 약 100명.")))
+    store.meta_calls.clear()
+    d2 = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-09",
+                      **_kw(_fetch_one(_MLDRIFT_URL, _MLDRIFT, "원문 v2. 직원 약 100명.")))
+    assert [b.published for b in d2] == [0, 0]
+    assert len(store.meta_calls) == 1                     # 첫 사용자만 조회, 두 번째는 메모 히트
+
+
+class _FailingMetaStore(SourceStore):
+    """source-store 조회가 예외를 던지는 store — DDB ClientError(RequestLimitExceeded 등) 재현."""
+
+    def get_meta(self, source_ids):
+        raise RuntimeError("RequestLimitExceeded (simulated)")
+
+
+def test_dedup_join_failure_does_not_abort_briefing(tmp_path, capsys):
+    """dedup join 이 예외를 던져도 브리핑은 나간다 — 그 run 만 dedup off(fail-open) + warn. 빈 메일함보다 중복 1건이 낫다."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = _FailingMetaStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    ledger.append("2026-10-08", "u", "prev-sid", "k", "PUBLISH", "H")   # 과거 발행이 있어야 join 이 호출된다
+    d = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-09", **_dedup_kw())
+    assert d[0].published == 1
+    assert "dedup off" in capsys.readouterr().err
+
+
+def test_dedup_title_key_only_within_short_window(tmp_path):
+    """같은 매체가 같은 제목을 반복 쓰는 연재(월간 호 등)는 한 달 뒤 새 호를 막지 않는다 — 제목 키는 짧은 창만."""
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    users = [_user("u", ["aws-ml"])]
+    title = "What's new in Amazon Bedrock this month"
+    run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-09-01",
+                 **_kw(_fetch_one("https://aws.amazon.com/blogs/ml/whats-new-2026-09/", title, "9월호. 직원 약 100명.")))
+    d = run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-01",
+                     **_kw(_fetch_one("https://aws.amazon.com/blogs/ml/whats-new-2026-10/", title, "10월호. 직원 약 100명.")))
+    assert d[0].published == 1                    # 30일 뒤 같은 제목·다른 URL·다른 본문 = 새 호 → 보낸다
+
+
+# ── 2층화: 사실층 공유 + lens 해석층 (card-layering §5) ─────────────────
+
+
+def test_layered_fact_once_interp_per_lens(tmp_path):
+    """사실층은 출처당 1회(사용자 무관), 해석층은 (출처, lens)당 1회 — 캐시 없이도 run 내 공유."""
+    from briefing.core.authoring.author import Interpretation
+
+    store = SourceStore(str(tmp_path / "store"))
+    users = [_user("alice", ["aws-ml"], lens="engineer"),
+             _user("bob", ["aws-ml"], lens="business"),
+             _user("carol", ["aws-ml"], lens="engineer")]   # 3명·2 lens
+    calls = {"draft": 0, "interp": 0}
+
+    def draft(source, *_a):
+        calls["draft"] += 1
+        return DraftCard(source.source_id, "헤드라인", "요약", "일반 해석",
+                         (Claim("C1", "ok", "entailment", "core"),))
+
+    def interp(source, claims, user, settings, summary=""):
+        calls["interp"] += 1
+        return Interpretation(f"{user.lens} 관점 해석", (claims[0].id,))
+
+    out = run_briefing(
+        SimpleNamespace(), store, users, window_hours=0, fetch_article_fn=_fetch,
+        draft_fn=draft, interp_fn=interp,
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert calls == {"draft": 1, "interp": 2}                  # 사실 1회 + lens 2종
+    assert "engineer 관점 해석" in out[0].email                 # alice
+    assert "business 관점 해석" in out[1].email                 # bob
+    assert "engineer 관점 해석" in out[2].email                 # carol = alice 와 공유
+
+
+def test_layered_general_lens_skips_interp(tmp_path):
+    """general lens 는 해석층 호출 없이 사실층 why 를 그대로 쓴다(사실층=general 이라 동일물)."""
+    store = SourceStore(str(tmp_path / "store"))
+    called = {"n": 0}
+
+    def interp(*_a):
+        called["n"] += 1
+        raise AssertionError("general 은 interp 를 부르면 안 됨")
+
+    out = run_briefing(
+        SimpleNamespace(), store, [_user("u", ["aws-ml"], lens="general")],
+        window_hours=0, fetch_article_fn=_fetch,
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "헤드라인", "요약", "일반 해석",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        interp_fn=interp,
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert called["n"] == 0
+    assert "일반 해석" in out[0].email
+
+
+def test_layered_interp_failure_falls_back_to_fact_why(tmp_path):
+    """층별 격리: 해석층이 죽어도 카드는 사실층 why 로 발행된다(브리핑 무붕괴)."""
+    store = SourceStore(str(tmp_path / "store"))
+
+    def interp(*_a):
+        raise RuntimeError("interp harness down")
+
+    out = run_briefing(
+        SimpleNamespace(), store, [_user("u", ["aws-ml"], lens="engineer")],
+        window_hours=0, fetch_article_fn=_fetch,
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "헤드라인", "요약", "일반 해석",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        interp_fn=interp,
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert out[0].published == 1
+    assert "일반 해석" in out[0].email                          # 폴백 = 사실층(일반) why
+
+
+# ── 헤드라인 전용 소스(aitimes): 본문 미수집 · 구독자 메일에만 제목·링크 칸 ──
+def _headline_feed(source, _w):
+    return [FetchedArticle(source.key, "https://www.aitimes.com/n/1", "국내 AI 반도체 신제품 공개", "",
+                           "2026-10-17T00:00:00+00:00")]
+
+
+def test_run_briefing_attaches_headlines_only_to_subscribers(tmp_path):
+    store = SourceStore(str(tmp_path / "store"))
+    users = [_user("alice", ["aws-ml", "aitimes"]), _user("bob", ["aws-ml"])]
+    out = run_briefing(
+        SimpleNamespace(), store, users, window_hours=0, fetch_article_fn=_fetch,
+        headline_fetch_fn=_headline_feed,
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "H", "S", "W",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert "국내 AI 반도체 신제품 공개" in out[0].email           # aitimes 구독자 → 헤드라인 칸
+    assert "국내 AI 반도체 신제품 공개" not in out[1].email       # 비구독자 → 없음
+    assert out[0].published == 1                                 # aitimes 는 카드를 만들지 않는다(aws-ml 1건뿐)
+
+
+def test_run_briefing_never_fetches_bodies_for_headlines_only(tmp_path):
+    store = SourceStore(str(tmp_path / "store"))
+    calls: list[str] = []
+
+    def fetch(source, w):
+        calls.append(source.key)
+        return _fetch(source, w)
+
+    run_briefing(
+        SimpleNamespace(), store, [_user("u", ["aws-ml", "aitimes"])], window_hours=0,
+        fetch_article_fn=fetch, headline_fetch_fn=lambda _s, _w: [],
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "H", "S", "W",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert calls == ["aws-ml"]                                   # aitimes 본문 fetch 0회
+
+
+def test_run_briefing_threads_headline_area_fn(tmp_path):
+    out = run_briefing(
+        SimpleNamespace(), SourceStore(str(tmp_path / "store")), [_user("u", ["aws-ml", "aitimes"])], window_hours=0,
+        fetch_article_fn=_fetch, headline_fetch_fn=_headline_feed,
+        headline_area_fn=lambda titles: ["Industry & Business"] * len(titles),
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "H", "S", "W",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert "Industry &amp; Business 1" in out[0].email           # 분야 소제목이 메일까지 온다
+
+
+def test_run_briefing_passes_card_source_titles_as_covered(tmp_path):
+    store = SourceStore(str(tmp_path / "store"))
+    seen = {}
+
+    def hsel(cands, k, covered):
+        seen["covered"] = list(covered)
+        return [(a, "해외") for a in list(cands)[:k]]
+
+    run_briefing(
+        SimpleNamespace(), store, [_user("u", ["aws-ml", "aitimes"])], window_hours=0,
+        fetch_article_fn=_fetch, headline_fetch_fn=_headline_feed, headline_select_fn=hsel,
+        draft_fn=lambda source, *_a: DraftCard(source.source_id, "H", "S", "W",
+                                               (Claim("C1", "ok", "entailment", "core"),)),
+        verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
+    )
+    assert seen["covered"] == ["제목"]   # aws-ml 동결본 제목(_fetch) — 헤드라인이 카드와 겹치지 않게

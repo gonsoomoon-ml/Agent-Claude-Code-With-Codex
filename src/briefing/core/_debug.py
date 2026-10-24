@@ -43,15 +43,16 @@ def dprint(label: str, body: object = "", color: str = "cyan") -> None:
     print(f"{c}[DEBUG {label}]{r} {truncate(body)}", file=sys.stderr, flush=True)
 
 
-def warn(label: str, body: object = "") -> None:
+def warn(label: str, body: object = "", limit: int = 400) -> None:
     """운영 경고 — **항상** stderr 출력(DEBUG 무관). 드문 실패(출처 skip 등)를 가시화 → silent failure 방지.
 
     (dprint 와 달리 DEBUG 게이트 없음: 경고는 hot path 가 아니라 드문 실패 시에만 나므로 overhead 무관.)
 
     두 경로로 낸다 — stderr(로컬·테스트에서 즉시 보임) + logging 레코드(컨테이너가 수집하는 유일한 경로).
     ★ stderr 만으로는 배포 환경에서 관측되지 않는다(2026-07-27 실측: CloudWatch 3시간에 우리 warn 0건).
+    limit: 절단 길이(기본 400). 카드별 분야 분포처럼 사후 점검 원자료가 되는 줄만 넉넉히 준다(2026-10-24 리뷰 I1).
     """
-    msg = truncate(body)
+    msg = truncate(body, limit)
     c, r = _C["yellow"], _C["reset"]
     print(f"{c}[WARN {label}]{r} {msg}", file=sys.stderr, flush=True)
     _LOG.warning("[%s] %s", label, msg)

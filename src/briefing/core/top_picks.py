@@ -223,7 +223,7 @@ def label_cards(cards: Sequence[GatedCard], label_fn: LabelFn | None,
             if why := labels_complete(labels, len(cards)):   # 주입 함수가 불완전한 목록을 돌려줘도 밴드를 그리지 않는다
                 raise LabelIncomplete(why)
             memo[key] = labels
-            _debug.warn("areas 라벨", _distribution(cards, labels))
+            _debug.warn("areas 라벨", _distribution(cards, labels), limit=4000)   # 24장 × 40자가 400자 절단에 잘리지 않게(표본 점검 원자료)
         except Exception as err:  # noqa: BLE001 — 라벨은 보조 장치: 실패해도 브리핑은 나간다(핵심 3·밴드만 생략)
             _debug.warn("areas 라벨", f"{type(err).__name__}: {err} → 핵심 3·분야 밴드 생략(평평)")
             memo[key] = None
