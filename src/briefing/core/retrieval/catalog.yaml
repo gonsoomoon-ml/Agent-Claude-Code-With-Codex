@@ -1,14 +1,16 @@
 # src/briefing/core/retrieval/catalog.yaml — 전역 vetted 출처 CATALOG.
 # 추가 = 이 파일 편집 + PR 리뷰(= vetting). 임의 URL 금지(큐레이션).
 # 필수: key · name · url · kind(rss|html|auto|sitemap) · lang(en|ko) · category.  선택: fragile(기본 false; *진짜 차단* 출처 — 현재 없음).
-#   category = 발행처(publisher/brand) 그룹 → UI 섹션 + 이메일 분야 밴드 그룹핑 키. 비어있지 않음(로더 강제).
+#   category = 발행처(publisher/brand) 그룹 → 웹 picker 섹션 + 이메일 **출처 집계 줄·칸 안 순서**. 비어있지 않음(로더 강제).
+#   ★ 2026-10-24: 이메일 밴드 키는 더 이상 category 가 아니다 — 기사 단위 주제 라벨(core/areas.py 6칸). category 는 picker 와
+#     집계 줄('출처 · Amazon (AWS) 7 · …')·각 분야 칸 안의 발행처 순서에만 쓰인다.
 #   ⚠️ category 값 = 바뀌지 않는 영문 이름(한국어판·영어판 공통 키 — 값이 곧 영어 표시. 한국어 표시는 두 언어판 때
 #      표 하나로 붙인다). 사용자 프로필엔 소스 키만 저장 → 이름을 바꿔도 데이터 이전 없음.
 #      소스 3개 이상 발행처 = 자기 섹션(AWS·Anthropic·Google), 나머지 = 성격별 묶음(Independent Voices 등).
 #   ⚠️ 섹션 순서 = 이 파일의 첫 등장 순서(build_catalog 이 CATALOG 순서 보존) → 같은 발행처를 인접 배치해 순서를 통제한다.
 #   현재 순서(2026-10-20 사용자 결정): AWS → Anthropic → Google → AI Labs → News & Media → Engineering Blogs →
 #   Independent Voices → Community — 원 발표처(공식 채널)를 먼저, 매체 보도(The Decoder)는 그 뒤. 메일은 AI Times
-#   헤드라인 칸 → 오늘의 핵심 3 → AWS … 로 이어진다(헤드라인 칸은 카탈로그 순서와 무관하게 맨 위).
+#   헤드라인 칸 → 오늘의 핵심 3 → 주제 밴드 6칸(각 칸 안은 AWS → … 카탈로그 순) 로 이어진다(2026-10-24; 헤드라인 칸은 맨 위).
 #   (이전 2026-10-18: News & Media 가 맨 앞이었다.)
 # kind: rss=피드 직접 / html=리스팅→trafilatura 추출(피드 발견 안 함) / auto=피드 자동발견 후 폴백 / sitemap=사이트맵 urlset→글 페이지 추출.
 # ⚠️ 모든 요청은 실행 중 robots.txt(RFC 9309) 검사를 거친다(retrieval/robots.py) — 막힌 경로는 요청하지 않는다.
