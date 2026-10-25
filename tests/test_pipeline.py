@@ -568,7 +568,7 @@ def test_run_briefing_threads_headline_area_fn(tmp_path):
                                                (Claim("C1", "ok", "entailment", "core"),)),
         verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
     )
-    assert "Industry &amp; Business 1" in out[0].email           # 분야 소제목이 메일까지 온다
+    assert "Industry &amp; Business <span" in out[0].email and ">1건</span>" in out[0].email   # 분야 소제목이 메일까지 온다(건수 = N건, 2026-10-25)
 
 
 def test_run_briefing_passes_card_source_titles_as_covered(tmp_path):

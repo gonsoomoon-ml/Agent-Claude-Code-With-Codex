@@ -204,7 +204,8 @@ def _headlines_html(headlines: Sequence[Headline]) -> str:
             rows = [h for h in ok if h.area == area]
             if rows:
                 body += (f'<p style="font-size:12px;font-weight:700;color:{_META};margin:8px 0 0">'
-                         f"{html.escape(area)} {len(rows)}</p>" + _ul(rows))
+                         f'{html.escape(area)} <span style="{_MONO};font-weight:400">{len(rows)}건</span></p>'   # 밴드 `◆ 분야 N건`과 같은 어휘·모양(2026-10-25)
+                         + _ul(rows))
     else:
         body = _ul(ok)
     label = f"{html.escape(media[0])} " if not per_row else ""

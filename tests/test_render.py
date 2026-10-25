@@ -327,8 +327,10 @@ def test_headlines_grouped_by_area_in_fixed_order_and_empty_hidden():
         _hl("정책 소식", area="Safety, Security & Policy"), _hl("에이전트 소식 A", area="AI Agents"),
         _hl("에이전트 소식 B", area="AI Agents")])
     box = _box(out)
-    assert box.index("AI Agents 2") < box.index("에이전트 소식 A") < box.index("에이전트 소식 B") \
-        < box.index("Safety, Security &amp; Policy 1") < box.index("정책 소식")          # 분야 순서 고정, 분야 안은 선별 순서
+    assert box.index("AI Agents") < box.index("에이전트 소식 A") < box.index("에이전트 소식 B") \
+        < box.index("Safety, Security &amp; Policy") < box.index("정책 소식")            # 분야 순서 고정, 분야 안은 선별 순서
+    # 건수 표기 = 밴드와 같은 어휘 `N건`(2026-10-25 사용자 요청: 숫자만 붙던 "AI Agents 2" → "AI Agents 2건")
+    assert ">2건</span>" in box.split("AI Agents")[1][:120] and ">1건</span>" in box.split("Policy")[1][:120]
     assert "Inference" not in box and "Models" not in box                      # 빈 분야는 소제목째 숨김
 
 
