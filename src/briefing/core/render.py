@@ -195,7 +195,8 @@ def _headlines_html(headlines: Sequence[Headline]) -> str:
             + "</li>"
             for h in rows
         )
-        return f'<ul style="margin:4px 0 0;padding-left:18px;font-size:13px;line-height:1.5">{items}</ul>'
+        # 글자 크기·행간은 지정하지 않는다 — 요약 문단(`<p style="margin:0">`)과 같은 상속 = 본문과 동일 크기(2026-10-25 사용자 요청)
+        return f'<ul style="margin:4px 0 0;padding-left:18px">{items}</ul>'
 
     if all(h.area in AREAS for h in ok):   # 분야 순서 고정(공용 6칸) — 빈 분야는 소제목째 숨김
         body = ""

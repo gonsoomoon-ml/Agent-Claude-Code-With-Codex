@@ -273,6 +273,14 @@ def test_headlines_show_media_once_in_section_title():
     assert out.count("AI Times") == 1                                # 줄마다 반복하지 않고 칸 제목에 한 번
 
 
+def test_headline_titles_inherit_body_font_size():
+    """헤드라인 제목 글자 = 카드 본문(요약) 글자 — 둘 다 크기를 지정하지 않고 래퍼에서 상속(2026-10-25 사용자 요청: 13px 는 작다)."""
+    out = render_email([_gated()], _user(), None, headlines=[_hl()])
+    start = out.index("<ul style=")
+    ul_tag = out[start:out.index(">", start)]
+    assert "font-size" not in ul_tag and "line-height" not in ul_tag
+
+
 def test_seal_scopes_verification_to_summaries_with_or_without_headlines():
     """인장 = "요약은" — 요약이 있는 것은 카드뿐이라 헤드라인(요약·검증 없음)이 위에 있어도 범위가 저절로 맞고,
     해석(관점)까지 원문 대조한 것처럼 읽히지 않는다(검증줄 "요약의 사실 N건"과 같은 범위)."""
