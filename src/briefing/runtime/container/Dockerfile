@@ -38,7 +38,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 # ★ claude 2.1.195 → 2.1.301(2026-10-18, U8 ①): 같은 Sonnet 5 로 품질 차이 없음·카드당 약 44초 빠름(다턴 루프 감소)·
 #   비용을 공식 단가로 보고(2.1.195 는 옛 단가표라 1.5배). 근거 = docs/work_note/…/upgrade-comparison-report.md(A1).
 #   codex 는 검증 모델 교체(U8 ③)와 함께 올린다 — 0.163.0 에는 GPT-5.5 연결 설정이 없다.
-RUN npm install -g @anthropic-ai/claude-code@2.1.301 @openai/codex@0.142.2
+# ★ codex 0.142.2 → 0.163.0(2026-10-25, U8 ③): 검증 모델 GPT-5.5 → GPT-6 Luna(codex_config.toml)와 짝.
+#   사전 검증 = 시험 발송 카드 11장·claim 130개 판정이 GPT-5.5 와 전부 일치, rc 실패 0, 호출당 ≈1.2초.
+RUN npm install -g @anthropic-ai/claude-code@2.1.301 @openai/codex@0.163.0
 
 # ── Python 의존성 (컨테이너 최소 목록 + OTEL) ──
 COPY requirements.txt requirements.txt
