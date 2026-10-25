@@ -161,9 +161,9 @@ def _card_html(card: GatedCard, store: SourceStore | None, *, depth: str, lens: 
 
 
 def _band(category: str, count: int) -> str:
-    """분야(Area) 밴드 — 이름(700) + mono 건수."""
+    """분야(Area) 밴드 — 이름(700) + mono 건수. 20px = 기사 제목(h2 19px) 위·브리핑 제목(h1 22px) 아래(위계, 2026-10-25)."""
     return (
-        f'<p style="font-weight:700;font-size:15px;margin:20px 0 0">◆ {html.escape(category)} '
+        f'<p style="font-weight:700;font-size:20px;margin:20px 0 0">◆ {html.escape(category)} '
         f'<span style="{_MONO};font-weight:400;color:{_META};font-size:12px">{count}건</span></p>'
         f'<div style="border-top:1px solid {_RULE};margin:4px 0 0"></div>'
     )
@@ -210,7 +210,7 @@ def _headlines_html(headlines: Sequence[Headline]) -> str:
     label = f"{html.escape(media[0])} " if not per_row else ""
     return (
         f'<div style="border:1px solid {_RULE};border-radius:8px;padding:8px 12px;margin:12px 0 4px">'
-        f'<p style="font-weight:700;font-size:14px;margin:0">◇ {label}헤드라인 '
+        f'<p style="font-weight:700;font-size:20px;margin:0">◇ {label}헤드라인 '
         f'<span style="{_MONO};font-weight:400;color:{_META};font-size:12px">'
         f"{len(ok)}건 · 요약·검증 없음 — 제목과 원문 링크만</span></p>{body}</div>"
     )

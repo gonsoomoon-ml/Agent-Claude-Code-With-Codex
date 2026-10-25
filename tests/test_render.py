@@ -281,6 +281,22 @@ def test_headline_titles_inherit_body_font_size():
     assert "font-size" not in ul_tag and "line-height" not in ul_tag
 
 
+def test_section_heads_sit_between_briefing_title_and_card_headline():
+    """글자 위계(2026-10-25 사용자 요청): 브리핑 제목(h1) > 분야 밴드(◆)·헤드라인 칸 머리(◇) > 기사 제목(h2).
+    숫자가 아니라 순서를 고정 — 밴드가 기사 제목보다 작으면 묶음 머리가 묶인 것 아래로 보인다."""
+    import re
+    out = render_email([_gated(source_id="a")], _user(), None, headlines=[_hl()], card_areas={"a": "AI Agents"})
+
+    def px(tag_start: str) -> int:
+        i = out.index(tag_start)
+        return int(re.search(r"font-size:(\d+)px", out[i:out.index(">", i)]).group(1))
+
+    h1, h2 = px("<h1 "), px("<h2 ")
+    band = int(re.search(r'<p style="font-weight:700;font-size:(\d+)px;margin:20px 0 0">◆', out).group(1))
+    heads = int(re.search(r'<p style="font-weight:700;font-size:(\d+)px;margin:0">◇', out).group(1))
+    assert h1 > band > h2 and h1 > heads > h2, (h1, band, heads, h2)
+
+
 def test_seal_scopes_verification_to_summaries_with_or_without_headlines():
     """인장 = "요약은" — 요약이 있는 것은 카드뿐이라 헤드라인(요약·검증 없음)이 위에 있어도 범위가 저절로 맞고,
     해석(관점)까지 원문 대조한 것처럼 읽히지 않는다(검증줄 "요약의 사실 N건"과 같은 범위)."""
