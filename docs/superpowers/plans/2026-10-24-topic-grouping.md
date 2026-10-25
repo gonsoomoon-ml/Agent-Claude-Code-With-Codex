@@ -322,7 +322,7 @@ print(rb._converse_label_text(rb._client('us-east-1'), load_settings().label_mod
 
 **Files:** 없음(운영). 결과 기록: `docs/deliveries/2026-10-XX-topic-grouping-delivery.md`
 
-- [ ] **Step 1: 사용자 확인(필수, 기본값 없음)** — "U8 ②(요약 모델 관찰) **앞**에 배포할지 **뒤**에 할지" 답을 받는다. 답 전엔 진행하지 않는다.
+- [x] **Step 1: 사용자 확인(필수, 기본값 없음)** — "U8 ②(요약 모델 관찰) **앞**에 배포할지 **뒤**에 할지" 답을 받는다. 답 전엔 진행하지 않는다. → **답(2026-10-25): 뒤.** U8 ② 관찰이 끝날 때까지 브랜치를 main 에 병합하지 않는다(병합 = U8 ② 배포에 동승). 재개 시 Step 2 부터.
 - [ ] **Step 2: main 병합** `git checkout main && git merge --no-ff topic-grouping` (사용자가 PR 을 원하면 PR). `uv run pytest -q` 재확인.
 - [ ] **Step 3: 배포** `.env` 에 `LABEL_MODEL_ID` 가 있는지 확인 후 `uv run python -m briefing.runtime.deploy_runtime`(런타임 ARN 불변·dry-run 풋건 없음 — `deploy_scheduler` 는 실행 금지). READY 확인.
 - [ ] **Step 4: 첫 run 검증(다음 05:00 KST 뒤)** CloudWatch `/aws/bedrock-agentcore/runtimes/briefing_agent-b9uh7rDAqL-DEFAULT` 에서 `"areas 호출"` 줄의 `model=…sonnet-5-5`, `"areas 라벨"` 분포 줄, `"top picks 선정"` 줄; `briefing-sent-log` run_date 의 7명 `status=sent`; 수신 메일에서 출처 집계 줄·6칸 밴드·칸 안 AWS 우선 확인.
