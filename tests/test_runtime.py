@@ -35,14 +35,24 @@ def test_runtime_env_includes_container_core_keys(tmp_path, monkeypatch):
     from briefing.runtime.deploy_runtime import runtime_env
 
     monkeypatch.delenv("DEBUG", raising=False)
-    env = runtime_env(_settings(tmp_path))
+    monkeypatch.delenv("LABEL_MODEL_ID", raising=False)
+    env = runtime_env(_settings(tmp_path, label_model_id=""))
     # 컨테이너는 .env 를 안 읽음 → launch(env_vars=...) 로 주입되는 핵심 키들
     assert env["AWS_REGION"] == "us-east-1"
+    assert "LABEL_MODEL_ID" not in env               # 설정 안 하면 안 넘긴다(컨테이너도 RELEVANCE 상속)
     assert env["AUTHOR_MODEL_ID"] == "global.anthropic.claude-sonnet-4-6"
     assert env["SES_SENDER"] == "briefing@example.com"
     assert env["CLAUDE_CODE_USE_BEDROCK"] == "1"   # author=claude -p 를 Bedrock 로 라우팅
     assert env["ENABLE_TOOL_SEARCH"] == "false"
     assert env["BACKEND"] == "dynamo"              # ③ DB: 클라우드는 dynamo backend(영속)
+
+
+def test_runtime_env_forwards_label_model_id_when_set(tmp_path):
+    """★ 화이트리스트에 없으면 프로덕션은 조용히 Haiku 기본값으로 돈다(스펙 §6.1) — 설정값은 반드시 컨테이너로."""
+    from briefing.runtime.deploy_runtime import runtime_env
+
+    env = runtime_env(_settings(tmp_path, label_model_id="global.anthropic.claude-sonnet-5-5"))
+    assert env["LABEL_MODEL_ID"] == "global.anthropic.claude-sonnet-5-5"
 
 
 def test_runtime_env_forwards_debug_on(tmp_path, monkeypatch):
@@ -158,7 +168,7 @@ def test_production_fns_wires_judge_when_enabled(tmp_path):
 
     fns = _production_fns(_settings(tmp_path, relevance_llm_enabled=True))
     assert "relevance_fn" in fns and "select_fn" in fns and "headline_select_fn" in fns
-    assert "top_pick_fn" in fns   # 오늘의 핵심 3 — 정기·체험·수동이 같은 묶음을 쓴다
+    assert "label_fn" in fns   # 핵심 3 + 분야 라벨(한 호출) — 정기·체험·수동이 같은 묶음을 쓴다
     assert "headline_area_fn" in fns   # 헤드라인 칸 분야 묶음
 
 

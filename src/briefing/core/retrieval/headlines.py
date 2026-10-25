@@ -7,7 +7,7 @@ Haiku 관련성 판정·선별은 제목만 받고 출력은 선택 여부뿐 �
 판단 근거: docs/work_note/Oct-2026/261017-find-new-articles/source-candidates.md
 
 검증 카드가 아니므로 gate/certifier 를 거치지 않는다 → render 가 "요약·검증 없음" 칸으로 카드와 분리한다.
-칸 안은 분야(HEADLINE_AREAS)로 묶는다 — 선별이 끝난 제목만 Haiku 가 닫힌 분야 목록에 배정(별도 콜, 제목만).
+칸 안은 분야(공용 `areas.AREAS`)로 묶는다 — 선별이 끝난 제목만 판정자가 닫힌 분야 목록에 배정(별도 콜, 제목만).
 """
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 from .. import _debug
+from ..areas import AREAS, AREA_DEFINITIONS_HEADLINES
 from . import robots
 from . import sources as src
 from .relevance import RelevanceFn, is_ai_relevant
@@ -33,12 +34,11 @@ HeadlineFetchFn = Callable[[src.Source, int], Sequence[src.FetchedArticle]]
 # (candidates, k, covered_titles) -> 상한 k **이하**의 (기사, 그룹). covered = 이번 run 카드 소스의 기사 제목(같은 소식
 # 제외용). 그룹 = "해외" | "국내" | ""(모름 — 폴백·구형 응답).
 HeadlineSelectFn = Callable[[Sequence[src.FetchedArticle], int, Sequence[str]], list[tuple[src.FetchedArticle, str]]]
-# titles -> 제목마다 분야(같은 길이, HEADLINE_AREAS 중 하나). 실패 = [] → 분야 없음(render 가 소제목 없는 한 목록).
+# titles -> 제목마다 분야(같은 길이, AREAS 중 하나). 실패 = [] → 분야 없음(render 가 소제목 없는 한 목록).
 HeadlineAreaFn = Callable[[Sequence[str]], list[str]]
 
-# 헤드라인 칸 분야(2026-10-18 사용자 결정) — 닫힌 목록·영문 정본(섹션 이름과 같은 원칙). 순서 = 메일 소제목 순서
-# (독자 우선순위: 에이전트 먼저). 지역(국내/해외)은 화면에 내지 않는다(소제목·표시 없음 — 2026-10-18 사용자 결정).
-HEADLINE_AREAS = ("AI Agents", "Models & Releases", "Research", "Policy & Security", "Industry & Business")
+# 헤드라인 칸 분야 = 공용 6칸 `areas.AREAS`(2026-10-24 사용자 결정 — 카드 밴드와 한 어휘·한 순서; 이전 5칸은 2026-10-18).
+# 닫힌 목록·영문 정본, 순서 = 메일 소제목 순서. 지역(국내/해외)은 화면에 내지 않는다(2026-10-18 사용자 결정).
 
 _HEADLINE_SELECT_SYSTEM = (
     "You curate the headline list at the top of a Korean daily AI briefing email. The candidates are Korean "
@@ -71,12 +71,9 @@ _DEDUP_SYSTEM = (
 #   (물리 문제 풀이=Research/Models, 에이전트 무단 침입=Agents/Security 등 — 어느 쪽도 틀리지 않은 경계).
 _AREA_SYSTEM = (
     "You group Korean AI news headlines (titles only) by area for a daily AI briefing read by AI practitioners. "
-    "Assign EVERY numbered headline to exactly one area from this closed list: " + ", ".join(HEADLINE_AREAS) + ". "
-    "AI Agents = agent products and frameworks, agentic coding, agents acting on browsers or computers, agent "
-    "protocols, agent incidents. Models & Releases = new or updated models and AI products. Research = studies, "
-    "benchmarks, scientific results. Policy & Security = laws, regulation, government action, security incidents "
-    "and espionage. Industry & Business = funding, credit, deals, datacenters, chips, markets. Think briefly, then "
-    'end with ONE JSON object on the last line mapping area to numbers, e.g. {"AI Agents": [2], "Research": [1]}.'
+    "Assign EVERY numbered headline to exactly one area from this closed list: " + ", ".join(AREAS) + ".\n"
+    + AREA_DEFINITIONS_HEADLINES + "\nThink briefly, then "
+    'end with ONE JSON object on the last line mapping area to numbers, e.g. {"AI Agents": [2], "Applied AI": [1]}.'
 )
 _IDX_RE = re.compile(r"\[[\d,\s]*\]")
 
@@ -89,7 +86,7 @@ class Headline:
     url: str
     published_at: str   # ISO8601 (없으면 "")
     group: str = ""     # "해외" | "국내" | ""(선별자가 안 나눔) — 선별 안에서만 씀(상한 초과 시 국내 보존), 화면 표시 없음
-    area: str = ""      # HEADLINE_AREAS 중 하나 | ""(분류 안 됨) — 메일 칸의 분야 소제목
+    area: str = ""      # AREAS 중 하나 | ""(분류 안 됨) — 메일 칸의 분야 소제목
 
 
 def fetch_headline_feed(source: src.Source, window_hours: int) -> list[src.FetchedArticle]:
@@ -210,7 +207,7 @@ def llm_headline_select(cands: Sequence[src.FetchedArticle], k: int, covered: Se
 
 
 def llm_headline_areas(titles: Sequence[str], *, invoke: Callable[[str, str], str]) -> list[str]:
-    """선별된 제목 → 제목마다 분야(HEADLINE_AREAS). 응답 = 마지막 줄 {"분야": [번호…]} 객체.
+    """선별된 제목 → 제목마다 분야(AREAS). 응답 = 마지막 줄 {"분야": [번호…]} 객체.
 
     전부 배정됐을 때만 돌려준다 — 일부만 분야가 있으면 소제목 없는 줄이 마지막 묶음에 섞여 보인다.
     목록 밖 이름·범위 밖 번호는 버리고(→ 미배정), 실패하면 [](non-silent): 칸은 소제목 없이 한 목록.
@@ -226,7 +223,7 @@ def llm_headline_areas(titles: Sequence[str], *, invoke: Callable[[str, str], st
             raise ValueError(f"분야 객체 없음 (응답 {ans[-80:]!r})")
         areas = [""] * len(titles)
         for area, nums in d.items():
-            if area not in HEADLINE_AREAS:
+            if area not in AREAS:
                 continue
             for i in nums if isinstance(nums, list) else []:
                 if isinstance(i, int) and 1 <= i <= len(titles) and not areas[i - 1]:

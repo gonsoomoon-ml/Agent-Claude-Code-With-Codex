@@ -28,7 +28,7 @@ from .lenses import DEFAULT_LENS, resolve_lens
 from .stores.ledger import Ledger
 from .stores.source_store import SourceStore
 from .stores.usage import UsageRecorder
-from .top_picks import TopPickFn, top_source_ids
+from .top_picks import LabelFn, areas_of, label_cards, pick_top
 
 # 사실층 합성 사용자 — author 는 user 의 lens·skill_md 만 본다: general + 무skill = 공통 사실층.
 # (id 는 로그 식별용일 뿐 프롬프트에 안 들어감; gate/certifier 는 원래 user-blind.)
@@ -66,7 +66,7 @@ def run_briefing(
     revise_fn=None,
     verify_fn=None,
     interp_fn=None,
-    top_pick_fn: TopPickFn | None = None,
+    label_fn: LabelFn | None = None,
     card_cache: CardCache | None = None,
     ledger: Ledger | None = None,
     run_date: str = "",
@@ -94,7 +94,7 @@ def run_briefing(
     interp_memo: dict[tuple[str, str], GatedCard] = {}   # run 내 해석층 공유 ((source_id, lens) →)
     lookback_days = getattr(settings, "dedup_lookback_days", DEFAULT_DEDUP_LOOKBACK_DAYS)
     meta_memo: dict = {}   # source_id → SourceMeta | None — run 동안 사용자 간 공유(dedup join 은 사실상 run당 1회)
-    top_memo: dict = {}    # 발행 카드 묶음 → 오늘의 핵심 3 source_id — 같은 묶음을 받는 사용자는 판정 1회 공유
+    label_memo: dict = {}  # 보이는 카드 묶음 → 라벨(핵심 3 + 분야 밴드) — 같은 묶음을 받는 사용자는 호출 1회 공유(2026-10-24)
     shadow = {"cards": 0, "hits": Counter()}   # S3 그림자 검사 집계 — 이 run 에서 새로 만든 사실층 카드 기준
     for u in users:
         # 머리 날짜 = 발송 시각(sent_at)을 받는 사람 시간대로 바꾼 날짜(없으면 run_date). run_date 는 저장 키라 UTC 그대로.
@@ -139,7 +139,10 @@ def run_briefing(
         cards = tuple(g for g, _ in produced)
         # render 는 *카드의* source_id 로 분야를 찾는다(실 author 는 fs.source_id 복사) → 카드 기준으로 매핑
         source_categories = {g.card.source_id: cat for g, cat in produced}
-        top = top_source_ids(cards, top_pick_fn, top_memo, source_categories)   # 6장 미만·미주입·실패면 () = 핵심 칸 없음
+        # 라벨 1회 → 핵심 3(PUBLISH 만) + 분야 맵(⚠ 포함). 6장 미만·미주입·재시도 뒤 실패 = None → 핵심 칸 없음 + 평평(render 폴백).
+        labels = label_cards(cards, label_fn, label_memo, source_categories)
+        top = pick_top(cards, labels, [source_categories.get(g.card.source_id, "") for g in cards]) if labels else ()
+        card_areas = areas_of(cards, labels) if labels else None
         out.append(
             UserBriefing(
                 user_id=u.id,
@@ -148,7 +151,7 @@ def run_briefing(
                 email=render.render_email(
                     cards, u, settings, store, source_categories=source_categories, today=today,
                     headlines=[h for s in src.resolve_sources(u.sources) for h in headlines.get(s.key, [])],
-                    top_picks=top,
+                    top_picks=top, card_areas=card_areas,
                 ),
                 published=sum(1 for c in cards if c.decision == "PUBLISH"),
                 quarantined=sum(1 for c in cards if c.decision == "QUARANTINE"),

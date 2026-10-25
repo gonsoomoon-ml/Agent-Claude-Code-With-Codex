@@ -166,24 +166,56 @@ def test_source_line_omits_title_now_that_it_is_the_h2(tmp_path):
     assert "다른헤드라인" in out and "x.com" in out  # h2=card.headline · 출처줄=도메인
 
 
-# ── 분야(Area) 밴드: 2개 이상일 때만 ──────────────────────
-def test_area_bands_render_when_two_or_more_categories():
-    g1 = _gated(headline="가카드", source_id="s1")
-    g2 = _gated(headline="나카드", source_id="s2")
-    cats = {"s1": "AI 뉴스", "s2": "프런티어 AI 랩"}
-    out = render_email([g1, g2], _user(), None, source_categories=cats)
-    assert "AI 뉴스" in out and "프런티어 AI 랩" in out
-    assert "개 분야" not in out                 # 부제에서 분야 수 제거 — 헤드라인 칸의 분야(AI Agents…)와 뜻이 겹친다
-    assert out.index("AI 뉴스") < out.index("프런티어 AI 랩")   # 첫 등장 순서 유지
+# ── 분야(Area) 밴드 = 카드별 주제 라벨(card_areas) · 폴백 = 평평 · 출처 집계 줄 (2026-10-24) ──────
+def _areas_for(cards, area="AI Agents"):
+    return {g.card.source_id: area for g in cards}
 
 
-def test_no_bands_when_single_category():
-    g1 = _gated(source_id="s1")
-    g2 = _gated(source_id="s2")
-    cats = {"s1": "AI 뉴스", "s2": "AI 뉴스"}
-    out = render_email([g1, g2], _user(), None, source_categories=cats)
-    assert "개 분야" not in out
-    assert "◆" not in out
+def test_area_bands_follow_shared_order_and_hide_empty():
+    cards = [_gated(source_id="a", headline="카드-가"), _gated(source_id="b", headline="카드-나"),
+             _gated(source_id="c", headline="카드-다")]
+    out = render_email(cards, _user(), None,
+                       card_areas={"a": "Models & Releases", "b": "AI Agents", "c": "Models & Releases"})
+    assert out.index("◆ AI Agents") < out.index("◆ Models &amp; Releases") and "◆ Applied AI" not in out
+    assert out.index("카드-나") < out.index("카드-가") < out.index("카드-다")   # 칸 안 입력 순서 유지(정렬 금지)
+    assert "개 분야" not in out                                               # 부제의 분야 수는 계속 없음
+
+
+def test_single_card_band_is_allowed():
+    out = render_email([_gated(source_id="a")], _user(), None, card_areas={"a": "Industry & Business"})
+    assert "◆ Industry &amp; Business" in out and ">1건<" in out            # 1장 칸 그대로(2026-10-24 결정 3)
+
+
+def test_incomplete_or_missing_card_areas_fall_back_to_one_flat_band():
+    cards, cats = _six()
+    flat = render_email(cards, _user(), None, source_categories=cats)        # card_areas 없음(supervisor·스모크 경로)
+    assert "◆" not in flat                                                   # 핵심 없음 → 밴드 머리 없이 평평(발행처 밴드 없음)
+    partial = dict(_areas_for(cards))
+    partial.pop("c2")
+    out = render_email(cards, _user(), None, source_categories=cats, top_picks=["a1"], card_areas=partial)
+    assert "◆ 요약 " in out and ">5건<" in out.split("◆ 요약 ")[1][:160]        # 한 장이라도 빠지면 평평 단일 밴드(두 모양뿐)
+    assert "◆ AI Agents" not in out
+
+
+def test_tally_line_counts_shown_cards_in_catalog_order_including_picks():
+    cards, cats = _six()
+    out = render_email(cards, _user(), None, source_categories=cats, top_picks=["a1"], card_areas=_areas_for(cards))
+    assert "출처 · Amazon (AWS) 2 · Google 2 · News &amp; Media 2" in out   # 카탈로그 순(AWS→Google→News), 핵심 포함
+
+
+def test_tally_line_omits_unknown_category_and_renders_on_fallback():
+    cards, cats = _six()
+    cats = {**cats, "a1": "미상"}
+    out = render_email(cards, _user(), None, source_categories=cats)        # 폴백 날에도 집계 줄
+    assert "출처 · Amazon (AWS) 2 · Google 2 · News &amp; Media 1" in out and "미상" not in out
+    assert "출처 ·" not in render_email(cards, _user(), None)                # category 를 전혀 모르면 줄 자체 생략
+
+
+def test_subtitle_and_fallback_band_counts_differ_on_purpose():
+    cards, cats = _six()
+    out = render_email(cards, _user(), None, source_categories=cats, top_picks=["a1", "b1"])
+    assert "요약 6건" in out                                                 # 부제 = 보이는 카드 전체
+    assert "◆ 요약 " in out and ">4건<" in out.split("◆ 요약 ")[1][:160]        # 폴백 밴드 = 핵심 제외 나머지(일부러 다른 수)
 
 
 # ── 다크모드 캔버스 / 푸터 차별점 ──────────────────────────
@@ -241,6 +273,30 @@ def test_headlines_show_media_once_in_section_title():
     assert out.count("AI Times") == 1                                # 줄마다 반복하지 않고 칸 제목에 한 번
 
 
+def test_headline_titles_inherit_body_font_size():
+    """헤드라인 제목 글자 = 카드 본문(요약) 글자 — 둘 다 크기를 지정하지 않고 래퍼에서 상속(2026-10-25 사용자 요청: 13px 는 작다)."""
+    out = render_email([_gated()], _user(), None, headlines=[_hl()])
+    start = out.index("<ul style=")
+    ul_tag = out[start:out.index(">", start)]
+    assert "font-size" not in ul_tag and "line-height" not in ul_tag
+
+
+def test_section_heads_sit_between_briefing_title_and_card_headline():
+    """글자 위계(2026-10-25 사용자 요청): 브리핑 제목(h1) > 분야 밴드(◆)·헤드라인 칸 머리(◇) > 기사 제목(h2).
+    숫자가 아니라 순서를 고정 — 밴드가 기사 제목보다 작으면 묶음 머리가 묶인 것 아래로 보인다."""
+    import re
+    out = render_email([_gated(source_id="a")], _user(), None, headlines=[_hl()], card_areas={"a": "AI Agents"})
+
+    def px(tag_start: str) -> int:
+        i = out.index(tag_start)
+        return int(re.search(r"font-size:(\d+)px", out[i:out.index(">", i)]).group(1))
+
+    h1, h2 = px("<h1 "), px("<h2 ")
+    band = int(re.search(r'<p style="font-weight:700;font-size:(\d+)px;margin:20px 0 0">◆', out).group(1))
+    heads = int(re.search(r'<p style="font-weight:700;font-size:(\d+)px;margin:0">◇', out).group(1))
+    assert h1 > band > h2 and h1 > heads > h2, (h1, band, heads, h2)
+
+
 def test_seal_scopes_verification_to_summaries_with_or_without_headlines():
     """인장 = "요약은" — 요약이 있는 것은 카드뿐이라 헤드라인(요약·검증 없음)이 위에 있어도 범위가 저절로 맞고,
     해석(관점)까지 원문 대조한 것처럼 읽히지 않는다(검증줄 "요약의 사실 N건"과 같은 범위)."""
@@ -268,12 +324,12 @@ def _box(out):
 
 def test_headlines_grouped_by_area_in_fixed_order_and_empty_hidden():
     out = render_email([_gated()], _user(), None, headlines=[
-        _hl("정책 소식", area="Policy & Security"), _hl("에이전트 소식 A", area="AI Agents"),
+        _hl("정책 소식", area="Safety, Security & Policy"), _hl("에이전트 소식 A", area="AI Agents"),
         _hl("에이전트 소식 B", area="AI Agents")])
     box = _box(out)
     assert box.index("AI Agents 2") < box.index("에이전트 소식 A") < box.index("에이전트 소식 B") \
-        < box.index("Policy &amp; Security 1") < box.index("정책 소식")          # 분야 순서 고정, 분야 안은 선별 순서
-    assert "Research" not in box and "Models" not in box                       # 빈 분야는 소제목째 숨김
+        < box.index("Safety, Security &amp; Policy 1") < box.index("정책 소식")          # 분야 순서 고정, 분야 안은 선별 순서
+    assert "Inference" not in box and "Models" not in box                      # 빈 분야는 소제목째 숨김
 
 
 def test_headlines_without_area_render_as_one_list():
@@ -314,22 +370,25 @@ def _six():
 
 def test_headlines_then_top_picks_then_bands():
     cards, cats = _six()
+    areas = {"a1": "Models & Releases", "a2": "Safety, Security & Policy", "b1": "AI Agents", "b2": "Applied AI",
+             "c1": "AI Agents", "c2": "Inference & Hardware"}
     out = render_email(cards, _user(), None, source_categories=cats, top_picks=["c1", "a1", "a2"],
-                       headlines=[_hl()])
-    top, heads, aws, google = (out.index(x) for x in ("오늘의 핵심", "요약·검증 없음", "◆ Amazon (AWS)", "◆ Google"))
-    assert heads < top < aws < google                           # 헤드라인 칸 → 핵심 3 → 분야 섹션(2026-10-18 사용자 결정)
-    assert "◆ News &amp; Media" not in out                      # News 카드가 전부 핵심으로 → 0건 밴드를 그리지 않음
-    assert out.count("제목-c1") == 1 and top < out.index("제목-c1") < aws      # 핵심 카드는 원래 섹션에서 빠짐(중복 없음)
+                       headlines=[_hl()], card_areas=areas)
+    top, heads, agents, applied = (out.index(x) for x in ("오늘의 핵심", "요약·검증 없음", "◆ AI Agents", "◆ Applied AI"))
+    assert heads < top < agents < applied                       # 헤드라인 칸 → 핵심 3 → 분야 밴드(공용 순서)
+    assert "◆ Models &amp; Releases" not in out and "◆ Safety" not in out   # 카드가 전부 핵심으로 → 0건 밴드를 그리지 않음
+    assert out.count("제목-c1") == 1 and top < out.index("제목-c1") < agents      # 핵심 카드는 원래 칸에서 빠짐(중복 없음)
     assert out.index("제목-c1") < out.index("제목-a1") < out.index("제목-a2")  # 판정 순서 그대로
     assert "요약 6건" in out                                                   # 부제 = 발행 카드 전체 기준(핵심 포함)
-    assert "◆ Google" in out and ">1건<" in out.split("◆ Google")[1][:200]     # 밴드 개수 = 남은 카드
+    assert ">1건<" in out.split("◆ AI Agents")[1][:200]                        # 남은 AI Agents 는 b1 뿐
 
 
-def test_top_picks_keep_band_even_when_rest_is_one_category():
+def test_top_picks_keep_band_even_when_rest_is_one_area():
     cards = [_gated(source_id=f"s{i}", headline=f"제목{i}") for i in range(6)]
     cats = {f"s{i}": "Amazon (AWS)" for i in range(6)}
-    out = render_email(cards, _user(), None, source_categories=cats, top_picks=["s3", "s4", "s5"])
-    assert out.index("오늘의 핵심") < out.index("◆ Amazon (AWS)") < out.index("제목0")   # 핵심과 나머지를 밴드로 구분
+    out = render_email(cards, _user(), None, source_categories=cats, top_picks=["s3", "s4", "s5"],
+                       card_areas={f"s{i}": "Applied AI" for i in range(6)})
+    assert out.index("오늘의 핵심") < out.index("◆ Applied AI") < out.index("제목0")   # 핵심과 나머지를 밴드로 구분
 
 
 def test_no_top_section_without_picks_and_unknown_ids_ignored():

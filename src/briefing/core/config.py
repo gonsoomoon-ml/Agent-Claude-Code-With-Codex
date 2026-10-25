@@ -62,6 +62,9 @@ class Settings:
     author_effort: str = ""      # claude -p --effort. 빈 값·"default" = 플래그 생략(CLI 기본값)
     interp_model_id: str = ""    # 해석층(관점별 why) 모델. 빈 값 = author_model_id
     interp_effort: str = ""      # 해석층 effort. 빈 값 = author_effort, "default" = CLI 기본값 강제
+    # ── 핵심 3·분야 라벨 호출 모델(2026-10-24 결정: Sonnet 5.5). 빈 값 = relevance_model_id 상속(해석은 호출 시점,
+    #    relevance_bedrock.make_bedrock_labels). 관련성 판정(기사마다 호출)은 RELEVANCE_MODEL_ID 그대로 — 비용 분리. ──
+    label_model_id: str = ""
 
 
 # claude -p --effort 에 넘길 수 있는 값 + 빈 값·"default"(플래그 생략). 오타는 시작 시 실패시킨다.
@@ -123,6 +126,7 @@ def load_settings() -> Settings:
         author_effort=_effort(g("AUTHOR_EFFORT", ""), "AUTHOR_EFFORT"),
         interp_model_id=g("INTERP_MODEL_ID", "").strip(),
         interp_effort=_effort(g("INTERP_EFFORT", ""), "INTERP_EFFORT"),
+        label_model_id=g("LABEL_MODEL_ID", "").strip(),
     )
 
 

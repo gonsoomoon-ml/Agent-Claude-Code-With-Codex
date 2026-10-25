@@ -149,7 +149,7 @@ def test_run_briefing_header_date_follows_sent_at_in_recipient_timezone(tmp_path
     assert "10월 18일 (일)" in out[0].email and "10월 17일" not in out[0].email
 
 
-# ── 오늘의 핵심 3 (top_pick_fn) ─────────────────────────
+# ── 오늘의 핵심 3 + 분야 라벨 (label_fn) ─────────────────────────
 def _fetch_three(source, _w):
     """출처당 서로 다른 기사 3건 — 출처 2개면 발행 카드 6장(핵심 3 문턱)."""
     return [FetchedArticle(source.key, f"https://x/{source.key}/{i}", f"{source.key} AI 제목 {i}",
@@ -163,45 +163,71 @@ def _top_kw(sources=("the-decoder", "claude-blog")):
                 verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),))
 
 
-def test_run_briefing_top_picks_once_per_card_set_and_rendered_first(tmp_path):
-    """같은 카드 묶음을 받는 사용자들은 판정 1회를 공유하고(lens 무관 — 재료는 사실층), 핵심 3 이 메일 맨 앞에 온다."""
+def _label_fake(calls):
+    """라벨 seam fake — 카드 순서 = 카탈로그 순(claude-blog 3장 → the-decoder 3장): n=0 Anthropic 큰 발표·n=3 OpenAI 큰 발표·
+    n=1 응용 → 핵심 3 성립, 나머지 2·4(Applied AI)·5(AI Agents)."""
+    def label(cards, secs):
+        calls.append(len(cards))
+        base = [{"n": i, "org": "", "type": "other", "importance": 3, "event": f"e{i}",
+                 "area": "AI Agents" if i % 2 else "Applied AI"} for i in range(len(cards))]
+        base[0].update(org="Anthropic", type="launch")
+        base[3].update(org="OpenAI", type="launch")
+        base[1].update(type="applied")
+        return base
+    return label
+
+
+def test_run_briefing_labels_once_per_card_set_and_renders_picks_then_area_bands(tmp_path):
+    """같은 카드 묶음을 받는 사용자들은 라벨 1회를 공유하고(lens 무관 — 재료는 사실층), 핵심 3 → 분야 밴드 순."""
     calls = []
-
-    def top(cards, k, sections=()):
-        calls.append(([g.card.headline for g in cards], k))
-        return list(cards)[-3:]
-
     users = [_user("alice", ["the-decoder", "claude-blog"]), _user("bob", ["the-decoder", "claude-blog"], lens="engineer")]
     from briefing.core.authoring.author import Interpretation
 
-    out = run_briefing(SimpleNamespace(), SourceStore(str(tmp_path / "store")), users, top_pick_fn=top,
+    out = run_briefing(SimpleNamespace(), SourceStore(str(tmp_path / "store")), users, label_fn=_label_fake(calls),
                        interp_fn=lambda source, claims, user, settings, summary="":
                        Interpretation(f"{user.lens} 관점 해석", (claims[0].id,)), **_top_kw())
-    assert len(calls) == 1 and len(calls[0][0]) == 6 and calls[0][1] == 3
+    assert calls == [6]                                                 # 묶음당 1회(⚠ 없음 → 6장)
     for b in out:
         assert b.published == 6
-        # catalog 순서상 Anthropic(claude-blog) → News & Media(the-decoder) — 뒤 3장(decoder)이 핵심으로 올라가고
-        # 남는 밴드는 Anthropic 이다(2026-10-20 섹션 순서 변경).
-        assert b.email.index("오늘의 핵심") < b.email.index("◆ Anthropic")
+        assert b.email.index("오늘의 핵심") < b.email.index("◆ AI Agents") < b.email.index("◆ Applied AI")
+        assert "◆ Anthropic" not in b.email and "◆ News" not in b.email   # 발행처 밴드는 더 없다(2026-10-24)
+        assert "출처 · Anthropic 3 · News &amp; Media 3" in b.email        # 집계 줄(카탈로그 순, 핵심 포함)
 
 
-def test_run_briefing_skips_top_picks_under_threshold(tmp_path):
-    def boom(_c, _k, _s=()):
-        raise AssertionError("발행 카드 6장 미만이면 판정 호출 금지(비용 0)")
+def test_run_briefing_skips_labels_under_threshold(tmp_path):
+    def boom(_c, _s):
+        raise AssertionError("발행 카드 6장 미만이면 라벨 호출 금지(비용 0)")
 
     out = run_briefing(SimpleNamespace(), SourceStore(str(tmp_path / "store")), [_user("u", ["the-decoder"])],
-                       top_pick_fn=boom, **_top_kw())
-    assert out[0].published == 3 and "오늘의 핵심" not in out[0].email
+                       label_fn=boom, **_top_kw())
+    assert out[0].published == 3 and "오늘의 핵심" not in out[0].email and "◆" not in out[0].email
 
 
-def test_run_briefing_top_pick_failure_sends_without_section(tmp_path, capsys):
-    def boom(_c, _k, _s=()):
-        raise RuntimeError("throttled")
+def test_run_briefing_label_failure_drops_both_picks_and_bands(tmp_path, capsys):
+    """한 호출이 핵심 3 과 분야를 같이 먹이므로 실패한 날은 둘 다 빠진다(평평) — 발송은 그대로(fail-open)."""
+    from briefing.core.top_picks import LabelIncomplete
+
+    def boom(_c, _s):
+        raise LabelIncomplete("area 미배정 1/6")
 
     out = run_briefing(SimpleNamespace(), SourceStore(str(tmp_path / "store")),
-                       [_user("u", ["the-decoder", "claude-blog"])], top_pick_fn=boom, **_top_kw())
-    assert out[0].published == 6 and "오늘의 핵심" not in out[0].email   # 핵심 칸만 빠지고 발송은 그대로
+                       [_user("u", ["the-decoder", "claude-blog"])], label_fn=boom, **_top_kw())
+    assert out[0].published == 6 and "오늘의 핵심" not in out[0].email and "◆" not in out[0].email
+    assert "출처 · Anthropic 3 · News &amp; Media 3" in out[0].email      # 집계 줄은 결정론 — 실패 날에도
     assert "WARN" in capsys.readouterr().err                              # non-silent
+
+
+def test_run_briefing_labels_quarantined_cards_too(tmp_path):
+    """⚠ 카드도 메일에 실리므로 라벨 입력에 들어간다(9장 = PUBLISH 8 + ⚠ 1) — 게이트는 PUBLISH 수(≥6)로 센다."""
+    calls = []
+    kw = _top_kw()
+    kw["verify_fn"] = lambda c: ((CertVerdict("C1", "BLOCKED", "ev"),) if c.headline.endswith("제목 2") and "decoder" in c.headline
+                                 else (CertVerdict("C1", "VERIFIED", "ev"),))
+    kw["revise_fn"] = lambda *a, **k: k["prior"]                      # 재작성해도 그대로(prior) → 막힌 claim 유지 = ⚠
+    out = run_briefing(SimpleNamespace(), SourceStore(str(tmp_path / "store")),
+                       [_user("u", ["the-decoder", "claude-blog", "aws-ml"])], label_fn=_label_fake(calls), **kw)
+    assert out[0].published == 8 and out[0].quarantined == 1 and calls == [9]   # 보이는 9장(8+⚠1) 전부 라벨
+    assert "◆ AI Agents" in out[0].email and "오늘의 핵심" in out[0].email
 
 
 # ── cross-day 발행 dedup (late-post window 겹침에서 "사용자당 기사 1회" — ledger 조회) ──

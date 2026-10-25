@@ -128,3 +128,11 @@ def test_unknown_effort_fails_at_startup(monkeypatch, key):
     monkeypatch.setenv(key, "meduim")
     with pytest.raises(ValueError, match=key):
         load_settings()
+
+
+def test_label_model_id_defaults_empty_and_reads_env(monkeypatch):
+    """핵심 3·분야 라벨 호출 모델(2026-10-24 결정 Sonnet 5.5). 빈 값 = RELEVANCE_MODEL_ID 상속(해석은 호출 시점)."""
+    monkeypatch.delenv("LABEL_MODEL_ID", raising=False)
+    assert load_settings().label_model_id == ""
+    monkeypatch.setenv("LABEL_MODEL_ID", "global.anthropic.claude-sonnet-5-5")
+    assert load_settings().label_model_id == "global.anthropic.claude-sonnet-5-5"
