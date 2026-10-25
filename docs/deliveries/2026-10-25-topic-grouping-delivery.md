@@ -1,13 +1,13 @@
 # 메일 카드 밴드 발행처 → 주제 6칸 — 전달 기록 (2026-10-25)
 
-> **상태: SHIPPED · 배포됨 · 관리자 시험 발송 OK(03:01Z) · 정기 첫 run 검증 대기** — main `fa72db0`(브랜치 `topic-grouping` 13 커밋, `--no-ff`) · `deploy_runtime` READY(v59→**v60**, 2026-10-25 02:46Z) · ECR `20261025-024503-695`
+> **상태: SHIPPED · 배포됨 · 관리자 시험 발송 OK(03:01Z, v60) · 정기 첫 run 검증 대기** — main `5fcf246`(origin 동기화; 브랜치 `topic-grouping` 13 커밋 `--no-ff` 병합 `fa72db0` + 후속 4) · `deploy_runtime` READY v59→**v60**(02:46Z, ECR `20261025-024503-695`) → **v61**(03:24Z, ECR `20261025-032323-880`, 사용자 지시 — 헤드라인 소제목 `N건` `5fcf246` 반영, env 18 동일)
 > 스펙 `docs/superpowers/specs/2026-10-24-topic-grouping-design.md` · 플랜 `docs/superpowers/plans/2026-10-24-topic-grouping.md` · 발단 = 사용자 PRD `docs/work_note/Oct-2026/261024-Reorder-Content/reorder-prd.md`
 
 ## 1. 무엇이 바뀌었나
 
 - **카드 밴드 = 기사 단위 주제 6칸**(`core/areas.py`, 메일 순서): AI Agents → Applied AI → Models & Releases → Inference & Hardware → Safety, Security & Policy → Industry & Business. 헤드라인 칸(AI타임스)도 같은 6칸·순서. 발행처(카탈로그 category) 밴드는 제거 — 그 자리에 **출처 집계 줄** `출처 · Amazon (AWS) 7 · Anthropic 6 · …`.
 - **라벨 1콜로 핵심 3 + 분야**: 기존 핵심 3 라벨 호출에 `area` 필드 추가(추가 호출 0). 모델 = `LABEL_MODEL_ID`(.env = Sonnet 5.5, `runtime_env` 화이트리스트로 컨테이너 전달). 입력 = 보이는 카드 전부(⚠ 포함), 핵심 3 선택은 PUBLISH 라벨만. 불완전·예외 → 같은 입력 1회 재시도 → 그래도 안 되면 핵심 3·밴드 **함께 생략**(평평: 핵심 3 있으면 `요약 N건` 단일 밴드). 부분 라벨은 쓰지 않는다. 분야는 캐시하지 않는다(run 당 라벨, 같은 묶음 사용자끼리 memo 공유).
-- **글자 위계**(사용자 지적 2026-10-25): 헤드라인 칸 제목 = 본문 크기(13px 지정 제거) · 분야 밴드(◆)·헤드라인 칸 머리(◇) 15/14px → **20px**(브리핑 제목 22 > 묶음 머리 20 > 기사 제목 19 > 본문).
+- **글자 위계·어휘**(사용자 지적 2026-10-25): 헤드라인 칸 제목 = 본문 크기(13px 지정 제거) · 분야 밴드(◆)·헤드라인 칸 머리(◇) 15/14px → **20px**(브리핑 제목 22 > 묶음 머리 20 > 기사 제목 19 > 본문) · 헤드라인 소제목 건수 `AI Agents 2` → **`AI Agents 2건`**(밴드와 같은 `N건`, v61).
 - Bedrock: Sonnet 5.5 는 `thinking: disabled` 가 400 → 라벨 전용 헬퍼 `thinking: between_tools`(스모크 확인), `maxTokens 6000`. 호출마다 `[WARN areas 호출] model=…` 한 줄.
 
 ## 2. 근거·게이트
@@ -24,7 +24,7 @@
 | IAM | 런타임 역할 `bedrock:InvokeModel` 리소스 `inference-profile/*`·`foundation-model/*`(`arn:aws:bedrock:*`) → Sonnet 5.5 글로벌 프로파일 커버 |
 | 런타임 | `briefing_agent-b9uh7rDAqL` v60 READY 02:46:15Z · 환경변수 17 → **18**(`LABEL_MODEL_ID=global.anthropic.claude-sonnet-5-5` 추가; AUTHOR Sonnet 5·RELEVANCE Haiku 5.5·`RELEVANCE_LLM_ENABLED=1` 불변) |
 | 빌드 컨텍스트 | `.agentcore_build/briefing/core/areas.py` 존재 · render 20px 머리 2곳 · deploy_runtime 화이트리스트 포함 |
-| 실행 이미지 | `containerUri` = `…/bedrock-agentcore-briefing_agent:20261025-024503-695` — 배포 로그의 빌드 태그와 일치(캐시된 옛 이미지 아님) |
+| 실행 이미지 | v60 `…:20261025-024503-695` → **v61 `…:20261025-032323-880`**(03:24:35Z READY) — 둘 다 배포 로그의 빌드 태그와 일치(캐시된 옛 이미지 아님). v61 빌드 컨텍스트 render 에 `N건` 소제목 포함 확인 |
 | 관리자 시험 발송(사용자 지시, 02:54Z accepted → **03:01Z sent**) | 임시 행 `tmp-moongons-topic-test`(admin 복제, 접수 직후 삭제) · `--mode scheduled --now-utc 2026-10-25T20:00Z`(run_date = 오늘 밤 정기 run 과 동일 → cross-day dedup 보호). 결과: **sent · 발행 11 · ⚠ 0 · 244초 · $1.11**(아침 run 의 사실층 카드 캐시 재사용). 로그: `[WARN areas 호출] model=global.anthropic.claude-sonnet-5-5 maxTokens=6000` 1회 · `[WARN areas 라벨] AI Agents 3 · Applied AI 3 · Models & Releases 3 · Safety, Security & Policy 2`(11장 제목 전부, 절단 없음; Inference·Industry 0 → 밴드 숨김) · `[WARN top picks 선정] p1 OpenAI(isolated agents) | p2 applied(patent attorneys) | p2 Anthropic(Scion)` · **폴백(`평평`) 줄 없음** · 헤드라인 분야 호출 WARN 없음(= all-or-nothing 성공). sent-log 에 tmp 행 흔적 남음(이전 시험들과 같음) |
 | 하지 않은 것 | `deploy_scheduler`(DRY_RUN 리셋 풋건) · `deploy_api`(webapi 는 바뀐 모듈 미사용) · M3 `run_golden.py --passes 2` 재측정(미요청) · CLAUDE.md 한 줄(사용자 미커밋 변경과 섞여 보류) · main push(미요청) |
 
