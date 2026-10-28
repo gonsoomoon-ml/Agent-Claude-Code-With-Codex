@@ -19,28 +19,38 @@ from .stores.source_store import FrozenSource
 from .top_picks import big_org
 
 
-def _published(fetched_at: str) -> datetime | None:
-    """동결본 fetched_at(실제로는 발행 시각·날짜) → 비교 가능한 UTC 시각. date-only 는 자정, 파싱 불가·빈값은 None."""
+def _published(fetched_at: str) -> tuple[datetime, bool] | None:
+    """동결본 fetched_at(실제로는 발행 시각·날짜) → (UTC 시각, 시각까지 있는가). 파싱 불가·빈값은 None.
+
+    date-only(html 소스 — 페이지 메타데이터가 날짜만)는 자정으로 두되 "시각 없음"으로 표시한다.
+    """
+    s = (fetched_at or "").strip()
     try:
-        t = datetime.fromisoformat((fetched_at or "").strip().replace("Z", "+00:00"))
+        t = datetime.fromisoformat(s.replace("Z", "+00:00"))
     except ValueError:
         return None
-    return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+    return (t if t.tzinfo else t.replace(tzinfo=timezone.utc)), len(s) > 10
 
 
 def _mutual_keeper(x: tuple[FrozenSource, str], y: tuple[FrozenSource, str]) -> FrozenSource | None:
     """서로 인용한 같은 날 쌍에서 남길 쪽(사용자 결정 2026-10-28). 정할 수 없으면 None(판정하지 않고 둘 다 통과).
 
     ① 한쪽만 빅테크 1차 글(카탈로그 category + 매체 이름에 top_picks.big_org)이면 그쪽 ② 아니면 발행이 이른 쪽.
+    ★ 한쪽이라도 날짜만 있으면 날짜로만 비교한다 — 같은 날이면 순서를 모른다(None). 자정으로 비교하면 date-only
+      html 소스가 늘 "이른 쪽"이 돼 시각 있는 원문이 빠진다(최종 리뷰 2026-10-28).
     """
     (fx, cx), (fy, cy) = x, y
     bx, by = bool(big_org(f"{cx} {fx.media}")), bool(big_org(f"{cy} {fy.media}"))
     if bx != by:
         return fx if bx else fy
-    tx, ty = _published(fx.fetched_at), _published(fy.fetched_at)
-    if tx is None or ty is None or tx == ty:
+    px, py = _published(fx.fetched_at), _published(fy.fetched_at)
+    if px is None or py is None:
         return None
-    return fx if tx < ty else fy
+    (tx, x_timed), (ty, y_timed) = px, py
+    kx, ky = (tx, ty) if (x_timed and y_timed) else (tx.date(), ty.date())
+    if kx == ky:
+        return None
+    return fx if kx < ky else fy
 
 
 def drop_rereports(

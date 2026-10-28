@@ -25,9 +25,11 @@ TITLE_KEY_WINDOW_DAYS = 14  # 제목 키는 이 기간 안의 이전 발행에�
 _NON_WORD = re.compile(r"\W+")
 # 첫 경로 조각이 언어 코드인 번역판 URL(`/de/`·`/ko/`·`/zh-cn/`·`/es-419/`) — 같은 글의 다른 언어판을 한 키로.
 # 언어 목록을 닫아 둔다: `/ai/`·`/ml/` 같은 일반 두 글자 경로까지 지우면 다른 글끼리 키가 겹친다.
+# 흔한 영어 경로와 겹치는 코드(uk·id·it·ar·no·hi·he·el·da)도 뺀다 — `/uk/technology`·`/id/123` 을 지우면 다른 글이
+# 같은 키가 돼 잘못 빠질 수 있다. 빼서 생기는 손해는 그 언어판 링크를 못 잇는 것(B 유지)뿐이다(최종 리뷰 2026-10-28).
 _LOCALE = re.compile(
-    r"(?:ar|cs|da|de|el|en|es|fi|fr|he|hi|hu|id|it|ja|ko|nl|no|nb|pl|pt|ro|ru|sv|th|tr|uk|vi|zh)"
-    r"(?:-(?:[a-zA-Z]{2}|[a-zA-Z]{4}|\d{3}))?")
+    r"(?:cs|de|en|es|fi|fr|hu|ja|ko|nb|nl|pl|pt|ro|ru|sv|th|tr|vi|zh)"
+    r"(?:-(?:[a-z]{2}|[a-z]{4}|\d{3}))?", re.IGNORECASE)
 
 
 def url_key(url: str) -> str:

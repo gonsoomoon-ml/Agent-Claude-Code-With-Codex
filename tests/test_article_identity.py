@@ -103,3 +103,13 @@ def test_published_keys_fills_url_index(tmp_path):
     idx: dict = {}
     published_keys(led, store, "u", "2026-10-25", 90, {}, url_index=idx)
     assert idx == {"claude.com/resources/articles/a": fs.source_id}
+
+
+def test_cite_key_keeps_english_word_segments():
+    """언어 코드이면서 흔한 영어 경로(uk·id·it·ar…)는 지우지 않는다 — 다른 글끼리 키가 겹쳐 잘못 빠지는 것보다
+    번역판 링크 하나를 못 잇는 쪽(B 유지)이 낫다(최종 리뷰 2026-10-28). 대소문자는 구분하지 않는다."""
+    assert cite_key("https://www.theguardian.com/uk/technology/x") == "theguardian.com/uk/technology/x"
+    assert cite_key("https://site.com/id/12345") == "site.com/id/12345"
+    assert cite_key("https://site.com/it/works") == "site.com/it/works"
+    assert cite_key("https://example.com/ar/glasses") == "example.com/ar/glasses"
+    assert cite_key("https://claude.com/DE/x") == "claude.com/x"

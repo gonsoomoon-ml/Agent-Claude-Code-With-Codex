@@ -109,3 +109,14 @@ def test_drop_rereports_memo_reused():
         _run([(b, "News & Media")], {"B": ("claude.com/a",)}, sent_index={"claude.com/a": "A1"}, past=[_A1],
              judge=j, memo=memo)
     assert len(j.calls) == 1
+
+
+def test_drop_rereports_mutual_date_only_vs_timestamp_same_day_keeps_both():
+    """날짜만 있는 발행일(html 소스)은 그날 몇 시인지 모른다 — 같은 날 시각 있는 글과는 순서를 정하지 않는다(§4.2 ③).
+    자정으로 보면 원문(시각 있음)이 늘 늦은 쪽이 돼 원문이 빠진다(최종 리뷰 2026-10-28)."""
+    kr = _fs("K", "https://discuss.pytorch.kr/t/k/1", media="PyTorch Korea", fetched="2026-10-22")
+    hf = _fs("H", "https://huggingface.co/blog/h", media="Hugging Face Blog", fetched="2026-10-22T05:00:00+00:00")
+    j = _judge()
+    out = _run([(kr, "Community"), (hf, "Engineering Blogs")],
+               {"K": ("huggingface.co/blog/h",), "H": ("discuss.pytorch.kr/t/k/1",)}, judge=j)
+    assert out == {} and j.calls == []
