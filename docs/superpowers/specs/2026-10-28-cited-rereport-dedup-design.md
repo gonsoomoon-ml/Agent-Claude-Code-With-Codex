@@ -113,7 +113,7 @@ B = The Decoder "Anthropic says one AI agent beats many subagents…" (52624f70�
     2. 둘 다 빅테크이거나 둘 다 아니면 **발행 시각이 이른 쪽**이 A.
     3. 시각이 없거나 같으면 판정하지 않고 둘 다 통과(fail-open).
 - B 의 인용 키가 여러 A 에 걸리면, 걸린 A 마다 판정하되 하나라도 same 이면 B 제외.
-- 기존 의미론 유지: (a) 는 PUBLISH 만·strictly-earlier(같은 날 재실행은 재발송)·`run_date` 빈값이면 off — `published_keys` 그대로.
+- 기존 의미론 유지: (a) 는 `published_keys` 그대로 — 받은 기사 = PUBLISH·QUARANTINE(N5, 2026-10-18 — 격리 카드도 ⚠ 표시로 메일에 실림)·strictly-earlier(같은 날 재실행은 재발송)·`run_date` 빈값이면 off.
 
 ### 4.3 Haiku 판정 — `core/retrieval/relevance_bedrock.py` 패턴 + 새 판정 모듈
 

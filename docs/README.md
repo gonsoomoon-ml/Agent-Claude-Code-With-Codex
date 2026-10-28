@@ -116,5 +116,6 @@
 | 문서 | 상태 |
 |---|---|
 | specs `2026-10-28-cited-rereport-dedup-design` | **DRAFT** — 본문 안·다른 사이트 인용 링크가 이미 보냈거나 오늘 보낼 기사를 가리키는 쌍만 Haiku 가 "같은 발표인가" 판정 → 재보도 제외. 7 run 실측 20만 쌍→12쌍→10 제외·2 유지. "새 정보 판정"은 0/12 로 실패(재제안 금지) |
+| plans `2026-10-28-cited-rereport-dedup` | **DRAFT** — 7 Task(cite_key → 본문 인용 키 → curate 전달 → Haiku 판정자 → drop_rereports+파이프라인 → 재생 게이트(7 run: 판정 12·제외 10·gitai/AAIF 유지) → 출하) |
 
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.
