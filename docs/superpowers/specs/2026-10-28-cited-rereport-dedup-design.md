@@ -1,6 +1,6 @@
 # 재보도 dedup — 이미 보낸 원문을 옮긴 기사 빼기 (설계)
 
-- **상태:** DRAFT (2026-10-28) — 사용자 검토 완료(서로 인용 시 빅테크 우선 반영), 구현 전
+- **상태:** SHIPPED · LIVE (2026-10-28) — main `c074f4c` · runtime **v64**(14:12Z). 재생 게이트 PASS(판정 13 · 제외 10 · 유지 3). 전달 기록 `docs/deliveries/2026-10-28-cited-rereport-dedup-delivery.md`
 - **발단:** 사용자가 10-25 카드 "Anthropic says one AI agent beats many subagents…"(The Decoder)를 보고 "같은 내용이 여러 매체로 여러 번 실렸다" → 10-22 에 원문(Claude Blog)이 이미 나갔음을 확인.
 - **선행:** `2026-10-16-article-identity-dedup-design.md`(같은 기사 재발송 차단 — 해시·URL·제목 키). 이 문서는 그 위에 **다른 기사지만 같은 발표를 옮긴 글**을 막는 한 단계를 더한다.
 
@@ -117,7 +117,7 @@ B = The Decoder "Anthropic says one AI agent beats many subagents…" (52624f70�
 
 ### 4.3 Haiku 판정 — `core/retrieval/relevance_bedrock.py` 패턴 + 새 판정 모듈
 
-- **DI seam:** `rereport_fn(a_text, b_text) -> bool | None`(True=같은 발표, False=다른 주제, None=판정 실패). `run_briefing` 인자로 받고, **None(미주입)이면 ③ 전체 off** — 기존 테스트·로컬 무변경.
+- **DI seam:** `rereport_fn(a_text, b_text) -> RereportVerdict(same, reason)` — `same` 은 True=같은 발표 · False=다른 주제 · None=판정 실패, `reason` 은 warn 로그용 한 문장. `run_briefing` 인자로 받고, **None(미주입)이면 ③ 전체 off** — 기존 테스트·로컬 무변경.
 - **프로덕션 주입:** `runtime/agentcore_runtime.py::_production_fns` 의 `relevance_llm_enabled` 묶음에 추가 → scheduled·trial 이 같은 판정자를 쓴다(2026-07-27 trial 우회 결함 재발 방지).
 - **모델:** `RELEVANCE_MODEL_ID`(현재 Haiku 5.5) 재사용 — 새 env 없음. Converse, **thinking 기본(켬)·maxTokens 1500**, `temperature` 미지정(Haiku 5.5 는 거부 — 실측), 텍스트 블록 탐색. 관련성 판정자의 `_converse_text`(thinking 끔)는 쓰지 않는다.
   - ★ 2026-10-28 재생 게이트 정정: 처음엔 `thinking: disabled`(관련성 판정자 패턴)로 적었으나 실험(§2.2)은 thinking 켬이었다. 끄면 AAIF 기증 한국어 심층 글을 3/3 놓치고 run 간 제외 수가 흔들렸다(9→8). 켜면 13쌍×3회 39/39·흔들림 0 → 게이트 PASS(판정 13 · 제외 10). 비용 차이 = 호출당 출력 ~+40 토큰.
@@ -151,6 +151,7 @@ B = The Decoder "Anthropic says one AI agent beats many subagents…" (52624f70�
 
 - **재생 게이트(머지 조건):** 지난 7 run(10-21~10-27) 의 실제 발송 기사로 ③을 재생(기사 HTML 재수집 → 인용 키 → 실제 판정자):
   - 제외 = §2.2 의 **10쌍**, 유지 = gitai·AAIF 묶음 **2쌍**, 그 밖의 제외 **0**.
+  - 실제(2026-10-28): 판정 **13쌍**(실험에 없던 Google AI "AI Quest" ← Google Research connectomics 1쌍 추가, 유지) · 제외 10 · PASS.
   - 재생 도구 = `scripts/dedup_audit/` 에 추가(프로덕션 읽기 전용).
 - **단위 테스트:** 본문 안 링크만·다른 사이트만 · 언어 경로 정규화(`/de/`·`/ko/` 양쪽) · (a) 과거 쌍 · (b) 같은 날 쌍 · 서로 인용 · A 가 이미 빠진 경우 · 여러 A 에 걸림 · 판정 메모 공유(두 번째 사용자 호출 0) · 판정 실패 fail-open · `rereport_fn` 미주입 시 off · 기존 dedup 이 먼저 돈다.
 - **사후 관측:** 배포 후 1주 CloudWatch `pipeline rereport` 라인 검토 — 잘못 빠진 글(다른 주제)이 보이면 프롬프트 조정.

@@ -133,10 +133,12 @@ AWS 없이 단위 테스트로 못박을 수 있다.
  │
  ▼ for u in users:                       ← 여기서부터 사용자별
    │
-   ├─ ledger 조회 → prior_published (이전 run 에서 PUBLISH 한 source_id 제외)
-   │                 ※ window 48h 가 만든 런 겹침을 명시적으로 제거
+   ├─ 같은 기사 dedup: ledger(지난 90일 PUBLISH·QUARANTINE) × source-store 메타 → 신원 키(해시·URL·매체+제목)
+   │                 ※ window 48h 겹침·원문 수정(해시 변경)·slug 변경을 제거       ← article_identity.py
+   ├─ 재보도 dedup: 본문 인용 링크가 보낸 기사·오늘 후보를 가리키는 쌍만 Haiku "같은 발표인가"
+   │                 → 같으면 인용한 쪽(B) 제외, 원문(A)은 유지 · 실패는 통과        ← rereport_dedup.py
    │
-   └─ for fs in 이 사용자의 기사들:
+   └─ for fs in 남은 기사들:
          ┌──────────────────────────────────────────────────────┐
          │ try:  _process(fs, u, ...)      ★ 카드별 격리(비협상) │
          │ except: warn 하고 이 카드만 드롭 — 브리핑은 계속       │

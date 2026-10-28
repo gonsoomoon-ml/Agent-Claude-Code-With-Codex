@@ -112,10 +112,12 @@
 | specs `2026-10-24-topic-grouping-design` | **IMPLEMENTED(브랜치 `topic-grouping`, 2026-10-24) · 미배포** — 사용자 PRD(`work_note/Oct-2026/261024-Reorder-Content/reorder-prd.md`) → 문제 7건 토론·결정. 머지 게이트 실측(Sonnet 5.5): 골든셋 정확 일치 87.0%(안정성 93.9%) → 규칙 ⑤ 우선 문구 뒤 91.6%, 헤드라인 50제목 미배정 0·일치 98%(`work_note/…/golden-eval-*.md`·`headline-check-*.md`·`impl-notes.md`). **배포 2026-10-25(사용자 재결정 'deploy' — 처음 'U8 ② 뒤'였으나 ② 미착수 확인 뒤 즉시)**: 브랜치 `topic-grouping` 13 커밋(구현 10 + 글자 크기 2 `f5d6ec6`·`0597a7c`: 헤드라인 글자 = 본문, 밴드·칸 머리 20px + 기록 1) → main `fa72db0` → `deploy_runtime`. 첫 run(10-26 05:00 KST) 검증 체크리스트 = `deliveries/2026-10-25-topic-grouping-delivery.md`. 밴드 = 기사 단위 주제 6칸(AI Agents → Applied AI → Models & Releases → Inference & Hardware → Safety, Security & Policy → Industry & Business), 핵심 3 라벨 호출에 `area` 추가(추가 호출 0·Sonnet 5.5 `LABEL_MODEL_ID`), 재시도 1회 → 평평 폴백, 출처 집계 줄, 골든셋 132편 ≥85% 머지 게이트. 근거 = `work_note/…/classify-7d.md` + `scripts/area_eval/golden_7d.json` |
 | plans `2026-10-24-topic-grouping` | **실행 완료(Native, 2026-10-24)** — Task 0~8 커밋(areas 상수 → LABEL_MODEL_ID → top_picks LabelFn → render → pipeline → Bedrock 헬퍼+스모크 → 골든 평가 → 문서). Task 9 배포 = 사용자 확인 게이트 |
 
-### cited-rereport-dedup (이미 보낸 원문을 옮긴 재보도 빼기) — DRAFT (2026-10-28)
+### cited-rereport-dedup (이미 보낸 원문을 옮긴 재보도 빼기) — SHIPPED · LIVE (main `c074f4c` · runtime **v64** 2026-10-28 14:12Z) · 첫 run 검증 대기(10-29 05:00 KST, 체크리스트 = `deliveries/2026-10-28-cited-rereport-dedup-delivery.md`)
 | 문서 | 상태 |
 |---|---|
-| specs `2026-10-28-cited-rereport-dedup-design` | **DRAFT** — 본문 안·다른 사이트 인용 링크가 이미 보냈거나 오늘 보낼 기사를 가리키는 쌍만 Haiku 가 "같은 발표인가" 판정 → 재보도 제외. 7 run 실측 20만 쌍→12쌍→10 제외·2 유지. "새 정보 판정"은 0/12 로 실패(재제안 금지) |
-| plans `2026-10-28-cited-rereport-dedup` | **DRAFT** — 7 Task(cite_key → 본문 인용 키 → curate 전달 → Haiku 판정자 → drop_rereports+파이프라인 → 재생 게이트(7 run: 판정 12·제외 10·gitai/AAIF 유지) → 출하) |
+| specs `2026-10-28-cited-rereport-dedup-design` | **SHIPPED** — ★판정자 thinking 켬(끄면 게이트 실패 36/39 — 재생 게이트에서 정정) · 본문 안·다른 사이트 인용 링크가 이미 보냈거나 오늘 보낼 기사를 가리키는 쌍만 Haiku 가 "같은 발표인가" 판정 → 재보도 제외. 7 run 실측 20만 쌍→12쌍→10 제외·2 유지. "새 정보 판정"은 0/12 로 실패(재제안 금지) |
+| plans `2026-10-28-cited-rereport-dedup` | **실행 완료(Native, 2026-10-28)** — 게이트 실제: 판정 13·제외 10·유지 3 · 최종 리뷰 Important 2 수정. 7 Task(cite_key → 본문 인용 키 → curate 전달 → Haiku 판정자 → drop_rereports+파이프라인 → 재생 게이트(7 run: 판정 12·제외 10·gitai/AAIF 유지) → 출하) |
+
+| deliveries `2026-10-28-cited-rereport-dedup-delivery` | **LIVE** — 배포 v64 · 원문 상한 20K(`37c6f22`, 다른 세션) 동반 배포 · 첫 run 체크리스트 |
 
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.
