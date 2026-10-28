@@ -74,19 +74,34 @@ def test_label_converse_reads_text_block_even_after_reasoning(monkeypatch):
     assert rb._converse_label_text(C(), "global.anthropic.claude-sonnet-5-5", "s", "u") == '[{"n": 1}]'
 
 
-def test_make_bedrock_rereport_uses_relevance_model_thinking_disabled(monkeypatch):
-    """재보도 판정자(2026-10-28) — RELEVANCE_MODEL_ID(Haiku 5.5)·thinking disabled·temperature 없음."""
+def test_make_bedrock_rereport_uses_relevance_model_thinking_on(monkeypatch):
+    """재보도 판정자(2026-10-28) — RELEVANCE_MODEL_ID(Haiku 5.5)·thinking 기본(켬)·1500 토큰·temperature 없음.
+
+    ★ 관련성 판정자와 달리 thinking 을 끄지 않는다: 끄면 재생 게이트에서 AAIF 기증 쌍을 3/3 놓치고 run 간 제외 수가
+      흔들렸다(9→8). 실험판(thinking 켬) 설정은 13쌍×3회 39/39·흔들림 0(2026-10-28 실측).
+    """
     from briefing.core.retrieval.rereport import RereportVerdict
     sent = {}
 
     class C:
         def converse(self, **kw):
             sent.update(kw)
-            return {"output": {"message": {"content": [{"text": '{"same": true, "reason": "r"}'}]}}}
+            return {"output": {"message": {"content": [{"reasoningContent": {}},
+                                                       {"text": '{"same": true, "reason": "r"}'}]}}}
 
     monkeypatch.setattr(rb, "_client", lambda region: C())
     s = _settings()
     assert rb.make_bedrock_rereport(s)("A 본문", "B 본문") == RereportVerdict(True, "r")
     assert sent["modelId"] == s.relevance_model_id
-    assert sent["additionalModelRequestFields"] == {"thinking": {"type": "disabled"}}
-    assert "temperature" not in sent["inferenceConfig"]
+    assert "additionalModelRequestFields" not in sent
+    assert sent["inferenceConfig"] == {"maxTokens": 1500}   # temperature 없음(Haiku 5.5 거부)
+
+
+def test_make_bedrock_rereport_no_text_block_is_fail_open(monkeypatch):
+    """thinking 이 토큰을 다 써 텍스트 블록이 없으면 판정 실패(None) — B 를 남긴다."""
+    class C:
+        def converse(self, **kw):
+            return {"output": {"message": {"content": [{"reasoningContent": {}}]}}}
+
+    monkeypatch.setattr(rb, "_client", lambda region: C())
+    assert rb.make_bedrock_rereport(_settings())("A", "B").same is None

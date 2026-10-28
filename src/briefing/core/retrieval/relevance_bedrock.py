@@ -106,16 +106,28 @@ def make_bedrock_select(settings: Settings) -> SelectFn:
     return lambda articles, k: llm_select(articles, k, invoke=_invoke)
 
 
-def make_bedrock_rereport(settings: Settings) -> RereportFn:
-    """settings → (a_text, b_text)->재보도 판정(2026-10-28). 같은 Haiku·Converse 배관 — 짧은 JSON 한 줄이라 300 토큰.
+REREPORT_MAX_TOKENS = 1500   # 재보도 판정 상한 — thinking(기본 켬) 사고분 + JSON 한 줄. 실측 출력 평균 ~120 토큰
 
-    실패는 llm_rereport 안에서 same=None(fail-open) — 여기선 조립만. 호출은 인용 링크로 걸린 쌍만(하루 ~2회).
+
+def make_bedrock_rereport(settings: Settings) -> RereportFn:
+    """settings → (a_text, b_text)->재보도 판정(2026-10-28). 모델 = RELEVANCE_MODEL_ID(Haiku 5.5).
+
+    ★ `_converse_text`(thinking disabled)를 쓰지 않는다 — 재생 게이트 실측: thinking 을 끄면 경계 쌍(AAIF 기증 한국어
+      심층 글)을 3/3 놓치고 run 간 제외 수가 흔들렸다(9→8). thinking 기본(켬)·1500 토큰은 13쌍×3회 39/39·흔들림 0.
+      관련성·선별 판정자는 그대로 thinking 을 끈다(2026-10-17 함정) — 판정 난이도가 다르다.
+    텍스트 블록이 없으면(사고에 토큰 소진) "" → llm_rereport 가 same=None(fail-open). 호출은 인용 쌍만(하루 ~2회).
     """
     client = _client(settings.region)
     model_id = settings.relevance_model_id
 
     def _invoke(system: str, user: str) -> str:
-        return _converse_text(client, model_id, system, user, 300)
+        resp = client.converse(
+            modelId=model_id,
+            system=[{"text": system}],
+            messages=[{"role": "user", "content": [{"text": user}]}],
+            inferenceConfig={"maxTokens": REREPORT_MAX_TOKENS},   # temperature 미지정(Haiku 5.5 거부)
+        )
+        return next((b["text"] for b in resp["output"]["message"]["content"] if "text" in b), "")
 
     return lambda a_text, b_text: llm_rereport(a_text, b_text, invoke=_invoke)
 

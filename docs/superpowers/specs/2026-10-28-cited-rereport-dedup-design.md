@@ -119,7 +119,8 @@ B = The Decoder "Anthropic says one AI agent beats many subagents…" (52624f70�
 
 - **DI seam:** `rereport_fn(a_text, b_text) -> bool | None`(True=같은 발표, False=다른 주제, None=판정 실패). `run_briefing` 인자로 받고, **None(미주입)이면 ③ 전체 off** — 기존 테스트·로컬 무변경.
 - **프로덕션 주입:** `runtime/agentcore_runtime.py::_production_fns` 의 `relevance_llm_enabled` 묶음에 추가 → scheduled·trial 이 같은 판정자를 쓴다(2026-07-27 trial 우회 결함 재발 방지).
-- **모델:** `RELEVANCE_MODEL_ID`(현재 Haiku 5.5) 재사용 — 새 env 없음. Converse, `thinking: disabled`, `temperature` 미지정(Haiku 5.5 는 거부 — 실측), 텍스트 블록 탐색(기존 `_converse_text` 재사용).
+- **모델:** `RELEVANCE_MODEL_ID`(현재 Haiku 5.5) 재사용 — 새 env 없음. Converse, **thinking 기본(켬)·maxTokens 1500**, `temperature` 미지정(Haiku 5.5 는 거부 — 실측), 텍스트 블록 탐색. 관련성 판정자의 `_converse_text`(thinking 끔)는 쓰지 않는다.
+  - ★ 2026-10-28 재생 게이트 정정: 처음엔 `thinking: disabled`(관련성 판정자 패턴)로 적었으나 실험(§2.2)은 thinking 켬이었다. 끄면 AAIF 기증 한국어 심층 글을 3/3 놓치고 run 간 제외 수가 흔들렸다(9→8). 켜면 13쌍×3회 39/39·흔들림 0 → 게이트 PASS(판정 13 · 제외 10). 비용 차이 = 호출당 출력 ~+40 토큰.
 - **입력:** A 본문·B 본문 각 최대 8,000자(source-store 동결본 상한과 같음).
 - **프롬프트 핵심(실험 판):** "Article A was already sent. B links to A. Is B mainly a report about the SAME announcement or content as A? SAME = covers A's announcement as its main news, even if it translates (e.g. Korean write-up), summarizes, adds details, quotes, reactions or comparisons. DIFFERENT = B's main subject is a different product, project, release or event, and A is only background, inspiration, or one item among several equal items." 응답 JSON `{"same": bool, "reason": "<한 문장>"}`.
 - **실패 처리:** 호출 오류·JSON 없음·키 없음 → None → B 통과 + warn. 브리핑을 막지 않는다.

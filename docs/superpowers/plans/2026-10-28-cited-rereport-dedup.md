@@ -15,7 +15,7 @@
 - 언어: 식별자·로그·CLI 영어, docstring·주석 한국어(CLAUDE.md).
 - **fail-open 전부:** 판정 실패·JSON 없음·예외·발행 시각 모름 → B 를 남긴다. 브리핑을 막지 않는다.
 - **A 는 언제나 유지** — 빠지는 것은 인용한 쪽(B)뿐.
-- 판정 모델 = `settings.relevance_model_id`(현재 `global.anthropic.claude-haiku-5-5`), 새 env·IAM·테이블 없음. Converse + `additionalModelRequestFields={"thinking": {"type": "disabled"}}`, `temperature` 미지정(Haiku 5.5 거부).
+- 판정 모델 = `settings.relevance_model_id`(현재 `global.anthropic.claude-haiku-5-5`), 새 env·IAM·테이블 없음. Converse + **thinking 기본(켬)·maxTokens 1500**(`additionalModelRequestFields` 없음), `temperature` 미지정(Haiku 5.5 거부). ★ 2026-10-28 게이트 정정 — 끄면 AAIF 기증 쌍 3/3 놓침·9→8 흔들림, 켜면 39/39(spec §4.3).
 - 판정 입력: A·B 본문 각 최대 **8,000자**.
 - `rereport_fn` 미주입(None)이면 재보도 단계 전체 off — 기존 테스트·로컬 무변경.
 - 기존 `published_keys` 의미론 무변경(받은 기사 = PUBLISH·QUARANTINE · strictly-earlier · `run_date` 빈값 off).
@@ -193,7 +193,7 @@ def test_curate_fills_cited_out(tmp_path):
   - `MAX_JUDGE_CHARS = 8000`
   - `REREPORT_SYSTEM: str` — 아래 문구 그대로(2026-10-28 실험판).
   - `llm_rereport(a_text: str, b_text: str, *, invoke: Callable[[str, str], str]) -> RereportVerdict` — user 메시지 = `"<A>\n{a[:8000]}\n</A>\n\n<B>\n{b[:8000]}\n</B>"`, 응답에서 첫 `{…}` JSON 파싱 → `same` 이 bool 이면 그 값, 아니면 None. **어떤 예외도 밖으로 내지 않는다**(None + reason 에 예외 이름).
-  - `make_bedrock_rereport(settings) -> RereportFn` — 기존 `_converse_text(client, settings.relevance_model_id, REREPORT_SYSTEM, user, max_tokens=300)` 재사용.
+  - `make_bedrock_rereport(settings) -> RereportFn` — 자체 `client.converse`(system 분리·thinking 기본·`REREPORT_MAX_TOKENS=1500`, 텍스트 블록 없으면 ""). ~~`_converse_text(..., max_tokens=300)` 재사용~~ — Task 6 게이트에서 정정.
   - `_production_fns`: `relevance_llm_enabled` 묶음에 `fns["rereport_fn"] = make_bedrock_rereport(settings)`.
 
 `REREPORT_SYSTEM`(정확한 문구):
@@ -234,7 +234,7 @@ def test_llm_rereport_truncates_inputs():
     assert seen["u"].count("a") == MAX_JUDGE_CHARS and seen["u"].count("b") == MAX_JUDGE_CHARS
 ```
 
-`tests/test_relevance_bedrock.py`(기존 가짜 client 패턴 그대로): `make_bedrock_rereport` 가 `modelId == settings.relevance_model_id`, `additionalModelRequestFields == {"thinking": {"type": "disabled"}}`, `inferenceConfig` 에 `temperature` 없음으로 Converse 를 부르고, 응답 텍스트 `'{"same": true, "reason": "r"}'` → `RereportVerdict(True, "r")`.
+`tests/test_relevance_bedrock.py`(기존 가짜 client 패턴 그대로): `make_bedrock_rereport` 가 `modelId == settings.relevance_model_id`, `additionalModelRequestFields` 없음(thinking 기본 — Task 6 정정), `inferenceConfig == {"maxTokens": 1500}`(temperature 없음)으로 Converse 를 부르고, 응답 텍스트 `'{"same": true, "reason": "r"}'` → `RereportVerdict(True, "r")`.
 `tests/test_runtime.py::test_production_fns_wires_judge_when_enabled` 에 `assert "rereport_fn" in fns` 추가.
 
 - [ ] **Step 2: 실패 확인** — Run: `uv run pytest tests/test_rereport.py tests/test_relevance_bedrock.py tests/test_runtime.py -q` · Expected: `ModuleNotFoundError: …rereport` 등
@@ -298,6 +298,7 @@ def test_llm_rereport_truncates_inputs():
 - [ ] **Step 1: 스크립트 작성**
 - [ ] **Step 2: 머지 게이트 실행** — Run: `uv run python scripts/dedup_audit/rereport_replay.py --user-prefix 445814b8 --since 2026-10-21 --until 2026-10-27 --expect-dropped 10 --expect-kept-title gitai --expect-kept-title "AAIF에 Agent Skills"`
   Expected: 판정한 쌍 12 · 제외 10(The Decoder 6 + PyTorch Korea 4 — spec §2.2 목록) · gitai·AAIF 묶음 유지 · `PASS`.
+  실제(2026-10-28): 판정 **13** · 제외 10 · PASS — 13번째 = Google AI "AI Quest" ← Google Research connectomics(유지 — 실험 목록에 없던 쌍. 실험은 PUBLISH 만·다른 언어 경로 정규화를 썼다, 정확한 원인은 미확인).
   다르면 머지하지 않는다 — 판정자는 temperature 를 못 고정하므로, 1건 차이는 같은 명령 1회 재실행 후 같은 쌍이 또 갈리면 프롬프트를 의심한다.
 - [ ] **Step 3: 커밋** — `feat(scripts): 재보도 재생 게이트 — 7 run 실데이터로 제외 10·유지 2 확인`
 
