@@ -176,3 +176,17 @@ def test_default_fetch_dispatches_sitemap_kind(monkeypatch):
     monkeypatch.setattr(src, "fetch_sitemap", lambda s, **kw: seen.update(key=s.key, **kw) or [])
     curation._default_fetch(Source(key="sm", name="S", url="https://h/news-sitemap.xml", kind="sitemap", lang="en"), 24)
     assert seen == {"key": "sm", "window_hours": 24, "max_items": 5}
+
+
+def test_curate_fills_cited_out(tmp_path):
+    """재보도 dedup(2026-10-28) — 동결 기사의 인용 키를 source_id 로 넘긴다(링크 없는 기사는 넣지 않음)."""
+    from briefing.core.retrieval.curation import curate
+    from briefing.core.retrieval.sources import FetchedArticle, Source
+    from briefing.core.stores.source_store import SourceStore
+    src = Source("s", "S", "https://s.com/feed", "rss", "en", category="News & Media")
+    arts = [FetchedArticle("s", "https://s.com/a", "t1", "본문 a", "2026-10-25", cited=("claude.com/x",)),
+            FetchedArticle("s", "https://s.com/b", "t2", "본문 b", "2026-10-25")]
+    out: dict = {}
+    by_key = curate(SourceStore(str(tmp_path)), [src], fetch_article_fn=lambda *_: arts, cited_out=out)
+    sid_a = next(fs.source_id for fs in by_key["s"] if fs.url.endswith("/a"))
+    assert out == {sid_a: ("claude.com/x",)}

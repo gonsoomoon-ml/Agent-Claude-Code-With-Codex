@@ -50,11 +50,14 @@ def curate(
     fetch_article_fn: FetchArticleFn | None = None,
     relevance_fn: RelevanceFn | None = None,
     select_fn: SelectFn | None = None,
+    cited_out: dict[str, tuple[str, ...]] | None = None,
 ) -> dict[str, list[FrozenSource]]:
     """fetch_targets(출처 union) → 권위 페치 → content-addressed 동결 → {source_key: [FrozenSource]}.
 
     fetch_article_fn = **DI seam** (테스트/로컬은 fake 주입; 기본은 sources.py 페치). content-addressing 이
     사용자·출처 간 dedup. 반환을 source_key 로 그룹화 → 호출자가 per-user 선택으로 필터.
+    cited_out(선택) = 재보도 dedup 용 `{source_id: 인용 키}` — 인용 키가 있는 기사만 채운다. source-store 에는
+    저장하지 않는다(동결본 스키마 무변경 — run 동안만 들고 다닌다).
     """
     fetch = fetch_article_fn or _default_fetch
     is_relevant = relevance_fn or is_ai_relevant  # 미주입 = 결정론 키워드(테스트·로컬 무변경); production = Haiku
@@ -98,5 +101,7 @@ def curate(
             if fs.source_id in seen:
                 continue
             seen.add(fs.source_id)
+            if cited_out is not None and art.cited:
+                cited_out[fs.source_id] = tuple(art.cited)
             by_key.setdefault(source.key, []).append(fs)
     return by_key
