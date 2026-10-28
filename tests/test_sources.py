@@ -8,6 +8,7 @@ import types
 
 from briefing.core.retrieval.sources import (
     CATALOG,
+    FetchedArticle,
     MAX_SOURCE_CHARS,
     Source,
     _article_links,
@@ -588,3 +589,38 @@ def test_catalog_moves_blocked_feeds_to_allowed_paths():
 def test_catalog_rejects_bad_article_path(bad):
     with pytest.raises(ValueError, match="article_path"):
         _load_catalog(_yaml(bad))
+
+
+# ── 본문 인용 키(재보도 dedup, 2026-10-28) — 본문 안·다른 사이트 링크만, 언어 경로 정규화 ──
+_CITING_HTML = _ARTICLE_HTML.replace(
+    "<p>We are upgrading",
+    '<p>See <a href="https://claude.com/de/resources/articles/orig">the post</a> and '
+    '<a href="https://www.anthropic.com/news/same-site">ours</a>. We are upgrading',
+).replace("<body>", '<body><nav><a href="https://claude.com/nav-only">nav</a></nav>')
+
+
+def test_cited_keys_body_only_cross_site_locale_normalized():
+    from briefing.core.retrieval.sources import _cited_keys
+    keys = _cited_keys(_CITING_HTML, "https://www.anthropic.com/news/opus")
+    assert keys == ("claude.com/resources/articles/orig",)     # /de/ 제거 · 같은 사이트·nav 제외
+
+
+def test_extract_article_sets_cited():
+    art = _extract_article(_CITING_HTML, "https://www.anthropic.com/news/opus", "anthropic")
+    assert art.cited == ("claude.com/resources/articles/orig",)
+
+
+def test_fetch_feed_summary_fallback_has_no_cited(monkeypatch):
+    from briefing.core.retrieval import sources as s
+    entry = {"title": "T", "link": "https://x/a", "summary": _ARTICLE, "published_parsed": None}
+    monkeypatch.setattr("feedparser.parse", lambda _u: types.SimpleNamespace(entries=[entry]))
+    monkeypatch.setattr(s, "_http_get", lambda _u: "")        # 전문 페이지 못 받음 → 피드 요약 폴백
+    assert s._fetch_feed("https://feed", "k", window_hours=0)[0].cited == ()
+
+
+def test_fetched_article_json_roundtrip_with_cited():
+    import json
+    from dataclasses import asdict
+    a = FetchedArticle("k", "https://x/a", "t", "본문", "2026-10-25", cited=("claude.com/a",))
+    b = FetchedArticle(**json.loads(json.dumps(asdict(a))))   # Gateway 경로와 같은 왕복
+    assert tuple(b.cited) == ("claude.com/a",)

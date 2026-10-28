@@ -24,6 +24,7 @@ from urllib.parse import urljoin, urlparse
 import yaml
 
 from .. import _debug
+from ..article_identity import cite_key
 from . import robots
 
 
@@ -155,6 +156,7 @@ class FetchedArticle:
     title: str
     raw_text: str
     published_at: str      # ISO8601 (24h 윈도우 필터용)
+    cited: tuple[str, ...] = ()  # 본문 안·다른 사이트 링크의 인용 키(재보도 dedup). 페이지 본문이 없으면 () — 검사 안 함
 
 
 _TAG_RE = re.compile(r"<[^>]+>")
@@ -239,12 +241,13 @@ def _fetch_feed(
             published = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
         title = (entry.get("title") or "").strip()
         link = (entry.get("link") or "").strip()
-        text = ""
+        text, page = "", ""
         if full_text and link:  # 전문 추적(상한). 실패·부실 시 아래 피드 요약 폴백.
             page = _http_get(link)
             if page:
                 _t, body, _d, _c = _extract_body(page)
                 text = body
+        page_used = bool(page) and len(text) >= MIN_SOURCE_CHARS  # 폴백이면 페이지 링크를 인용 키로 쓰지 않는다
         if len(text) < MIN_SOURCE_CHARS:
             # 전문 미확보 → 피드 요약 폴백. 피드가 전문을 싣는 경우도 있으므로 *더 긴 쪽*을 쓴다.
             raw = entry.get("summary") or ""
@@ -258,7 +261,8 @@ def _fetch_feed(
         if _is_stub(text):  # 기사가 아니라 티저/메타설명 → 카드 자격 없음(아래 게이트 사유 참조)
             stubs.append(f"{title[:34]}({len(text)}자)")
             continue
-        out.append(FetchedArticle(source_key, link, title, text, published))
+        cited = _cited_keys(page, link) if page_used else ()
+        out.append(FetchedArticle(source_key, link, title, text, published, cited=cited))
     if stubs:  # non-silent — 소스가 통째로 스텁이면(예: 봇 차단) 여기서만 보인다
         _debug.warn("fetch stub", f"{source_key}: 본문 미확보 {len(stubs)}건 제외"
                                   f"(<{MIN_SOURCE_CHARS}자) — {' | '.join(stubs)}")
@@ -389,6 +393,27 @@ def _extract_body(html_text: str) -> tuple[str, str, str, str]:
     return (title, body, date, canonical)
 
 
+_MD_LINK_RE = re.compile(r"\]\((https?://[^)\s]+)\)")
+
+
+def _body_links(html_text: str) -> list[str]:
+    """본문 안 링크(절대 URL)만 — trafilatura 본문 추출(markdown·링크 포함) 결과에서 뽑는다.
+
+    ★ 페이지의 원시 href 전부를 쓰면 사이드바·메뉴·관련 글 목록이 섞여 엉뚱한 쌍이 생긴다(2026-10-28 실측:
+      The Decoder 사이드바). 본문 추출이 그 경계를 대신 그어 준다. 실패 시 [].
+    """
+    import trafilatura
+    md = trafilatura.extract(html_text, output_format="markdown", include_links=True) or ""
+    return _MD_LINK_RE.findall(md)
+
+
+def _cited_keys(html_text: str, page_url: str) -> tuple[str, ...]:
+    """기사 HTML → 인용 키(정렬·중복 제거). 같은 사이트 링크(자기 글·태그 페이지)는 원문 후보가 아니라 버린다."""
+    own = cite_key(page_url).partition("/")[0]
+    keys = {k for k in map(cite_key, _body_links(html_text)) if k and k.partition("/")[0] != own}
+    return tuple(sorted(keys))
+
+
 def _host(u: str) -> str:
     """URL 호스트(소문자·`www.` 제거). 상대경로·빈값이면 ""."""
     h = (urlparse(u).hostname or "").lower()
@@ -422,7 +447,7 @@ def _extract_article(html_text: str, url: str, source_key: str, listing_url: str
     if _is_stub(text):  # 리스팅/쿠키월/스켈레톤에서 부스러기만 추출된 경우 — non-silent
         _debug.warn("fetch stub", f"{source_key}: 본문 미확보({len(text)}자 < {MIN_SOURCE_CHARS}) — {title[:40]}")
         return None
-    return FetchedArticle(source_key, url, title, text, published)
+    return FetchedArticle(source_key, url, title, text, published, cited=_cited_keys(html_text, url))
 
 
 def _is_stale(published: str, window_hours: int) -> bool:

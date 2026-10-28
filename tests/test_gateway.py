@@ -20,7 +20,8 @@ def test_handler_fetch_article(monkeypatch):     # → 기존 _default_fetch 호
     monkeypatch.setattr(h, "_default_fetch", lambda _s, _w: [art])
     out = h.lambda_handler({"source_key": "aitimes", "window_hours": 0}, _ctx("fetch_article"))
     assert out["articles"][0] == {"source_key": "aitimes", "url": "u", "title": "t",
-                                  "raw_text": "본문", "published_at": "2026-06-27"}
+                                  "raw_text": "본문", "published_at": "2026-06-27",
+                                  "cited": ()}   # 인용 키(재보도 dedup) — 직접 경로와 같은 필드(byte-identical), 기본 빈값
 
 
 def test_handler_get_source(monkeypatch):        # → 기존 store.get_source
