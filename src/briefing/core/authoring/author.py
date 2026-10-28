@@ -154,7 +154,7 @@ def build_user_prompt(source: FrozenSource, *, today: str | None = None) -> str:
     """claude/agent 의 *user 메시지* (= 캐시 안 되는 동적 turn) = 오늘 날짜 + 동결 원문 + 지시.
 
     날짜·source 같은 *변하는 내용*은 여기(캐시 프리픽스 밖)에 둔다 → system 캐싱 보존. source.text 는 f-string(브레이스 안전).
-    **절단 플래그:** 소스의 32%가 본문 상한(8,000자)에서 잘린다(30일 실측) — base 계약의
+    **절단 플래그:** 본문 상한(20,000자)에서 잘리는 소스가 있다(~9% 추정; 8,000자 시절엔 32~55%) — base 계약의
     "본문 전체를 근거로"가 *물리적으로 없는 뒷부분*에 대한 추측 압력이 되지 않게 잘렸음을 알린다.
     """
     today = today or date.today().isoformat()

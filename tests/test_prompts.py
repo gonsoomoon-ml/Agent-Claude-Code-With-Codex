@@ -137,7 +137,7 @@ def test_author_system_has_no_headline_contradiction():
 
 
 def test_user_prompt_flags_truncated_source():
-    """원문 28.6%가 8,000자에서 잘린다 — '본문 전체를 근거로'가 없는 뒷부분 추측 압력이 되면 안 된다."""
+    """원문 일부가 본문 상한에서 잘린다 — '본문 전체를 근거로'가 없는 뒷부분 추측 압력이 되면 안 된다."""
     from briefing.core.retrieval.sources import MAX_SOURCE_CHARS
 
     full = FrozenSource("id", "u", "t", "가" * MAX_SOURCE_CHARS, "ts")
@@ -152,12 +152,12 @@ def test_truncation_flag_fires_on_real_excerpt_with_spaces():
     그래서 `>= 8000` 경고가 운영에서 한 번도 안 떴다(30일 원문 1,609건 중 ≥8,000자 0건, 7,900–7,999자 520건).
     위 테스트의 '가'×8000(공백 없음)은 이 버그를 못 잡는다 — 실제처럼 공백 있는 원문을 진짜 `_excerpt` 에 통과시킨다.
     """
-    from briefing.core.retrieval.sources import _excerpt
+    from briefing.core.retrieval.sources import MAX_SOURCE_CHARS, _excerpt
 
-    cut = _excerpt("word " * 2000)                      # 10,000자 → 단어 경계에서 잘림
-    assert 7900 <= len(cut) < 8000
+    cut = _excerpt("word " * (MAX_SOURCE_CHARS // 5 + 400))   # 상한 + 2,000자 → 단어 경계에서 잘림
+    assert MAX_SOURCE_CHARS - 100 <= len(cut) < MAX_SOURCE_CHARS
     assert "절단" in build_user_prompt(FrozenSource("id", "u", "t", cut, "ts"), today="2026-10-18")
-    natural = "word " * 1570                              # 7,850자 — 상한 전에 끝난 기사(운영 7,800–7,900자는 전부 자연 종료)
+    natural = "word " * (MAX_SOURCE_CHARS // 5 - 30)          # 상한 −150자 — 상한 전에 끝난 기사(자연 종료)
     assert "절단" not in build_user_prompt(FrozenSource("id", "u", "t", natural.strip(), "ts"), today="2026-10-18")
 
 
