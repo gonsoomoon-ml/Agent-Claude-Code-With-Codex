@@ -23,6 +23,11 @@ TITLE_KEY_WINDOW_DAYS = 14  # 제목 키는 이 기간 안의 이전 발행에�
 #                            실측 제목 일치는 slug 수정 1일 간격뿐(2026-10 감사). 해시·URL 키는 lookback 전체(90일).
 
 _NON_WORD = re.compile(r"\W+")
+# 첫 경로 조각이 언어 코드인 번역판 URL(`/de/`·`/ko/`·`/zh-cn/`·`/es-419/`) — 같은 글의 다른 언어판을 한 키로.
+# 언어 목록을 닫아 둔다: `/ai/`·`/ml/` 같은 일반 두 글자 경로까지 지우면 다른 글끼리 키가 겹친다.
+_LOCALE = re.compile(
+    r"(?:ar|cs|da|de|el|en|es|fi|fr|he|hi|hu|id|it|ja|ko|nl|no|nb|pl|pt|ro|ru|sv|th|tr|uk|vi|zh)"
+    r"(?:-(?:[a-zA-Z]{2}|[a-zA-Z]{4}|\d{3}))?")
 
 
 def url_key(url: str) -> str:
@@ -40,6 +45,23 @@ def url_key(url: str) -> str:
         host = host[4:]
     query = f"?{p.query}" if p.query else ""
     return f"{host}{p.path.rstrip('/')}{query}"
+
+
+def cite_key(url: str) -> str:
+    """URL → 인용 키(재보도 dedup 용). `url_key` 에서 첫 경로 조각이 언어 코드면 지운다.
+
+    ★ 비교 양쪽(본문 인용 링크·보낸 기사 URL·오늘 후보 URL)에 같은 함수를 써야 한다 — The Decoder 는
+      `claude.com/de/…` 를, AWS KR 은 저장 URL 자체가 `aws.amazon.com/ko/…` 다. 키 없으면 "".
+    """
+    k = url_key(url)
+    host, slash, rest = k.partition("/")
+    if not slash:
+        return k
+    first, sep, tail = rest.partition("/")
+    seg, q, query = first.partition("?")
+    if not _LOCALE.fullmatch(seg):
+        return k
+    return f"{host}/{tail}" if sep else f"{host}{q}{query}"
 
 
 def title_key(title: str) -> str:
@@ -68,7 +90,8 @@ def match_kind(candidate: Iterable[str], seen: Collection[str]) -> str:
 
 
 def published_keys(ledger: Any, store: Any, user_id: str, run_date: str, lookback_days: int,
-                   memo: dict[str, SourceMeta | None]) -> frozenset[str]:
+                   memo: dict[str, SourceMeta | None],
+                   url_index: dict[str, str] | None = None) -> frozenset[str]:
     """user 가 run_date 이전 lookback_days 안에 메일로 받은 기사들(PUBLISH·QUARANTINE)의 신원 키 합집합.
 
     의미론(선행 설계 2026-07-11): strictly-earlier(run_date 미만 — 같은 날 재실행 = 강제 재발송 런북 보존).
@@ -79,6 +102,8 @@ def published_keys(ledger: Any, store: Any, user_id: str, run_date: str, lookbac
     memo = run 동안 사용자 간 공유하는 {source_id: SourceMeta | None} — 같은 기사를 받은 두 번째 사용자부터는
     source-store 를 다시 읽지 않는다. None = 원본 없음(2026-08-01 이전 TTL 만료분) → 해시 키만(fail-open).
     ledger: `query(user_id, since_date)` · store: `get_meta(ids)` 를 가진 객체(Local·Dynamo 공통).
+    url_index(선택) = 재보도 dedup 의 역참조 — 메타가 있는 받은 기사마다 `{cite_key(url): source_id}` 를 채운다
+    (같은 키면 더 최근에 받은 쪽). 오늘 기사가 인용한 링크에서 원문(A) 본문을 찾아 읽는 데 쓴다.
     """
     try:
         since = (date.fromisoformat(run_date) - timedelta(days=lookback_days)).isoformat()
@@ -95,11 +120,14 @@ def published_keys(ledger: Any, store: Any, user_id: str, run_date: str, lookbac
         for i in missing:
             memo[i] = found.get(i)
     keys: set[str] = set()
+    index_on: dict[str, str] = {}  # cite_key → 그 키를 채운 기사의 run_date (최근 쪽이 이긴다)
     for i, sent_on in latest.items():
         m = memo[i]
         if m is None:
             keys.add(f"sid:{i}")
             continue
+        if url_index is not None and (c := cite_key(m.url)) and sent_on >= index_on.get(c, ""):
+            url_index[c], index_on[c] = i, sent_on
         k = identity_keys(source_id=i, url=m.url, title=m.title, media=m.media)
         if sent_on < title_since:  # 제목 키 창(14일) 밖 — 해시·URL 키만 남긴다
             k = frozenset(x for x in k if not x.startswith("title:"))

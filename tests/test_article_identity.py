@@ -1,5 +1,5 @@
 """article_identity — 기사 신원 키(해시·URL·매체+제목). 2026-10 중복 발송 감사의 실제 사례로 고정한다."""
-from briefing.core.article_identity import identity_keys, match_kind, title_key, url_key
+from briefing.core.article_identity import cite_key, identity_keys, match_kind, title_key, url_key
 
 _MLDRIFT = "ML Drift: Next-Gen GPU AI/ML Inference at the Edge"
 _AWSKR = "Strands Agents와 Amazon Bedrock AgentCore을 이용한 발전설비진단 구현하기"
@@ -71,3 +71,35 @@ def test_match_kind_title_when_slug_changes():
 def test_match_kind_reports_sid_first():
     k = identity_keys(source_id="s1", url="https://x.com/a", title="A long enough article title", media="X")
     assert match_kind(k, k) == "sid"
+
+
+# --- 인용 키(cite_key) — 재보도 dedup(2026-10-28): 언어 경로를 지워 번역판 링크도 같은 키로 ---
+
+def test_cite_key_strips_locale_segment():
+    assert cite_key("https://claude.com/de/resources/articles/x") == "claude.com/resources/articles/x"
+    assert cite_key("https://aws.amazon.com/ko/blogs/tech/y/") == "aws.amazon.com/blogs/tech/y"
+    assert cite_key("https://example.com/zh-cn/a") == "example.com/a"
+    assert cite_key("https://example.com/es-419/a") == "example.com/a"
+
+
+def test_cite_key_keeps_non_locale_two_letter_segment():
+    assert cite_key("https://blog.example.com/ai/post") == "blog.example.com/ai/post"
+
+
+def test_cite_key_keeps_query_and_empty():
+    assert cite_key("https://www.aitimes.com/news/articleView.html?idxno=1") == "aitimes.com/news/articleView.html?idxno=1"
+    assert cite_key("/relative") == ""
+
+
+def test_published_keys_fills_url_index(tmp_path):
+    from briefing.core.article_identity import published_keys
+    from briefing.core.stores.ledger import LocalLedger
+    from briefing.core.stores.source_store import SourceStore
+    store, led = SourceStore(str(tmp_path / "s")), LocalLedger(str(tmp_path / "l"))
+    fs = store.freeze(url="https://claude.com/resources/articles/a", title="Title long enough here",
+                      raw_text="본문", fetched_at="2026-10-22", media="Claude Blog")
+    led.append("2026-10-22", "u", fs.source_id, "k", "PUBLISH", "H")
+    led.append("2026-10-22", "u", "gone", "k", "PUBLISH", "H")            # 원본 없음 → 색인 없음
+    idx: dict = {}
+    published_keys(led, store, "u", "2026-10-25", 90, {}, url_index=idx)
+    assert idx == {"claude.com/resources/articles/a": fs.source_id}
