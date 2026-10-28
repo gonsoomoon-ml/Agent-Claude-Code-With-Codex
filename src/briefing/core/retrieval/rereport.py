@@ -12,7 +12,8 @@ import json
 from collections.abc import Callable
 from typing import NamedTuple
 
-MAX_JUDGE_CHARS = 8000  # A·B 본문 각 상한 — source-store 동결본 상한(MAX_SOURCE_CHARS)과 같다
+MAX_JUDGE_CHARS = 8000  # A·B 본문 각 앞부분 상한 — 재생 게이트가 검증한 값. 동결본 상한(MAX_SOURCE_CHARS 20K, 37c6f22)보다
+#                         작다: 재보도 여부는 글 앞부분(주제·출처 소개)에서 갈리고, 입력 토큰을 쌍당 ~5K 로 묶는다
 
 REREPORT_SYSTEM = """\
 Article A was already sent to our reader. Article B was published later and links to A.
