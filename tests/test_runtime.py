@@ -170,6 +170,7 @@ def test_production_fns_wires_judge_when_enabled(tmp_path):
     assert "relevance_fn" in fns and "select_fn" in fns and "headline_select_fn" in fns
     assert "label_fn" in fns   # 핵심 3 + 분야 라벨(한 호출) — 정기·체험·수동이 같은 묶음을 쓴다
     assert "headline_area_fn" in fns   # 헤드라인 칸 분야 묶음
+    assert "rereport_fn" in fns   # 재보도 판정자(2026-10-28) — 정기·체험이 같은 판정자
 
 
 def test_production_fns_empty_when_disabled(tmp_path):

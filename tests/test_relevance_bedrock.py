@@ -72,3 +72,21 @@ def test_label_converse_reads_text_block_even_after_reasoning(monkeypatch):
                                                        {"text": "[{\"n\": 1}]"}]}}}
 
     assert rb._converse_label_text(C(), "global.anthropic.claude-sonnet-5-5", "s", "u") == '[{"n": 1}]'
+
+
+def test_make_bedrock_rereport_uses_relevance_model_thinking_disabled(monkeypatch):
+    """재보도 판정자(2026-10-28) — RELEVANCE_MODEL_ID(Haiku 5.5)·thinking disabled·temperature 없음."""
+    from briefing.core.retrieval.rereport import RereportVerdict
+    sent = {}
+
+    class C:
+        def converse(self, **kw):
+            sent.update(kw)
+            return {"output": {"message": {"content": [{"text": '{"same": true, "reason": "r"}'}]}}}
+
+    monkeypatch.setattr(rb, "_client", lambda region: C())
+    s = _settings()
+    assert rb.make_bedrock_rereport(s)("A 본문", "B 본문") == RereportVerdict(True, "r")
+    assert sent["modelId"] == s.relevance_model_id
+    assert sent["additionalModelRequestFields"] == {"thinking": {"type": "disabled"}}
+    assert "temperature" not in sent["inferenceConfig"]

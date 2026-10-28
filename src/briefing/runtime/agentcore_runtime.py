@@ -37,6 +37,7 @@ def _production_fns(settings) -> dict:
             make_bedrock_headline_select,
             make_bedrock_labels,
             make_bedrock_relevance,
+            make_bedrock_rereport,
             make_bedrock_select,
         )
         fns["relevance_fn"] = make_bedrock_relevance(settings)   # require_ai 소스(키워드 폴백)
@@ -44,6 +45,7 @@ def _production_fns(settings) -> dict:
         fns["headline_select_fn"] = make_bedrock_headline_select(settings)   # 헤드라인 칸(키워드·최신순 폴백)
         fns["headline_area_fn"] = make_bedrock_headline_areas(settings)       # 헤드라인 분야 소제목(실패 시 한 목록)
         fns["label_fn"] = make_bedrock_labels(settings)          # 핵심 3 + 분야 라벨 1콜(LABEL_MODEL_ID; 실패 시 평평)
+        fns["rereport_fn"] = make_bedrock_rereport(settings)     # 재보도 판정(인용 쌍만; 실패 시 B 유지)
     return fns
 
 app = BedrockAgentCoreApp()

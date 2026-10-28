@@ -16,6 +16,7 @@ from .. import _debug
 from ..top_picks import LabelFn, llm_labels
 from .headlines import HeadlineAreaFn, llm_headline_areas, llm_headline_select
 from .relevance import RelevanceFn, llm_relevance
+from .rereport import RereportFn, llm_rereport
 from .selection import SelectFn, llm_select
 
 
@@ -103,6 +104,20 @@ def make_bedrock_select(settings: Settings) -> SelectFn:
         return _converse_text(client, model_id, system, user, 64)
 
     return lambda articles, k: llm_select(articles, k, invoke=_invoke)
+
+
+def make_bedrock_rereport(settings: Settings) -> RereportFn:
+    """settings → (a_text, b_text)->재보도 판정(2026-10-28). 같은 Haiku·Converse 배관 — 짧은 JSON 한 줄이라 300 토큰.
+
+    실패는 llm_rereport 안에서 same=None(fail-open) — 여기선 조립만. 호출은 인용 링크로 걸린 쌍만(하루 ~2회).
+    """
+    client = _client(settings.region)
+    model_id = settings.relevance_model_id
+
+    def _invoke(system: str, user: str) -> str:
+        return _converse_text(client, model_id, system, user, 300)
+
+    return lambda a_text, b_text: llm_rereport(a_text, b_text, invoke=_invoke)
 
 
 def make_bedrock_headline_select(settings: Settings):
