@@ -23,6 +23,8 @@ from .stores.cache import CardCache, fact_card_key, interp_card_key
 from .config import DEFAULT_DEDUP_LOOKBACK_DAYS, Settings, UserConfig
 from .retrieval.curation import FetchArticleFn, curate
 from .retrieval.headlines import HeadlineAreaFn, HeadlineFetchFn, HeadlineSelectFn, collect_headlines
+from .retrieval.rereport import RereportFn
+from .rereport_dedup import drop_rereports
 from .gate import GatedCard, interpret_card, produce_card
 from .lenses import DEFAULT_LENS, resolve_lens
 from .stores.ledger import Ledger
@@ -67,6 +69,7 @@ def run_briefing(
     verify_fn=None,
     interp_fn=None,
     label_fn: LabelFn | None = None,
+    rereport_fn: RereportFn | None = None,
     card_cache: CardCache | None = None,
     ledger: Ledger | None = None,
     run_date: str = "",
@@ -77,10 +80,13 @@ def run_briefing(
 
     ★ gate/certifier 는 user-blind(trust 경계). 배달(SES)·QUARANTINE 행선지는 호출자(어댑터) 책임 — 여기선 산출만.
     run 내 메모(사실층=출처당 1회, 해석층=(출처,lens)당 1회)는 캐시 유무와 무관하게 보장 — 비용 O(기사)+O(기사×lens).
+    rereport_fn = 재보도 판정자(인용 링크로 걸린 쌍만; Haiku) — None(미주입)이면 재보도 단계 전체 off.
     """
     fetch_targets = src.fetch_set(u.sources for u in users)  # 모든 사용자 선택의 합집합 1회
+    cited: dict[str, tuple[str, ...]] = {}   # source_id → 본문 인용 키(재보도 dedup; run 동안만 — source-store 미저장)
     by_key = curate(store, fetch_targets, window_hours=window_hours,
-                    fetch_article_fn=fetch_article_fn, relevance_fn=relevance_fn, select_fn=select_fn)
+                    fetch_article_fn=fetch_article_fn, relevance_fn=relevance_fn, select_fn=select_fn,
+                    cited_out=cited)
     # 제목·링크 전용 소스(headlines_only) — 본문 미수집·카드 없음. 판정자(Haiku)는 제목만 받는다(headlines.py).
     # covered = 이번 run 카드 소스의 동결본 제목(전 사용자 합집합) → 헤드라인 칸이 카드와 같은 소식을 반복하지 않게.
     covered = [fs.title for fss in by_key.values() for fs in fss]
@@ -95,6 +101,7 @@ def run_briefing(
     lookback_days = getattr(settings, "dedup_lookback_days", DEFAULT_DEDUP_LOOKBACK_DAYS)
     meta_memo: dict = {}   # source_id → SourceMeta | None — run 동안 사용자 간 공유(dedup join 은 사실상 run당 1회)
     label_memo: dict = {}  # 보이는 카드 묶음 → 라벨(핵심 3 + 분야 밴드) — 같은 묶음을 받는 사용자는 호출 1회 공유(2026-10-24)
+    rereport_memo: dict = {}   # (A_sid, B_sid) → 재보도 판정 — 사용자 간 공유(같은 쌍은 run 당 1회 호출, 실패도 메모)
     shadow = {"cards": 0, "hits": Counter()}   # S3 그림자 검사 집계 — 이 run 에서 새로 만든 사실층 카드 기준
     for u in users:
         # 머리 날짜 = 발송 시각(sent_at)을 받는 사람 시간대로 바꾼 날짜(없으면 run_date). run_date 는 저장 키라 UTC 그대로.
@@ -107,17 +114,15 @@ def run_briefing(
         #   원문 수정(해시 변경)·slug 변경(URL 변경)에도 같은 기사로 본다. 과거 기사 메타는 source-store join.
         #   의미론 3결정(PUBLISH 만 · strictly-earlier · run_date 빈값이면 off)은 published_keys 가 보존.
         seen: frozenset[str] = frozenset()
+        sent_index: dict[str, str] = {}   # cite_key(보낸 URL) → source_id — 재보도 (a) 과거 쌍의 A 를 찾는다
         if ledger is not None and run_date:
             try:
-                seen = published_keys(ledger, store, u.id, run_date, lookback_days, meta_memo)
+                seen = published_keys(ledger, store, u.id, run_date, lookback_days, meta_memo, url_index=sent_index)
             except Exception as e:  # noqa: BLE001 — dedup 은 보조 장치: DDB 오류가 전 사용자 브리핑을 막으면 안 된다
                 _debug.warn("pipeline dedup", f"{u.id}: 이전 발행 조회 실패 — 이번 run 은 dedup off(fail-open): "
                                               f"{type(e).__name__}: {e}")   # 빈 메일함보다 중복 1건이 낫다
-        # ★ 카드별 격리(비협상): 한 카드의 author/certify 실패(TimeoutExpired·throttle rc≠0·네트워크)가
-        #   *브리핑 전체*를 무너뜨리지 않게 각 카드를 개별 try 로 감싼다 — 실패 카드만 드롭하고 나머지는 발행.
-        #   (fs↔category 를 카드와 *묶어서* 유지 → 카드 드롭 시 positional zip 오정렬 방지.)
-        produced: list[tuple[GatedCard, str]] = []
         deduped = 0
+        survivors: list[tuple] = []   # 기존 신원 dedup 을 통과한 (동결본, category) — 재보도 단계의 입력
         for fs, cat in fs_cat:
             kind = match_kind(identity_keys(source_id=fs.source_id, url=fs.url, title=fs.title, media=fs.media),
                               seen) if seen else ""
@@ -126,6 +131,15 @@ def run_briefing(
                 if kind != "sid":  # 새 신원 키로 막힌 건 항상 warn — 오탐이 있으면 여기서 보인다(해시 일치는 48h 겹침의 일상)
                     _debug.warn("pipeline dedup", f"{u.id}: {kind} 키 일치 — 이전 발행 기사 제외: {fs.title[:50]}")
                 continue
+            survivors.append((fs, cat))
+        if rereport_fn is not None:
+            survivors, n = _drop_rereports_for(u.id, survivors, cited, sent_index, store, rereport_fn, rereport_memo)
+            deduped += n
+        # ★ 카드별 격리(비협상): 한 카드의 author/certify 실패(TimeoutExpired·throttle rc≠0·네트워크)가
+        #   *브리핑 전체*를 무너뜨리지 않게 각 카드를 개별 try 로 감싼다 — 실패 카드만 드롭하고 나머지는 발행.
+        #   (fs↔category 를 카드와 *묶어서* 유지 → 카드 드롭 시 positional zip 오정렬 방지.)
+        produced: list[tuple[GatedCard, str]] = []
+        for fs, cat in survivors:
             try:
                 g = _process(fs, u, settings, store, card_cache, ledger, run_date,
                              draft_fn, revise_fn, verify_fn, interp_fn, fact_memo, interp_memo,
@@ -166,6 +180,30 @@ def run_briefing(
     if unresolved:  # 07-24 이전 행(TTL 만료분)이 90일 창을 벗어나면 0 으로 수렴 — 다시 늘면 source-store 이상 신호
         _debug.warn("pipeline dedup", f"source-store 에 원본 없는 이전 발행 {unresolved}건 — 해시로만 비교(fail-open)")
     return out
+
+
+def _drop_rereports_for(user_id, survivors, cited, sent_index, store, judge, memo) -> tuple[list, int]:
+    """재보도 단계(한 사용자) → (남은 생존자, 뺀 건수). 제외·판정 실패를 warn(DEBUG 무관 → CloudWatch).
+
+    판정 실패 warn 은 이번 호출에서 새로 메모된 쌍만 — 같은 run 의 두 번째 사용자부터는 반복하지 않는다.
+    drop_rereports 자체 예외는 이 사용자의 재보도 단계만 끈다(fail-open — 중복 1장이 빈 메일보다 낫다).
+    """
+    before = set(memo)
+    try:
+        drops = drop_rereports(survivors, cited=cited, sent_index=sent_index, get_source=store.get_source,
+                               judge=judge, memo=memo)
+    except Exception as e:  # noqa: BLE001 — 재보도 제외는 보조 장치
+        _debug.warn("pipeline rereport", f"{user_id}: 재보도 단계 실패 — 이번 사용자는 off(fail-open): "
+                                         f"{type(e).__name__}: {e}")
+        return survivors, 0
+    titles = {fs.source_id: fs.title for fs, _ in survivors}
+    for a_sid, b_sid in sorted(set(memo) - before):
+        if memo[(a_sid, b_sid)].same is None:
+            _debug.warn("pipeline rereport", f"{user_id}: 판정 실패 — 통과(fail-open): {titles.get(b_sid, b_sid)[:50]}")
+    for b_sid, (a, v) in drops.items():
+        _debug.warn("pipeline rereport",
+                    f"{user_id}: 재보도 제외 — {titles[b_sid][:50]} ← {a.title[:50]} ({v.reason[:80]})")
+    return [(fs, cat) for fs, cat in survivors if fs.source_id not in drops], len(drops)
 
 
 def _process(fs, u, settings, store, card_cache, ledger, run_date,

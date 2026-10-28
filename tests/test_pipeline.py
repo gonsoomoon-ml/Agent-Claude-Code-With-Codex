@@ -587,3 +587,52 @@ def test_run_briefing_passes_card_source_titles_as_covered(tmp_path):
         verify_fn=lambda c: (CertVerdict("C1", "VERIFIED", "ev"),),
     )
     assert seen["covered"] == ["제목"]   # aws-ml 동결본 제목(_fetch) — 헤드라인이 카드와 겹치지 않게
+
+
+# ── 재보도 dedup(2026-10-28) — 이미 보낸 원문을 링크한 다음 날 기사를 Haiku(fake)가 "같은 발표"로 보면 뺀다 ──
+_ORIG_URL = "https://claude.com/blog/fold-subagents"
+
+
+def _rereport_days(store, ledger, users, rereport_fn=None):
+    """10-22 원문 발행 → 10-25 원문을 링크한 재보도. 10-25 run 결과를 돌려준다."""
+    orig = _fetch_one(_ORIG_URL, "Fold subagents into your main agent loop", "원문 본문. 직원 약 100명.")
+    run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-22", **_kw(orig))
+
+    def citing(source, _w):
+        return [FetchedArticle(source.key, "https://the-decoder.com/one-agent", "One AI agent beats many subagents",
+                               "재보도 본문. 직원 약 100명.", "2026-10-25T00:00:00Z",
+                               cited=("claude.com/blog/fold-subagents",))]
+    return run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-10-25",
+                        rereport_fn=rereport_fn, **_kw(citing))
+
+
+def test_rereport_off_when_fn_missing(tmp_path):
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    assert _rereport_days(store, ledger, [_user("u", ["aws-ml"])])[0].published == 1
+
+
+def test_rereport_drops_citing_article_next_day(tmp_path, capsys):
+    from briefing.core.retrieval.rereport import RereportVerdict
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    d = _rereport_days(store, ledger, [_user("u", ["aws-ml"])],
+                       rereport_fn=lambda a, b: RereportVerdict(True, "same announcement"))
+    assert d[0].published == 0
+    assert "재보도 제외" in capsys.readouterr().err
+
+
+def test_rereport_judge_called_once_for_two_users(tmp_path):
+    from briefing.core.retrieval.rereport import RereportVerdict
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    calls = []
+
+    def judge(a, b):
+        calls.append(1)
+        return RereportVerdict(True, "same")
+    d = _rereport_days(store, ledger, [_user("u1", ["aws-ml"]), _user("u2", ["aws-ml"])], rereport_fn=judge)
+    assert [x.published for x in d] == [0, 0] and len(calls) == 1
