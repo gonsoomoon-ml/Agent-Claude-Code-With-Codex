@@ -9,6 +9,8 @@ import pytest
 from briefing.core.authoring.author import Claim, DraftCard
 from briefing.core.gate import GatedCard
 from briefing.core.top_picks import (
+    DEMOTED_BIG,
+    ranks,
     TOP_MIN_CARDS,
     LabelIncomplete,
     _parse_labels,
@@ -49,19 +51,19 @@ def test_big_org_normalizes_the_five_and_rejects_others():
 def test_tier_requires_big_org_and_announcement_type():
     assert tier(_lb(0, "Google", "launch")) == 1
     assert tier(_lb(0, "Anthropic", "policy")) == 1
-    assert tier(_lb(0, "Microsoft", "launch")) == 3     # 5대 기업이 아니면 출시라도 큰 발표 아님(10-16 실측 오분류)
-    assert tier(_lb(0, "Google", "other")) == 3         # 5대 기업이어도 판결·비평 등은 큰 발표 아님
-    assert tier(_lb(0, "", "applied")) == 2
+    assert tier(_lb(0, "Microsoft", "launch")) == 4     # 5대 기업이 아니면 출시라도 큰 발표 아님(10-16 실측 오분류)
+    assert tier(_lb(0, "Google", "other")) == 4         # 5대 기업이어도 판결·비평 등은 큰 발표 아님
+    assert tier(_lb(0, "", "applied")) == 2             # area 기본값 AI Agents
 
 
 def test_tier_applied_slot_prefers_agents_and_applied_ai_areas():
     """2026-10-30 사용자 관심(AI Agents·Applied AI·5대 기업 큰 발표): 응용 칸(2티어)은 분야가 AI Agents/Applied AI 일 때만.
     type applied 라도 Inference & Hardware 등 다른 분야면 그 밖(3티어) — 10-29 'Nemotron on EKS' 가 응용 칸을 차지한 사례."""
     assert tier(_lb(0, "", "applied", area="AI Agents")) == 2
-    assert tier(_lb(0, "", "applied", area="Applied AI")) == 2
-    assert tier(_lb(0, "", "applied", area="Inference & Hardware")) == 3
-    assert tier(_lb(0, "", "applied", area="Models & Releases")) == 3
-    assert tier(_lb(0, "Amazon", "applied", area="Inference & Hardware")) == 3   # 5대 기업이어도 applied 는 큰 발표 아님
+    assert tier(_lb(0, "", "applied", area="Applied AI")) == 3                  # 10-30 우선순위: Agents(2) 다음
+    assert tier(_lb(0, "", "applied", area="Inference & Hardware")) == 4
+    assert tier(_lb(0, "", "applied", area="Models & Releases")) == 4
+    assert tier(_lb(0, "Amazon", "applied", area="Inference & Hardware")) == 4   # 5대 기업이어도 applied 는 큰 발표 아님
     assert tier(_lb(0, "Google", "launch", area="Inference & Hardware")) == 1    # 큰 발표는 분야 무관
 
 
@@ -72,12 +74,49 @@ def test_assign_applied_slot_takes_agents_area_over_infra_howto():
               _lb(2, "Amazon", "applied", 3, area="Applied AI"),
               _lb(3, "Google", "applied", 3, area="AI Agents")]
     secs = ["Anthropic", "Amazon (AWS)", "Amazon (AWS)", "Google"]
-    assert assign_top(labels, secs) == [0, 2, 3]
+    assert assign_top(labels, secs) == [0, 3, 2]          # 큰 발표 → AI Agents → Applied AI (엄격 순서, 10-30)
     # 선호 분야 applied 가 없으면 기존대로 그 밖에서 채운다 — 인프라 how-to 도 후보(중요도순)
     labels2 = [_lb(0, "Anthropic", "policy", 3, area="Applied AI"),
                _lb(1, "Amazon", "applied", 3, area="Inference & Hardware"),
                _lb(2, "", "other", 4, area="Safety, Security & Policy")]
     assert assign_top(labels2, ["Anthropic", "Amazon (AWS)", "News & Media"]) == [0, 2, 1]
+
+
+def test_assign_strict_priority_agents_before_applied_ai_regardless_of_importance():
+    """2026-10-30 사용자 우선순위: ① 큰 발표 → ② AI Agents → ③ Applied AI. 중요도는 같은 등급 안에서만."""
+    labels = [_lb(0, "Google", "launch", 5), _lb(1, "", "applied", 3, area="AI Agents"),
+              _lb(2, "", "applied", 5, area="Applied AI")]
+    assert assign_top(labels, ["Google", "Community", "Amazon (AWS)"]) == [0, 1, 2]   # Applied AI 5 보다 Agents 3 이 먼저
+
+
+def test_assign_big_demoted_when_less_important_than_best_agents():
+    """Arel: 큰 발표는 그날 최고 AI Agents 후보 importance 이상일 때만 1순위(동점은 큰 발표). 10-25 재현 —
+    Open Responses(OpenAI policy 3) vs "one agent beats many subagents"(Agents 4) → Agents 가 앞, 큰 발표는 Agents 다음."""
+    labels = [_lb(0, "OpenAI", "policy", 3, area="AI Agents"),
+              _lb(1, "Anthropic", "applied", 4, area="AI Agents"),
+              _lb(2, "Anthropic", "applied", 3, area="AI Agents")]
+    secs = ["Community", "News & Media", "Community"]
+    assert ranks(labels) == {0: DEMOTED_BIG, 1: 2, 2: 2}
+    assert assign_top(labels, secs) == [1, 2, 0]
+    # 동점(10-29): AI for Science 3 vs 최고 Agents 3 → 큰 발표가 1순위 유지
+    tie = [_lb(0, "Anthropic", "policy", 3, area="Applied AI"), _lb(1, "Google", "applied", 3, area="AI Agents"),
+           _lb(2, "Amazon", "applied", 3, area="Applied AI")]
+    assert assign_top(tie, ["Anthropic", "Google", "Amazon (AWS)"]) == [0, 1, 2]
+    # 강등된 큰 발표는 Applied AI 보다 앞, 큰 발표 합계 ≤MAX_BIG·회사당 1장은 그대로
+    four = [_lb(0, "Google", "launch", 4), _lb(1, "OpenAI", "launch", 4), _lb(2, "Meta", "launch", 3),
+            _lb(3, "", "applied", 4, area="AI Agents"), _lb(4, "", "applied", 3, area="Applied AI")]
+    secs4 = ["Google", "News & Media", "News & Media", "Community", "Amazon (AWS)"]
+    assert assign_top(four, secs4, k=4) == [0, 1, 3, 4]          # Meta 3 은 강등 + 큰 발표 2장 찼음 → Applied AI 가 4번째
+    assert assign_top(four[1:], secs4[1:], k=4) == [1, 3, 2, 4]  # 큰 발표 1장뿐이면 강등분(Meta)이 Agents 다음·Applied AI 앞
+
+
+def test_pick_top_log_marks_demoted_big(capsys):
+    cards = _cards(6)
+    labels = [_lb(0, "OpenAI", "policy", 3), _lb(1, "", "applied", 4, area="AI Agents"),
+              _lb(2, "", "applied", 3, area="AI Agents")] + [_lb(i, type_="other") for i in range(3, 6)]
+    secs = ["Community", "News & Media", "Amazon (AWS)", "x", "y", "z"]
+    assert pick_top(cards, labels, secs) == ("s2", "s3", "s1")
+    assert "p1↓" in capsys.readouterr().err                      # 강등된 큰 발표는 로그에서 구분된다
 
 
 def test_assign_caps_big_announcements_and_keeps_one_applied():

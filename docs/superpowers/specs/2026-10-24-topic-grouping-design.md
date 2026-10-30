@@ -160,6 +160,8 @@ pipeline(사용자 u)
 > 89.3→87.8%(같은 날 기준선, 잡음). 기각 = importance 하한·"연구→other"·앵커(근거 `work_note/Oct-2026/261030-improve-today-briefing/`).
 > 정책(5대 기업·칸 배분)은 여전히 코드(`assign_top`) — 분류만 프롬프트. 같은 날 **2티어(응용 칸)에 분야 조건** 추가(`tier`: type
 > applied 이고 분야 ∈ {AI Agents, Applied AI}) — 사용자 관심 명시; Inference & Hardware how-to 가 응용 칸을 차지한 10-29 사례, 10일 시뮬 1일 변화.
+> 이어서 **사용자 우선순위 확정: ① 큰 발표 → ② AI Agents → ③ Applied AI(엄격) + Arel**(큰 발표는 그날 최고 Agents 후보 importance 이상일 때만
+> 1순위, 미달이면 Agents 다음) — `tier` 4등급·`ranks`·`assign_top` 단계 ①②②.5③④, 로그 `p1↓`. 절대 문턱(≥4)은 imp 3 발표를 imp 2 how-to 로 바꿔 기각.
 
 ## 7. 품질 게이트 (결정 6)
 

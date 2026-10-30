@@ -18,8 +18,10 @@
   통과시키며 주말엔 핵심 3 자체가 생략됨 ② "연구 결과→other" 문구 — 응용 칸의 연구 픽(전문가 판단·신약)을 밀어내고 10-24
   OpenAI 연구 보도(policy 오분류)는 못 고침 ③ importance 앵커 — 점수가 여전히 들쭉날쭉(Terra 5→4). 잔존 1건/10일(연구 보도가
   policy)은 수용.
-★ 2026-10-30 응용 칸(2티어) = type applied **이고** 분야 ∈ {AI Agents, Applied AI}(`APPLIED_AREAS`, `tier` 참조) — 사용자 관심
-  명시("AI Agents·Applied AI·5대 기업 큰 발표"). 10일 시뮬 1일 변화.
+★ 2026-10-30 사용자 우선순위 **① 5대 기업 큰 발표 → ② AI Agents → ③ Applied AI**(엄격, importance 는 등급 안에서만) + **Arel**
+  (큰 발표는 그날 최고 AI Agents 후보 importance 이상일 때만 1순위, 미달이면 Agents 다음) — `tier`·`ranks`·`assign_top` 참조.
+  10일 시뮬: 엄격 순서로 5일 변화(Applied AI 는 큰 발표 2장 미만인 날만 핵심 3 진입 — 사용자 수용), Arel 은 1일(10-25 순서).
+  중간 단계였던 #2b(2티어 = Agents·Applied AI 를 importance 순으로 섞음, `422df5b`)는 이 규칙으로 대체.
 
 분야 밴드(2026-10-24 사용자 결정, `docs/superpowers/specs/2026-10-24-topic-grouping-design.md`):
 - 같은 라벨 호출에 `area`(공용 `areas.AREAS` 중 하나, **정확 일치**)를 더한다 — 추가 호출 0. 입력은 ⚠(QUARANTINE)
@@ -45,8 +47,9 @@ if TYPE_CHECKING:
 TOP_K = 3
 TOP_MIN_CARDS = 6   # 발행 카드가 이보다 적으면 라벨 호출 생략 — 짧은 메일(주말)에선 순서만 바뀌는 셈(9/20~ 34회 최소 10장)
 MAX_BIG = 2         # 큰 발표 칸 상한 — 나머지는 응용 AI·에이전트(있으면 최소 1장)
-APPLIED_AREAS = frozenset({"AI Agents", "Applied AI"})   # 응용 칸(2티어)이 받는 분야 — 2026-10-30 사용자 관심(tier 참조)
-assert APPLIED_AREAS <= set(AREAS)
+AGENTS_AREA, APPLIED_AREA = "AI Agents", "Applied AI"   # 2026-10-30 사용자 우선순위: 큰 발표 → AI Agents → Applied AI(tier 참조)
+assert {AGENTS_AREA, APPLIED_AREA} <= set(AREAS)
+DEMOTED_BIG = 2.5   # Arel: 큰 발표인데 그날 최고 AI Agents 후보보다 importance 가 낮음 → Agents 다음·Applied AI 앞(ranks 참조)
 
 # (보이는 카드, 카드별 메일 섹션 이름) -> 완전한 라벨 목록(카드마다 {n(0-기반), org, type, importance, event, area}).
 # 불완전·실패는 예외(LabelIncomplete 등). production = relevance_bedrock.make_bedrock_labels(LABEL_MODEL_ID).
@@ -94,16 +97,36 @@ def big_org(org: str) -> str:
 
 
 def tier(label: dict) -> int:
-    """1 = 5대 기업의 큰 발표(launch·policy) · 2 = 응용 AI·에이전트(type applied **이고** 분야 ∈ APPLIED_AREAS) · 3 = 그 밖.
+    """등급: 1 = 5대 기업의 큰 발표(launch·policy) · 2 = AI Agents(type applied ∧ area AI Agents) · 3 = Applied AI
+    (type applied ∧ area Applied AI) · 4 = 그 밖(비5대기업 launch, other, 다른 분야의 applied — 인프라 how-to 등).
 
-    ★ 2026-10-30 2티어에 분야 조건 추가 — `applied` 정의가 서빙·추론·온디바이스·비용까지 넓어 Inference & Hardware how-to 가
-    응용 칸을 차지했다(10-29 "Nemotron on EKS"). 사용자 관심 = AI Agents·Applied AI·5대 기업 큰 발표. 10-20~29 시뮬레이션
-    (변경안 라벨 그대로)에서 바뀐 날은 1일(10-29 → Nova Act UI 테스트) — 칸 이름과 판정을 일치시키는 작은 변경. 선호 분야의
-    applied 가 없으면 기존대로 3티어(그 밖, 인프라 how-to 포함)에서 채운다(`assign_top` ③).
+    ★ 2026-10-30 사용자 우선순위 "① 5대 기업 큰 발표 → ② AI Agents → ③ Applied AI" 를 등급으로 — importance 는 같은 등급
+    안에서만 쓴다(10-20~29 시뮬: Applied AI 는 큰 발표가 2장 미만인 날에만 핵심 3 에 들어옴 — 사용자가 수용). 그 전(#2b)엔
+    2티어가 Agents·Applied AI 를 importance 순으로 섞었고, 그 전엔 type applied 면 분야 무관이라 Inference & Hardware how-to 가
+    응용 칸을 차지했다(10-29 "Nemotron on EKS"). 선호 분야 applied 가 없으면 4티어에서 채운다(`assign_top` ④).
     """
     if label.get("type") in ("launch", "policy") and big_org(label.get("org", "")):
         return 1
-    return 2 if label.get("type") == "applied" and label.get("area") in APPLIED_AREAS else 3
+    if label.get("type") == "applied":
+        if label.get("area") == AGENTS_AREA:
+            return 2
+        if label.get("area") == APPLIED_AREA:
+            return 3
+    return 4
+
+
+def ranks(labels: Sequence[dict]) -> dict[int, float]:
+    """라벨 → n → 선정 등급(1 · 2 · DEMOTED_BIG=2.5 · 3 · 4). 순수 함수.
+
+    ★ Arel(2026-10-30, 사용자 "큰 발표는 importance 를 고려"): 큰 발표는 **그날 최고 AI Agents 후보의 importance 이상**일 때만
+    1순위(동점은 큰 발표). 미달이면 2.5 — Agents 다음·Applied AI 앞. 절대 문턱(≥4) 대신 상대 비교인 이유: importance 는 LLM 이
+    같은 호출에서 매긴 1~5 라 3↔4 로 흔들리고 3 에 뭉친다(10일 196장 중 92장). 절대 문턱은 10-29 AI for Science(3)·10-26 IAM
+    Helper(3)를 빼고 imp 2 Agents how-to 를 넣었다(실측). 같은 호출 안의 점수끼리 비교하면 그 영향이 작고, 10일 중 1일(10-25:
+    Open Responses 3 < "one agent beats many subagents" 4)만 바뀐다.
+    """
+    best_agents = max((_importance(lb) for lb in labels if tier(lb) == 2), default=0)
+    return {lb["n"]: (DEMOTED_BIG if tier(lb) == 1 and _importance(lb) < best_agents else float(tier(lb)))
+            for lb in labels}
 
 
 def _importance(label: dict) -> int:
@@ -115,9 +138,10 @@ def _importance(label: dict) -> int:
 
 def assign_top(labels: Sequence[dict], sections: Sequence[str], k: int = TOP_K,
                max_big: int = MAX_BIG) -> list[int]:
-    """라벨 → 고른 후보 번호(0-기반, 표시 순서 = 큰 발표 먼저·중요도순). 순수 함수(결정론).
+    """라벨 → 고른 후보 번호(0-기반, 표시 순서 = 등급순·중요도순). 순수 함수(결정론).
 
-    ① 큰 발표 ≤max_big ② 응용 AI·에이전트로 채움(있으면 최소 1장) ③ 모자라면 큰 발표 → 그 밖 순.
+    ① 1순위 큰 발표(`ranks`) ≤max_big ② AI Agents ②.5 강등된 큰 발표(큰 발표 합계 ≤max_big) ③ Applied AI
+    ④ 모자라면 잔여(큰 발표 잔여 → 그 밖, 상한 없음 — 10-20 이래 폴백). 2026-10-30 사용자 우선순위 + Arel.
     같은 event 키는 1장 — 단 event 키는 LLM 이 같은 사건에도 매번 같게 주지 않는다(실측) → 결정론 보강 둘:
     - 큰 발표는 **회사당 1장** — 같은 날 한 회사의 글 둘은 대개 같은 발표(10-13: Gemini 4 Argon 로봇용·안전성 글이
       함께 뽑혀 GPT-6.1 이 밀림). 5대 기업 사이의 다양성도 된다.
@@ -125,35 +149,46 @@ def assign_top(labels: Sequence[dict], sections: Sequence[str], k: int = TOP_K,
       같아도 된다(뉴스 칸이 두 회사의 발표를 함께 보도하는 날이 흔하다 — 10-14).
     `sections` 는 라벨 `n` 이 가리키는 **전체 카드 목록** 기준(⚠ 카드가 섞여 있어도 인덱스를 다시 매기지 않는다).
     """
-    order = sorted(labels, key=lambda lb: (tier(lb), -_importance(lb), lb["n"]))
+    rank = ranks(labels)
+    key = lambda lb: (rank[lb["n"]], -_importance(lb), lb["n"])  # noqa: E731
+    order = sorted(labels, key=key)
     picked: list[dict] = []
     events: set[str] = set()
     big_orgs: set[str] = set()
     small_sections: set[str] = set()
+    n_big = 0
 
-    def take(pool: list[dict], limit: int) -> None:
+    def take(pool: list[dict], limit: int, *, big_cap: int | None = None) -> None:
+        nonlocal n_big
         for lb in pool:
             if len(picked) >= limit:
                 return
+            is_big = tier(lb) == 1
             ev = str(lb.get("event") or "").strip().lower()
             sec = sections[lb["n"]] if lb["n"] < len(sections) else ""
-            org = big_org(lb.get("org", "")) if tier(lb) == 1 else ""
+            org = big_org(lb.get("org", "")) if is_big else ""
             if lb in picked or (ev and ev in events) or (org and org in big_orgs):
                 continue
-            if tier(lb) != 1 and sec and sec in small_sections:
+            if not is_big and sec and sec in small_sections:
+                continue
+            if is_big and big_cap is not None and n_big >= big_cap:
                 continue
             picked.append(lb)
             if ev:
                 events.add(ev)
             if org:
                 big_orgs.add(org)
-            if tier(lb) != 1 and sec:
+            if is_big:
+                n_big += 1
+            elif sec:
                 small_sections.add(sec)
 
-    take([lb for lb in order if tier(lb) == 1], max_big)
-    take([lb for lb in order if tier(lb) == 2], k)
-    take(order, k)
-    return [lb["n"] for lb in sorted(picked, key=lambda lb: (tier(lb), -_importance(lb), lb["n"]))]
+    take([lb for lb in order if rank[lb["n"]] == 1], k, big_cap=max_big)            # ① 1순위 큰 발표 ≤max_big
+    take([lb for lb in order if rank[lb["n"]] == 2], k)                             # ② AI Agents
+    take([lb for lb in order if rank[lb["n"]] == DEMOTED_BIG], k, big_cap=max_big)  # ②.5 강등 큰 발표(합계 ≤max_big)
+    take([lb for lb in order if rank[lb["n"]] == 3], k)                             # ③ Applied AI
+    take(order, k)                                                                  # ④ 잔여(큰 발표 잔여 → 그 밖)
+    return [lb["n"] for lb in sorted(picked, key=key)]
 
 
 def _parse_labels(answer: str, n_cards: int) -> list[dict]:
@@ -266,9 +301,12 @@ def pick_top(cards: Sequence[GatedCard], labels: Sequence[dict], sections: Seque
         _debug.warn("top picks", f"유효 선택 {len(idx)}<{k} (라벨 {len(labels)}/{len(cards)}) → 핵심 칸 생략")
         return ()
     by_n = {lb["n"]: lb for lb in labels}
-    # 고른 결과 한 줄(CloudWatch) — 기준이 의도대로 도는지 사후 검토용(예전엔 선정이 어디에도 남지 않았다)
+    rank = ranks(pub)
+    # 고른 결과 한 줄(CloudWatch) — 기준이 의도대로 도는지 사후 검토용(예전엔 선정이 어디에도 남지 않았다).
+    # p1 큰 발표 · p1↓ 강등된 큰 발표(Arel) · p2 AI Agents · p3 Applied AI · p4 그 밖
     _debug.warn("top picks 선정", " | ".join(
-        f"p{tier(by_n[i])} {big_org(by_n[i].get('org', '')) or by_n[i].get('type', '')}: {cards[i].card.headline[:50]}"
+        f"{'p1↓' if rank[i] == DEMOTED_BIG else f'p{int(rank[i])}'} "
+        f"{big_org(by_n[i].get('org', '')) or by_n[i].get('type', '')}: {cards[i].card.headline[:50]}"
         for i in idx))
     return tuple(cards[i].card.source_id for i in idx)
 
