@@ -11,7 +11,7 @@
 | 2 | 핵심 3 "큰 발표" 칸을 how-to·기능 글이 차지(10일 중 ≈1/4) | **구현** `56f1286` — `launch` 정의 좁힘. 측정 아래. ★구현은 측정 승인만 받은 상태에서 진행했다가 사용자 지적 — 이후 "commit and push and deploy" 로 유지 확정 |
 | 2b | 응용 칸(p2)을 Inference & Hardware how-to 가 차지(10-29 Nemotron on EKS) — 사용자 관심 = AI Agents·Applied AI·5대 기업 큰 발표 | **구현(승인 "apply and test first")** — `tier()` 2티어에 분야 조건(`APPLIED_AREAS`). 시뮬(10일, 변경안 라벨) 1일 변화: 10-29 p2 Nemotron → Nova Act |
 | 2c | 사용자 우선순위 확정: ① 큰 발표 → ② AI Agents → ③ Applied AI(엄격) + 큰 발표는 importance 고려 | **구현(승인 "apply")** — `tier` 4등급 + `ranks`(Arel: 그날 최고 Agents 후보 importance 이상일 때만 1순위, 미달 시 Agents 다음) + `assign_top` 단계 ①②②.5③④. 시뮬(10일): 엄격 순서 5일 변화·Applied AI 0일(수용), Arel 1일(10-25 순서). 기각 = 절대 문턱 ≥4(imp 3 발표 → imp 2 how-to), 번갈아 채우기 |
-| 3 | 분야 오분류(Lambda Web Functions 1부 → Models & Releases, ProtoStar → Applied AI) | 대기 |
+| 3 | 분야 오분류(Lambda Web Functions 1부 → Models & Releases, ProtoStar → Applied AI) | **수용(무변경, 사용자 "keep it" 10-30)** — 운영의 1부→Models & Releases 는 재생 2회 모두 Applied AI = 재현 안 됨(run 간 변동: 196장 중 12장 6.1%, 대부분 두 칸 다 그럴듯한 경계 카드); ProtoStar→Applied AI 는 2회 일치(공공 과학 데이터의 AI 적용 = 정의상 맞음). 분야 흔들림만으로 핵심 3 이 바뀐 날 2/10, 둘 다 3번째 칸(`tools/area_wobble_top3.py`). ★처음 추천한 "연재물 묶기(첫 편 분야로 통일)"는 철회 — 10-29 엔 1부 오분류가 2부(AgentCore BFF = AI Agents 맞음)로 번져 오류 1→2장. 다수결 라벨(3회, +$0.1/run·+1~2분) 보류 |
 | 4 | AI Agents 밴드 7장 중 4장이 PyTorch KR 커뮤니티 스킬 글 | 대기 |
 | 5 | 요약의 수식어 탈락 2건(over 800,000 → 800,000) | 대기 |
 | 6 | 해석층 lint 폴백 2건(미검증 수치) | 대기(정상 동작) |
