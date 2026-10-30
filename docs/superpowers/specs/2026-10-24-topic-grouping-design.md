@@ -154,6 +154,12 @@ pipeline(사용자 u)
 - 비용: run 당 ≈ 입력 4K·출력 1.2K 토큰 ≈ $0.02(재시도 포함 최대 2배). 관련성 판정(기사마다 호출)은 `RELEVANCE_MODEL_ID` Haiku 유지.
 - 헤드라인 분야 호출(`make_bedrock_headline_areas`)도 **같은 `LABEL_MODEL_ID`** 를 쓴다(빌더 기본안 — 같은 분류 체계는 같은 판정자; 비용 무시 수준).
 
+> **2026-10-30 개정 — 라벨 프롬프트 `launch` 정의 좁힘(핵심 3 1티어 품질).** 10-20~29 실발송 1티어의 약 1/4 이 how-to·기능 글
+> (TorchTPU 통합·IAM Helper·AWS Batch 할당량) — "major feature" 문구 탓. 새 정의 = 새 모델·새 제품/서비스·플랫폼 GA 만, 점진
+> 기능·통합·SDK/스킬 추가·튜토리얼·엔지니어링 글은 applied. 10일 재생(Sonnet 5.5): 1티어 후보 58→33장, 플래그십 유지, 골든 게이트
+> 89.3→87.8%(같은 날 기준선, 잡음). 기각 = importance 하한·"연구→other"·앵커(근거 `work_note/Oct-2026/261030-improve-today-briefing/`).
+> 정책(5대 기업·칸 배분)은 여전히 코드(`assign_top`) — 분류만 프롬프트.
+
 ## 7. 품질 게이트 (결정 6)
 
 - **골든셋** `scripts/area_eval/golden_7d.json`: 138행(10-17~23 run, 관리자 ledger) = 고유 132편(반복 6행 `repeat_of_earlier_run`), 카드마다 `source_id·card_key·decision·media·category·headline·summary(사실층, 2026-10-24 스냅숏 — card-cache TTL 30일 대비)·area·boundary·alt_old_code·genre`. 분류 불가 1편(`area: null`)은 제외.

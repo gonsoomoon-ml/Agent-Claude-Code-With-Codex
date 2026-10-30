@@ -1,0 +1,152 @@
+{
+ "scored": 131,
+ "correct": 117,
+ "accuracy": 0.8931297709923665,
+ "gate": 0.85,
+ "gate_pass": true,
+ "mismatch_boundary": 10,
+ "mismatch_nonboundary": 4,
+ "failures": [],
+ "mismatches": [
+  {
+   "run_date": "2026-10-17",
+   "source_id": "66309d653c28db86f284658407214ebe183587e51d17b5858542e1cc7d36532d",
+   "headline": "Anthropics' Claude cracks a 25-year-old NSA cryptography mystery in under 30 min",
+   "gold": "Applied AI",
+   "pred": "Models & Releases",
+   "boundary": true,
+   "alt_old_code": "MR",
+   "reason": ""
+  },
+  {
+   "run_date": "2026-10-17",
+   "source_id": "949a9060c0036c4721c9d3bb47a09235ad727454f7954f794acbeac26b2e3805",
+   "headline": "MAI-Base-2 사전학습 레시피: Microsoft AI가 공개한, DeepSeek-V4-Pro-Base보다 4~12배 효율적이라는 2.8T",
+   "gold": "Models & Releases",
+   "pred": "Inference & Hardware",
+   "boundary": true,
+   "alt_old_code": "IP",
+   "reason": ""
+  },
+  {
+   "run_date": "2026-10-17",
+   "source_id": "c84ad09f0d8c313444a6754880c1d3f72c1d6fde497290dd71fa579101362a03",
+   "headline": "Mathematicians say OpenAI doesn't understand its own Navier-Stokes proof",
+   "gold": "Applied AI",
+   "pred": "Industry & Business",
+   "boundary": false,
+   "alt_old_code": null,
+   "reason": ""
+  },
+  {
+   "run_date": "2026-10-18",
+   "source_id": "2175db07a224555cc6c52225fded94dfaa1a572ce7dd182672e0a9e724b19155",
+   "headline": "AI agents chasing a $465 train refund invented excuses, leaked medical data, and",
+   "gold": "AI Agents",
+   "pred": "Safety, Security & Policy",
+   "boundary": true,
+   "alt_old_code": "PS",
+   "reason": ""
+  },
+  {
+   "run_date": "2026-10-20",
+   "source_id": "90004ff7ee6e4f813a59eeec34db1d5cd26ffbc6c646428e93f31513e635a68a",
+   "headline": "Fine-tuning GPT-OSS-20B for multilingual reasoning on Amazon SageMaker HyperPod",
+   "gold": "Inference & Hardware",
+   "pred": "Applied AI",
+   "boundary": true,
+   "alt_old_code": null,
+   "reason": ""
+  },
+  {
+   "run_date": "2026-10-20",
+   "source_id": "aacdec460533c3d2a7808677d731a7fc030d8a815774253b2e9928631ab6c8e3",
+   "headline": "NVIDIA Cosmos3-H-Dreams: Bringing Clinical Surgery to Life Through Generative Si",
+   "gold": "Models & Releases",
+   "pred": "Applied AI",
+   "boundary": true,
+   "alt_old_code": "RS",
+   "reason": ""
+  },
+  {
+   "run_date": "2026-10-20",
+   "source_id": "ff8522efce867d54a1a994d9a0a327b29eb1013297189eb54f654be9ab051ea2",
+   "headline": "Introducing Gemini for government services",
+   "gold": "Models & Releases",
+   "pred": "AI Agents",
+   "boundary": true,
+   "alt_old_code": "PS",
+   "reason": ""
+  },
+  {
+   "run_date": "2026-10-21",
+   "source_id": "3ca71ea6b5ddd0c8e9fa0225131e8f1078434e9d27efe847409ed76f9ec3229a",
+   "headline": "Claude Security now scans continuously and tracks fixes",
+   "gold": "AI Agents",
+   "pred": "Safety, Security & Policy",
+   "boundary": true,
+   "alt_old_code": "PS",
+   "reason": ""
+  },
+  {
+   "run_date": "2026-10-21",
+   "source_id": "c8178a156b1825aa300b0da632183a52495b8e620a7684ad6843c66ab1e61e7a",
+   "headline": "Beyond the KV cache: Training and serving i14’s Laplace 3B linear attention mode",
+   "gold": "Applied AI",
+   "pred": "Inference & Hardware",
+   "boundary": false,
+   "alt_old_code": null,
+   "reason": ""
+  },
+  {
+   "run_date": "2026-10-22",
+   "source_id": "537e4434b93485e0e5cf9ca4ed8fa9b4793eb32f33714ba5d7ba397a41b7a4fa",
+   "headline": "Recursive shows first result of its AI-driven research process with Flint",
+   "gold": "Applied AI",
+   "pred": "Models & Releases",
+   "boundary": false,
+   "alt_old_code": null,
+   "reason": ""
+  },
+  {
+   "run_date": "2026-10-22",
+   "source_id": "da1c40853e0de44a94efa27a71bde62a778189df54ec3d77e09a3fcc72e8a188",
+   "headline": "OlmoEarth v1.3: State-of-the-art embeddings for the whole planet",
+   "gold": "Models & Releases",
+   "pred": "Applied AI",
+   "boundary": true,
+   "alt_old_code": "RS",
+   "reason": ""
+  },
+  {
+   "run_date": "2026-10-23",
+   "source_id": "0e75aa67958225050cbc6819826abf07d008f60ca74019f76cfd4773addc944f",
+   "headline": "Multi-Turn Reinforcement Learning on Amazon SageMaker AI: A hands-on guide",
+   "gold": "Inference & Hardware",
+   "pred": "AI Agents",
+   "boundary": true,
+   "alt_old_code": null,
+   "reason": ""
+  },
+  {
+   "run_date": "2026-10-23",
+   "source_id": "bbaa0d6bbc4891bb66881b631f8097aac0caffdb0927a8204fc31b055b4da15e",
+   "headline": "Claude Duet Safety, Privacy, and Security",
+   "gold": "Safety, Security & Policy",
+   "pred": "AI Agents",
+   "boundary": true,
+   "alt_old_code": "MR",
+   "reason": ""
+  },
+  {
+   "run_date": "2026-10-23",
+   "source_id": "d21cabf12bab8164643cdaea5a5a02c5a24143c172574b57d2f83c01d4fd14ed",
+   "headline": "Anthropic says its unreleased model is both more capable and better aligned than",
+   "gold": "Models & Releases",
+   "pred": "Safety, Security & Policy",
+   "boundary": false,
+   "alt_old_code": null,
+   "reason": ""
+  }
+ ]
+}

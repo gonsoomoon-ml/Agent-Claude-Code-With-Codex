@@ -122,6 +122,17 @@ def test_llm_labels_sends_shown_cards_with_sections_and_area_definitions():
     assert "Applied AI" in seen["system"] and '"launch"' in seen["system"]      # 분야 정의 추가, 기존 type 문장 유지
 
 
+def test_label_prompt_narrows_launch_to_new_products_not_features():
+    """2026-10-30: launch = 새 모델·새 제품/서비스·플랫폼 GA 만. "major feature" 문구가 how-to·기능 글을 1티어로 끌어들였다
+    (10-20~29 1티어의 약 1/4). 실측 근거는 top_picks 모듈 docstring. 정책(5대 기업·칸 배분)은 여전히 코드(assign_top)."""
+    from briefing.core.top_picks import _LABEL_SYSTEM
+    assert "major feature" not in _LABEL_SYSTEM
+    assert "NEW model, NEW product or service, or general availability" in _LABEL_SYSTEM
+    assert "tutorials, how-tos and engineering write-ups are NOT launch" in _LABEL_SYSTEM
+    assert "Research findings" not in _LABEL_SYSTEM        # 기각된 문구(응용 칸의 연구 픽을 밀어냄) — 되돌아오지 않게
+    assert '"importance": <1-5 for an AI practitioner>' in _LABEL_SYSTEM   # 앵커·하한 없음(기각)
+
+
 def test_llm_labels_retries_once_on_exception_then_succeeds_quietly(capsys):
     calls = []
 

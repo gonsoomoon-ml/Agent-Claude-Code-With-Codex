@@ -9,6 +9,15 @@
   같은 사건 제거는 **코드**가 한다(`assign_top`). 오프라인 실측(7일 × 2회): 한 번에 3장을 고르게 하면 표절 논란·
   과학자 성명을 "큰 발표"로 골랐고, 등급만 매기게 해도 MS·Deepseek·Z.ai 를 큰 발표로 넣었다 — 회사 목록 같은
   결정론적 조건은 LLM 에 맡기면 새고, 라벨 + 코드 판정은 7일 중 6일이 두 번 모두 같은 결과였다.
+★ 2026-10-30 `launch` 정의 좁힘(새 모델·새 제품/서비스·플랫폼 GA 만; 점진 기능·통합·SDK/스킬 추가·튜토리얼·엔지니어링 글은
+  applied). 왜: 10-20~29 실발송에서 1티어(큰 발표 칸)의 약 1/4 이 how-to·기능 글(TorchTPU 통합·IAM Helper·AWS Batch 할당량)
+  — "major feature" 문구가 기능 소개를 launch 로 끌어들였다. 실측(10일 × Sonnet 5.5 재생, `docs/work_note/Oct-2026/
+  261030-improve-today-briefing/`): 1티어 후보 58→33장(−43%), 플래그십(Duet·Genie 4·GPT-6.1 Terra·Gemini 4 Carbon·S-1·GSA)
+  전부 유지, 분야 골든 89.3→87.8%(같은 날 기준선 대비 −1.5pt, 불일치 12건 공유 = 잡음). **기각(재제안 금지):** ① 1티어
+  importance 하한 — 점수가 3~4 에 뭉쳐 하한 4 는 정당한 소형 발표(Polly·AI for Science)를 떨구고 오분류 4점(연구 보도)은
+  통과시키며 주말엔 핵심 3 자체가 생략됨 ② "연구 결과→other" 문구 — 응용 칸의 연구 픽(전문가 판단·신약)을 밀어내고 10-24
+  OpenAI 연구 보도(policy 오분류)는 못 고침 ③ importance 앵커 — 점수가 여전히 들쭉날쭉(Terra 5→4). 잔존 1건/10일(연구 보도가
+  policy)은 수용.
 
 분야 밴드(2026-10-24 사용자 결정, `docs/superpowers/specs/2026-10-24-topic-grouping-design.md`):
 - 같은 라벨 호출에 `area`(공용 `areas.AREAS` 중 하나, **정확 일치**)를 더한다 — 추가 호출 0. 입력은 ⚠(QUARANTINE)
@@ -55,8 +64,11 @@ _LABEL_SYSTEM = (
     'not anyone\'s announcement>, "type": <one of "launch", "policy", "applied", "other">, '
     '"importance": <1-5 for an AI practitioner>, "event": <2-4 word key; articles about the same event or the '
     'same technical topic get the same key>, "area": <exactly one of: ' + ", ".join(AREAS) + ">}\n"
-    'type "launch" = the org announces its own new model, product, platform, general availability or major '
-    'feature. type "policy" = the org announces its own major policy, investment, partnership or organizational '
+    'type "launch" = the org announces its own NEW model, NEW product or service, or general availability of a '
+    'platform - something an AI practitioner would call headline news. Incremental features, integrations, '
+    'SDK/skill/tool additions, regional expansions, tutorials, how-tos and engineering write-ups are NOT launch - '
+    'use "applied" (or "other"). '
+    'type "policy" = the org announces its own major policy, investment, partnership or organizational '
     "decision. A third-party model or product made available on a platform is the THIRD PARTY's launch (org = "
     "the third party). Criticism, lawsuits, court rulings, controversies, leaks, rumors, opinion and analyst "
     'rankings or awards are never launch or policy - use "other" (or "applied" if it fits). '

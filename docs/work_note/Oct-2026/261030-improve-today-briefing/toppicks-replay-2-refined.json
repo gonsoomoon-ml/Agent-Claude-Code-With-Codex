@@ -1,0 +1,2788 @@
+{
+ "model": "global.anthropic.claude-sonnet-5-5",
+ "days": {
+  "2026-10-20": {
+   "missing": [],
+   "prompts": {
+    "refined": {
+     "labels": [
+      {
+       "n": 0,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Access OpenAI GPT models on Amazon Bedrock from Canada with cross-Region inference",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "OpenAI Bedrock Canada",
+       "area": "Models & Releases",
+       "tier": 2
+      },
+      {
+       "n": 1,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Fine-tuning GPT-OSS-20B for multilingual reasoning on Amazon SageMaker HyperPod",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "GPT-OSS multilingual fine-tuning",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 2,
+       "media": "AWS ML Blog",
+       "decision": "QUARANTINE",
+       "headline": "From data to decisions: Conversational supply chain intelligence with Amazon Quick and Amazon Bedrock AgentCore",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "Supply chain Quick AgentCore",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 3,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "How Octave built a secure multi-tenant AI foundation on Amazon Bedrock",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "Octave Bedrock multi-tenant",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 4,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Work management context for AI agents with Smartsheet MCP on AWS",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "Smartsheet MCP AWS",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 5,
+       "media": "AWS Korea Tech Blog",
+       "decision": "PUBLISH",
+       "headline": "AI 에이전트 시대의 기업 토큰 경제학: 비용 방정식으로 측정하고 Amazon Bedrock에서 줄이기",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 3,
+       "event": "Agent token cost economics",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 6,
+       "media": "Anthropic Research",
+       "decision": "PUBLISH",
+       "headline": "How Claude designed protein binders against scorpion neurotoxins",
+       "org": "Anthropic",
+       "type": "applied",
+       "importance": 4,
+       "event": "Claude protein binder design",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 7,
+       "media": "Google Developers Blog",
+       "decision": "PUBLISH",
+       "headline": "Announcing New vLLM and SGLang Inference Engines on TPU",
+       "org": "Google",
+       "type": "launch",
+       "importance": 4,
+       "event": "TorchTPU vLLM SGLang",
+       "area": "Inference & Hardware",
+       "tier": 1
+      },
+      {
+       "n": 8,
+       "media": "Google Developers Blog",
+       "decision": "PUBLISH",
+       "headline": "Bringing Visual Graph Debugging to Custom Edge Compilers with Model Explorer",
+       "org": "Google",
+       "type": "applied",
+       "importance": 2,
+       "event": "Model Explorer Arm adapters",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 9,
+       "media": "Google Developers Blog",
+       "decision": "PUBLISH",
+       "headline": "Integrating TorchTPU into TorchTitan and Optimizing Models for TPU",
+       "org": "Google",
+       "type": "launch",
+       "importance": 3,
+       "event": "TorchTitan TPU",
+       "area": "Inference & Hardware",
+       "tier": 1
+      },
+      {
+       "n": 10,
+       "media": "Google Developers Blog",
+       "decision": "PUBLISH",
+       "headline": "Unifying Edge AI: How Coral NPU’s open standard brings portable, energy-viable intelligence from model to silicon",
+       "org": "Google",
+       "type": "applied",
+       "importance": 3,
+       "event": "Coral NPU open standard",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 11,
+       "media": "Google Cloud AI & ML",
+       "decision": "PUBLISH",
+       "headline": "Claude Opus 5.5 and Claude Sonnet 5.5 are now available in Google Antigravity",
+       "org": "Anthropic",
+       "type": "launch",
+       "importance": 4,
+       "event": "Claude 5.5 Antigravity",
+       "area": "Models & Releases",
+       "tier": 1
+      },
+      {
+       "n": 12,
+       "media": "Google Cloud AI & ML",
+       "decision": "PUBLISH",
+       "headline": "Introducing Gemini for government services",
+       "org": "Google",
+       "type": "launch",
+       "importance": 3,
+       "event": "Gemini government agent",
+       "area": "AI Agents",
+       "tier": 1
+      },
+      {
+       "n": 13,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Cloudflare's Clairic pulls data from documents faster and cheaper than LLMs",
+       "org": "Cloudflare",
+       "type": "launch",
+       "importance": 3,
+       "event": "Cloudflare Clairic extraction",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 14,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Elevenlabs releases two new speech-to-speech models designed for real-time AI conversations",
+       "org": "ElevenLabs",
+       "type": "launch",
+       "importance": 4,
+       "event": "Eleven Realtime speech models",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 15,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Mistral AI launches Voxtral 3, a full voice agent stack that listens, thinks, and talks in real time",
+       "org": "Mistral AI",
+       "type": "launch",
+       "importance": 4,
+       "event": "Voxtral 3 voice stack",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 16,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "OpenAI says GPT-6 is much better with legacy programming languages such as COBOL and Fortran",
+       "org": "OpenAI",
+       "type": "other",
+       "importance": 3,
+       "event": "GPT-6 legacy languages",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 17,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "ALTK-Evolve: How learned memory tops the τ²-bench leaderboard on customer service tasks without a frontier model",
+       "org": "IBM",
+       "type": "applied",
+       "importance": 3,
+       "event": "ALTK-Evolve learned memory",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 18,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "AnyLanguageModel 1.0: One Year of Local Models on Apple Platforms",
+       "org": "Hugging Face",
+       "type": "launch",
+       "importance": 3,
+       "event": "AnyLanguageModel 1.0",
+       "area": "Inference & Hardware",
+       "tier": 3
+      },
+      {
+       "n": 19,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "FairStress: A deeper evaluation of fairness in LLM decision-making",
+       "org": "Allen Institute for AI",
+       "type": "launch",
+       "importance": 3,
+       "event": "FairStress fairness benchmark",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 20,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "Hugging Face ❤️ TorchTPU: TPUs, Natively",
+       "org": "Hugging Face",
+       "type": "applied",
+       "importance": 3,
+       "event": "TorchTPU Hugging Face",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 21,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "NVIDIA Cosmos3-H-Dreams: Bringing Clinical Surgery to Life Through Generative Simulation",
+       "org": "NVIDIA",
+       "type": "launch",
+       "importance": 3,
+       "event": "Cosmos3-H-Dreams surgery",
+       "area": "Applied AI",
+       "tier": 3
+      },
+      {
+       "n": 22,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "Helion으로 고성능이면서 이식 가능한 vLLM 선형 백엔드 구축하기 | 파이토치 한국 사용자 모임",
+       "org": "PyTorch",
+       "type": "applied",
+       "importance": 3,
+       "event": "Helion vLLM linear backend",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 23,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "LLM 에이전트의 외부화(Externalization)에 대한 리뷰 논문 (2/2): 프로토콜과 하네스 엔지니어링, 남은 과제",
+       "org": "",
+       "type": "other",
+       "importance": 2,
+       "event": "LLM agent externalization review",
+       "area": "AI Agents",
+       "tier": 3
+      },
+      {
+       "n": 24,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "Traceway: LLM 호출 비용까지 추적하고 AI 에이전트가 직접 조회하는 셀프 호스팅 관측 플랫폼",
+       "org": "",
+       "type": "applied",
+       "importance": 2,
+       "event": "Traceway observability platform",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 25,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "[오픈소스] 하네스 논문 세 편을 에이전트 하나로 묶어 봤습니다: LongHarness + Harmony Harness + Harness² 경량 구현 (비공식)",
+       "org": "",
+       "type": "applied",
+       "importance": 2,
+       "event": "Harness papers unofficial implementation",
+       "area": "AI Agents",
+       "tier": 2
+      }
+     ],
+     "picks": {
+      "0": [
+       "p1/4 Google: Announcing New vLLM and SGLang Inference Engines",
+       "p1/4 Anthropic: Claude Opus 5.5 and Claude Sonnet 5.5 are now av",
+       "p2/4 Anthropic: How Claude designed protein binders against scor"
+      ],
+      "3": [
+       "p1/4 Google: Announcing New vLLM and SGLang Inference Engines",
+       "p1/4 Anthropic: Claude Opus 5.5 and Claude Sonnet 5.5 are now av",
+       "p2/4 Anthropic: How Claude designed protein binders against scor"
+      ],
+      "4": [
+       "p1/4 Google: Announcing New vLLM and SGLang Inference Engines",
+       "p1/4 Anthropic: Claude Opus 5.5 and Claude Sonnet 5.5 are now av",
+       "p2/4 Anthropic: How Claude designed protein binders against scor"
+      ]
+     }
+    }
+   }
+  },
+  "2026-10-21": {
+   "missing": [],
+   "prompts": {
+    "refined": {
+     "labels": [
+      {
+       "n": 0,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Beyond the KV cache: Training and serving i14’s Laplace 3B linear attention model on AWS Trainium2 with native PyTorch",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 3,
+       "event": "i14 Laplace Trainium2",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 1,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "How U.S. Hunger connects leaders and data using Amazon Quick",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "US Hunger Amazon Quick",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 2,
+       "media": "Anthropic News",
+       "decision": "PUBLISH",
+       "headline": "Announcements",
+       "org": "Anthropic",
+       "type": "policy",
+       "importance": 2,
+       "event": "Stubbs Long-Term Benefit Trust",
+       "area": "Industry & Business",
+       "tier": 1
+      },
+      {
+       "n": 3,
+       "media": "Anthropic News",
+       "decision": "PUBLISH",
+       "headline": "Physicist Christopher Stubbs joins Anthropic's Long-Term Benefit Trust",
+       "org": "Anthropic",
+       "type": "policy",
+       "importance": 2,
+       "event": "Stubbs Long-Term Benefit Trust",
+       "area": "Industry & Business",
+       "tier": 1
+      },
+      {
+       "n": 4,
+       "media": "Claude Blog",
+       "decision": "PUBLISH",
+       "headline": "Claude Security now scans continuously and tracks fixes",
+       "org": "Anthropic",
+       "type": "applied",
+       "importance": 3,
+       "event": "Claude Security beta",
+       "area": "Safety, Security & Policy",
+       "tier": 2
+      },
+      {
+       "n": 5,
+       "media": "Claude Blog",
+       "decision": "PUBLISH",
+       "headline": "HCLTech becomes a Global Premier Partner for Claude",
+       "org": "Anthropic",
+       "type": "policy",
+       "importance": 3,
+       "event": "HCLTech Claude partnership",
+       "area": "Industry & Business",
+       "tier": 1
+      },
+      {
+       "n": 6,
+       "media": "Claude Blog",
+       "decision": "PUBLISH",
+       "headline": "Introducing Claude Duet",
+       "org": "Anthropic",
+       "type": "launch",
+       "importance": 4,
+       "event": "Claude Duet",
+       "area": "AI Agents",
+       "tier": 1
+      },
+      {
+       "n": 7,
+       "media": "Google Research",
+       "decision": "PUBLISH",
+       "headline": "Empowering frontline maternal care with AI-assisted ultrasound",
+       "org": "Google",
+       "type": "applied",
+       "importance": 3,
+       "event": "AI ultrasound maternal care",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 8,
+       "media": "Google AI (The Keyword)",
+       "decision": "PUBLISH",
+       "headline": "Southeast Asia’s digital economy to hit $368 billion",
+       "org": "Google",
+       "type": "other",
+       "importance": 2,
+       "event": "e-Conomy SEA 2026",
+       "area": "Industry & Business",
+       "tier": 3
+      },
+      {
+       "n": 9,
+       "media": "Google Developers Blog",
+       "decision": "PUBLISH",
+       "headline": "Powering the Agent Development Lifecycle with any framework, from ADK to LangChain and beyond",
+       "org": "Google",
+       "type": "applied",
+       "importance": 3,
+       "event": "Agents CLI extensions",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 10,
+       "media": "Google Cloud AI & ML",
+       "decision": "PUBLISH",
+       "headline": "Google Cloud expands model choice and flexibility, bringing OpenAI models to customers",
+       "org": "OpenAI",
+       "type": "launch",
+       "importance": 4,
+       "event": "OpenAI models Google Cloud",
+       "area": "Models & Releases",
+       "tier": 1
+      },
+      {
+       "n": 11,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Claude Science tackles deadly scorpion stings by designing protein binders from scratch",
+       "org": "",
+       "type": "applied",
+       "importance": 4,
+       "event": "Claude Science scorpion binders",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 12,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Google Cloud now offers OpenAI models alongside Gemini and Claude, becoming the only major provider with all three",
+       "org": "",
+       "type": "other",
+       "importance": 3,
+       "event": "OpenAI models Google Cloud",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 13,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Nvidia's DSX POD could cut AI data center setup from six months to as little as 14 days",
+       "org": "",
+       "type": "other",
+       "importance": 3,
+       "event": "Nvidia DSX POD",
+       "area": "Inference & Hardware",
+       "tier": 3
+      },
+      {
+       "n": 14,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "OpenAI can't yet explain why its coding agents switch off misalignment monitoring",
+       "org": "",
+       "type": "other",
+       "importance": 4,
+       "event": "OpenAI agents disable monitoring",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 15,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "OpenAI's GPT-5.6 Sol and Google's Gemini 4 Argon found critical PHP flaw affecting millions of websites",
+       "org": "",
+       "type": "other",
+       "importance": 4,
+       "event": "PHP2Shell AI-found flaw",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 16,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "How Specializing the Vocabulary of SLMs Can Cut Inference Cost by 77% in Real Applications",
+       "org": "",
+       "type": "applied",
+       "importance": 3,
+       "event": "VocabX vocabulary specialization",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 17,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "MPS in PyTorch 2.15",
+       "org": "",
+       "type": "applied",
+       "importance": 3,
+       "event": "PyTorch 2.15 MPS",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 18,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "NVIDIA Kumo Relational Outperforms Supervised Machine Learning on Relational Data, No Training Required",
+       "org": "NVIDIA",
+       "type": "launch",
+       "importance": 3,
+       "event": "Kumo Relational model",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 19,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "Harness²: 정답 라벨 없이 작업마다 에이전트 하네스를 고치고, 그 경험을 다음 작업에 넘기는 프레임워크 (feat. Google)",
+       "org": "",
+       "type": "applied",
+       "importance": 3,
+       "event": "Harness2 agent harness",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 20,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "gitai: 한 브랜치에 몰린 코딩 에이전트들의 변경을 서버가 대신 rebase해 반영하는 Git 서버 (Anthropic Scion 설계 참고)",
+       "org": "",
+       "type": "applied",
+       "importance": 2,
+       "event": "gitai agent Git server",
+       "area": "AI Agents",
+       "tier": 2
+      }
+     ],
+     "picks": {
+      "0": [
+       "p1/4 Anthropic: Introducing Claude Duet",
+       "p1/4 OpenAI: Google Cloud expands model choice and flexibilit",
+       "p2/4 applied: Claude Science tackles deadly scorpion stings by"
+      ],
+      "3": [
+       "p1/4 Anthropic: Introducing Claude Duet",
+       "p1/4 OpenAI: Google Cloud expands model choice and flexibilit",
+       "p2/4 applied: Claude Science tackles deadly scorpion stings by"
+      ],
+      "4": [
+       "p1/4 Anthropic: Introducing Claude Duet",
+       "p1/4 OpenAI: Google Cloud expands model choice and flexibilit",
+       "p2/4 applied: Claude Science tackles deadly scorpion stings by"
+      ]
+     }
+    }
+   }
+  },
+  "2026-10-22": {
+   "missing": [],
+   "prompts": {
+    "refined": {
+     "labels": [
+      {
+       "n": 0,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Amazon Polly delivers a major upgrade to its Generative engine",
+       "org": "Amazon (AWS)",
+       "type": "launch",
+       "importance": 3,
+       "event": "Polly Generative upgrade",
+       "area": "Models & Releases",
+       "tier": 1
+      },
+      {
+       "n": 1,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Deploy AI in a HIPAA-eligible environment with Amazon Quick",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "Quick HIPAA eligibility",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 2,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "How IskayPet unified corporate knowledge with Amazon Bedrock Managed Knowledge Bases",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "IskayPet Bedrock Knowledge Bases",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 3,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Write your own training loop — without managing GPUs — with Amazon SageMaker training session APIs",
+       "org": "Amazon (AWS)",
+       "type": "launch",
+       "importance": 3,
+       "event": "SageMaker training session APIs",
+       "area": "Inference & Hardware",
+       "tier": 1
+      },
+      {
+       "n": 4,
+       "media": "AWS Korea Tech Blog",
+       "decision": "PUBLISH",
+       "headline": "셀프 호스팅 Grafana 알림으로 AWS DevOps Agent의 인시던트 자동 조사 시작하기",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "DevOps Agent Grafana alerts",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 5,
+       "media": "Anthropic News",
+       "decision": "PUBLISH",
+       "headline": "Donating Agent Skills to the Agentic AI Foundation",
+       "org": "Anthropic",
+       "type": "policy",
+       "importance": 4,
+       "event": "Agent Skills donation AAIF",
+       "area": "AI Agents",
+       "tier": 1
+      },
+      {
+       "n": 6,
+       "media": "Claude Blog",
+       "decision": "PUBLISH",
+       "headline": "Building agents: When to fold subagents into your main agent loop",
+       "org": "Anthropic",
+       "type": "applied",
+       "importance": 3,
+       "event": "Subagents vs single agent",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 7,
+       "media": "Google DeepMind",
+       "decision": "PUBLISH",
+       "headline": "Beyond tree cover: mapping the world’s forest types",
+       "org": "Google",
+       "type": "launch",
+       "importance": 3,
+       "event": "Forest Typology map",
+       "area": "Applied AI",
+       "tier": 1
+      },
+      {
+       "n": 8,
+       "media": "Google Developers Blog",
+       "decision": "PUBLISH",
+       "headline": "Architecting Governed, Self-Evolving AI Agents on the Gemini platform",
+       "org": "Google",
+       "type": "applied",
+       "importance": 3,
+       "event": "Self-evolving agents Chrysalis",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 9,
+       "media": "Google Developers Blog",
+       "decision": "PUBLISH",
+       "headline": "Streaming comes to API Gateway: real-time and AI-ready APIs, without changing your spec",
+       "org": "Google",
+       "type": "launch",
+       "importance": 2,
+       "event": "API Gateway streaming",
+       "area": "Applied AI",
+       "tier": 1
+      },
+      {
+       "n": 10,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "An AI agent in \"Skynet mode\" hijacks unprotected language models to launch self-sustaining cyberattacks",
+       "org": "",
+       "type": "other",
+       "importance": 4,
+       "event": "LLMjacking attack agent",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 11,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Anthropic takes on Grok Bot, Meta's Muse, and OpenAI's Dots with its always-on agent \"Claude Duet\"",
+       "org": "Anthropic",
+       "type": "launch",
+       "importance": 4,
+       "event": "Claude Duet agent",
+       "area": "AI Agents",
+       "tier": 1
+      },
+      {
+       "n": 12,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Google's Agent Compute Engine gives every Gemini agent its own hardware-isolated micro virtual machine",
+       "org": "Google",
+       "type": "launch",
+       "importance": 4,
+       "event": "Agent Compute Engine",
+       "area": "AI Agents",
+       "tier": 1
+      },
+      {
+       "n": 13,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Major US banks are locking out AI agents that log in with customer credentials",
+       "org": "",
+       "type": "other",
+       "importance": 3,
+       "event": "Banks block AI agents",
+       "area": "Industry & Business",
+       "tier": 3
+      },
+      {
+       "n": 14,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Recursive shows first result of its AI-driven research process with Flint",
+       "org": "Recursive",
+       "type": "launch",
+       "importance": 4,
+       "event": "Recursive Flint model",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 15,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "Ensemble forecasting with IBM Granite time-series models",
+       "org": "IBM",
+       "type": "launch",
+       "importance": 2,
+       "event": "Granite timeseries ensemble",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 16,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "Granite Speech 5.0: Transcribe, Translate, and Attribute more Accurately and Faster",
+       "org": "IBM",
+       "type": "launch",
+       "importance": 3,
+       "event": "Granite Speech 5.0",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 17,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "OlmoEarth v1.3: State-of-the-art embeddings for the whole planet",
+       "org": "Allen Institute for AI",
+       "type": "launch",
+       "importance": 3,
+       "event": "OlmoEarth v1.3",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 18,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "Profiling TorchNeuron (Part 1): System-level profiling on AWS Trainium.",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "TorchNeuron profiling",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 19,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "DeepInfer: DeepSeek이 V4.1-Flash 모델의 서비스에 사용하는 추론 프레임워크 (단, 오프라인 추론만 공개 😅)",
+       "org": "DeepSeek",
+       "type": "launch",
+       "importance": 4,
+       "event": "DeepInfer inference framework",
+       "area": "Inference & Hardware",
+       "tier": 3
+      },
+      {
+       "n": 20,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "PyMuPDF 2.0 릴리스: pip install 한 번으로 PDF → LLM용 마크다운까지 (3개 패키지 통합)",
+       "org": "PyMuPDF",
+       "type": "launch",
+       "importance": 2,
+       "event": "PyMuPDF 2.0",
+       "area": "Applied AI",
+       "tier": 3
+      },
+      {
+       "n": 21,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "REAP: 리버스 엔지니어링 에이전트(REA)에서 바로 사용 가능한 55개의 리버스 엔지니어링 프롬프트 저장소 (≠ REA 공식)",
+       "org": "",
+       "type": "applied",
+       "importance": 2,
+       "event": "REAP reverse engineering prompts",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 22,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "다음 주 출시되는 PyTorch 2.15부터 Mac GPU 지원 강화: MPS 백엔드의 FP8 지원 및 MoE 디코딩 5~6.5배 향상 등",
+       "org": "PyTorch",
+       "type": "launch",
+       "importance": 3,
+       "event": "PyTorch 2.15 MPS",
+       "area": "Inference & Hardware",
+       "tier": 3
+      }
+     ],
+     "picks": {
+      "0": [
+       "p1/4 Anthropic: Donating Agent Skills to the Agentic AI Foundati",
+       "p1/4 Google: Google's Agent Compute Engine gives every Gemini",
+       "p2/3 Anthropic: Building agents: When to fold subagents into you"
+      ],
+      "3": [
+       "p1/4 Anthropic: Donating Agent Skills to the Agentic AI Foundati",
+       "p1/4 Google: Google's Agent Compute Engine gives every Gemini",
+       "p2/3 Anthropic: Building agents: When to fold subagents into you"
+      ],
+      "4": [
+       "p1/4 Anthropic: Donating Agent Skills to the Agentic AI Foundati",
+       "p1/4 Google: Google's Agent Compute Engine gives every Gemini",
+       "p2/3 Anthropic: Building agents: When to fold subagents into you"
+      ]
+     }
+    }
+   }
+  },
+  "2026-10-23": {
+   "missing": [],
+   "prompts": {
+    "refined": {
+     "labels": [
+      {
+       "n": 0,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "How Bayer Crop Science built an agentic decision engine on Amazon Bedrock AgentCore with AWS Unified Operations",
+       "org": "",
+       "type": "applied",
+       "importance": 3,
+       "event": "Bayer AgentCore Case",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 1,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Multi-Turn Reinforcement Learning on Amazon SageMaker AI: A hands-on guide",
+       "org": "",
+       "type": "applied",
+       "importance": 3,
+       "event": "Multi-Turn RL SageMaker",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 2,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Orchestrating SageMaker AI endpoint auto scaling with AWS CDK",
+       "org": "",
+       "type": "applied",
+       "importance": 2,
+       "event": "SageMaker Autoscaling CDK",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 3,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Visualize points and routes with GeoJSON in Amazon Quick Sight layer maps",
+       "org": "",
+       "type": "other",
+       "importance": 1,
+       "event": "QuickSight GeoJSON Maps",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 4,
+       "media": "AWS Korea Tech Blog",
+       "decision": "PUBLISH",
+       "headline": "W컨셉, AWS Transform과 Kiro로 .NET 10까지 대규모 현대화 여정",
+       "org": "",
+       "type": "applied",
+       "importance": 3,
+       "event": "W Concept .NET Modernization",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 5,
+       "media": "Anthropic News",
+       "decision": "PUBLISH",
+       "headline": "Open call for guest investigators in the life sciences",
+       "org": "Anthropic",
+       "type": "policy",
+       "importance": 3,
+       "event": "Life Sciences Guest Investigators",
+       "area": "Applied AI",
+       "tier": 1
+      },
+      {
+       "n": 6,
+       "media": "Claude Blog",
+       "decision": "PUBLISH",
+       "headline": "Claude Cowork and chat come together for Enterprise",
+       "org": "Anthropic",
+       "type": "launch",
+       "importance": 3,
+       "event": "Cowork Enterprise GA",
+       "area": "AI Agents",
+       "tier": 1
+      },
+      {
+       "n": 7,
+       "media": "Claude Blog",
+       "decision": "PUBLISH",
+       "headline": "Claude Duet Safety, Privacy, and Security",
+       "org": "Anthropic",
+       "type": "applied",
+       "importance": 3,
+       "event": "Claude Duet Safety",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 8,
+       "media": "Claude Blog",
+       "decision": "PUBLISH",
+       "headline": "Claude Platform is now available on Google Cloud",
+       "org": "Anthropic",
+       "type": "launch",
+       "importance": 4,
+       "event": "Claude Google Cloud",
+       "area": "Models & Releases",
+       "tier": 1
+      },
+      {
+       "n": 9,
+       "media": "Anthropic Research",
+       "decision": "PUBLISH",
+       "headline": "An alignment assessment of the UK AISI cybertesting incident",
+       "org": "Anthropic",
+       "type": "other",
+       "importance": 5,
+       "event": "Mythos AISI Incident",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 10,
+       "media": "Google Research",
+       "decision": "PUBLISH",
+       "headline": "Bringing foundational models to the front lines of TB screening",
+       "org": "Google",
+       "type": "applied",
+       "importance": 3,
+       "event": "MedGemma TB Screening",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 11,
+       "media": "Google Cloud AI & ML",
+       "decision": "PUBLISH",
+       "headline": "Expanding Claude availability and deployment choice on Google Cloud",
+       "org": "Google",
+       "type": "launch",
+       "importance": 4,
+       "event": "Claude Google Cloud",
+       "area": "Models & Releases",
+       "tier": 1
+      },
+      {
+       "n": 12,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Anthropic says its unreleased model is both more capable and better aligned than Mythos 5.1",
+       "org": "",
+       "type": "other",
+       "importance": 4,
+       "event": "Mythos AISI Incident",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 13,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Canva launches Craft, its first in-house image model",
+       "org": "",
+       "type": "launch",
+       "importance": 3,
+       "event": "Canva Craft Model",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 14,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Chinese AI model Kimi K3.1 Pro is closing in on Anthropic's Claude Opus 5.5",
+       "org": "",
+       "type": "launch",
+       "importance": 4,
+       "event": "Kimi K3.1 Pro",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 15,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Three-week on-site audit at OpenAI reveals major gaps in AI safety monitoring",
+       "org": "",
+       "type": "other",
+       "importance": 4,
+       "event": "OpenAI Monitoring Audit",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 16,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "Does Your Model Run on AWS Trainium? Look It Up",
+       "org": "",
+       "type": "applied",
+       "importance": 3,
+       "event": "TorchNeuron Trainium",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 17,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "LitPivot: Developing research ideas through dynamic contextualization within the literature landscape",
+       "org": "",
+       "type": "applied",
+       "importance": 2,
+       "event": "LitPivot Research Ideas",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 18,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "Turning Database Grading into RL Rewards: Post-Training Agents with ThinkingBox",
+       "org": "",
+       "type": "applied",
+       "importance": 3,
+       "event": "ThinkingBox RL Rewards",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 19,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "AAIF에 Agent Skills, Open Responses, OpenEnv, OpenSandbox 합류해 프로젝트 10개로",
+       "org": "",
+       "type": "policy",
+       "importance": 4,
+       "event": "AAIF New Projects",
+       "area": "AI Agents",
+       "tier": 3
+      },
+      {
+       "n": 20,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "AWS, Trainium을 CUDA처럼 PyTorch 장치로 쓰는 네이티브 백엔드 TorchNeuron 공개 (feat. Hugging Face)",
+       "org": "AWS",
+       "type": "launch",
+       "importance": 4,
+       "event": "TorchNeuron Trainium",
+       "area": "Inference & Hardware",
+       "tier": 1
+      },
+      {
+       "n": 21,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "LiteLLM v1.107.0 공급망 공격: 정식 릴리스 파이프라인이 서명해 배포한 악성 패키지",
+       "org": "",
+       "type": "other",
+       "importance": 5,
+       "event": "LiteLLM Supply Chain",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 22,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "Modular의 Mojo와 MAX: CUDA 종속 없이 여러 AI 하드웨어를 같은 코드로 다루려는 언어와 추론 프레임워크",
+       "org": "Modular",
+       "type": "launch",
+       "importance": 3,
+       "event": "Mojo MAX Modular",
+       "area": "Inference & Hardware",
+       "tier": 3
+      },
+      {
+       "n": 23,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "whatsapp-mcp: 메시지 전송 없이 내 WhatsApp 대화를 AI 에이전트가 검색하게 하는 셀프 호스팅 MCP 서버",
+       "org": "",
+       "type": "applied",
+       "importance": 2,
+       "event": "whatsapp-mcp Server",
+       "area": "AI Agents",
+       "tier": 2
+      }
+     ],
+     "picks": {
+      "0": [
+       "p1/4 Anthropic: Claude Platform is now available on Google Cloud",
+       "p1/4 Amazon: AWS, Trainium을 CUDA처럼 PyTorch 장치로 쓰는 네이티브 백엔드 To",
+       "p2/3 applied: How Bayer Crop Science built an agentic decision"
+      ],
+      "3": [
+       "p1/4 Anthropic: Claude Platform is now available on Google Cloud",
+       "p1/4 Amazon: AWS, Trainium을 CUDA처럼 PyTorch 장치로 쓰는 네이티브 백엔드 To",
+       "p2/3 applied: How Bayer Crop Science built an agentic decision"
+      ],
+      "4": [
+       "p1/4 Anthropic: Claude Platform is now available on Google Cloud",
+       "p1/4 Amazon: AWS, Trainium을 CUDA처럼 PyTorch 장치로 쓰는 네이티브 백엔드 To",
+       "p2/3 applied: How Bayer Crop Science built an agentic decision"
+      ]
+     }
+    }
+   }
+  },
+  "2026-10-24": {
+   "missing": [],
+   "prompts": {
+    "refined": {
+     "labels": [
+      {
+       "n": 0,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "AI makes junior patent attorneys instantly better but may quietly stunt their professional growth",
+       "org": "",
+       "type": "other",
+       "importance": 3,
+       "event": "AI junior patent attorneys",
+       "area": "Applied AI",
+       "tier": 3
+      },
+      {
+       "n": 1,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Block's new AI model Dessa was trained entirely on human speech to catch emotions text-based models miss",
+       "org": "Block",
+       "type": "launch",
+       "importance": 4,
+       "event": "Block Dessa speech model",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 2,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Fancy harnesses make coding agents more expensive but not better, study finds",
+       "org": "",
+       "type": "applied",
+       "importance": 3,
+       "event": "Coding agent harness study",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 3,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "OpenAI's isolated AI agents found ways to talk to each other through CPU cache",
+       "org": "OpenAI",
+       "type": "policy",
+       "importance": 4,
+       "event": "OpenAI offline training incident",
+       "area": "Safety, Security & Policy",
+       "tier": 1
+      },
+      {
+       "n": 4,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Three fired OpenAI safety researchers say they were never told what they actually leaked",
+       "org": "",
+       "type": "other",
+       "importance": 3,
+       "event": "Fired OpenAI safety researchers",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 5,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "Kimi K3.1 Pro 출시: K3보다 33% 낮은 API 가격, 사이버 보안 데이터를 뺀 3T급 오픈 웨이트 모델 (가중치는 11/4까지 공개 예정)",
+       "org": "Moonshot AI",
+       "type": "launch",
+       "importance": 5,
+       "event": "Kimi K3.1 Pro",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 6,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "OpenEnv, AAIF 프로젝트로 합류: 에이전트 학습 환경을 과제 정의부터 TRL 학습까지 만드는 방법 (feat. Hugging Face)",
+       "org": "Agentic AI Foundation",
+       "type": "policy",
+       "importance": 3,
+       "event": "OpenEnv joins AAIF",
+       "area": "AI Agents",
+       "tier": 3
+      }
+     ],
+     "picks": {
+      "0": [
+       "p1/4 OpenAI: OpenAI's isolated AI agents found ways to talk t",
+       "p2/3 applied: Fancy harnesses make coding agents more expensiv",
+       "p3/5 launch: Kimi K3.1 Pro 출시: K3보다 33% 낮은 API 가격, 사이버 보안 데이터"
+      ],
+      "3": [
+       "p1/4 OpenAI: OpenAI's isolated AI agents found ways to talk t",
+       "p2/3 applied: Fancy harnesses make coding agents more expensiv",
+       "p3/5 launch: Kimi K3.1 Pro 출시: K3보다 33% 낮은 API 가격, 사이버 보안 데이터"
+      ],
+      "4": [
+       "p1/4 OpenAI: OpenAI's isolated AI agents found ways to talk t",
+       "p2/3 applied: Fancy harnesses make coding agents more expensiv",
+       "p3/5 launch: Kimi K3.1 Pro 출시: K3보다 33% 낮은 API 가격, 사이버 보안 데이터"
+      ]
+     }
+    }
+   }
+  },
+  "2026-10-25": {
+   "missing": [],
+   "prompts": {
+    "refined": {
+     "labels": [
+      {
+       "n": 0,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Anthropic co-founder Jack Clark moves his prediction for self-improving AI forward to 2027",
+       "org": "",
+       "type": "other",
+       "importance": 4,
+       "event": "Clark RSI prediction",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 1,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Anthropic says one AI agent beats many subagents now that models can handle complexity alone",
+       "org": "Anthropic",
+       "type": "applied",
+       "importance": 4,
+       "event": "Single agent vs subagents",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 2,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Nvidia open-sources Flora to make robot video labeling 125x cheaper than GPT-6 Astra",
+       "org": "Nvidia",
+       "type": "launch",
+       "importance": 3,
+       "event": "Flora robot labeling",
+       "area": "Applied AI",
+       "tier": 3
+      },
+      {
+       "n": 3,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "OpenAI offers discounts up to 90 percent to poach Anthropic's biggest customers",
+       "org": "",
+       "type": "other",
+       "importance": 4,
+       "event": "OpenAI discounts poaching Anthropic",
+       "area": "Industry & Business",
+       "tier": 3
+      },
+      {
+       "n": 4,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "OpenMobile-2 proves open-source smartphone agents can rival proprietary models",
+       "org": "",
+       "type": "launch",
+       "importance": 3,
+       "event": "OpenMobile-2 phone agent",
+       "area": "AI Agents",
+       "tier": 3
+      },
+      {
+       "n": 5,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "Anthropic Scion: 하루 3만 건 병합을 감당하려 Git을 대체한 버전 관리 시스템 (및 Mononoke와의 출처 표기 논쟁😵)",
+       "org": "Anthropic",
+       "type": "applied",
+       "importance": 3,
+       "event": "Scion version control",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 6,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "Docker와 Kubernetes를 같은 API로 다루는 에이전트 샌드박스 OpenSandbox, AAIF 프로젝트로 합류",
+       "org": "Alibaba",
+       "type": "applied",
+       "importance": 3,
+       "event": "OpenSandbox joins AAIF",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 7,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "NVIDIA, 4GB VRAM에서 동작하는 대화형 에이전트용 소형 모델 Nemotron 3.5 Bolt E4B 공개 (feat. Gemma 4)",
+       "org": "Nvidia",
+       "type": "launch",
+       "importance": 3,
+       "event": "Nemotron 3.5 Bolt E4B",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 8,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "OpenAI가 AAIF에 기증한 Open Responses: 여러 LLM 제공자를 같은 요청 형식으로 호출하는 공개 사양",
+       "org": "OpenAI",
+       "type": "policy",
+       "importance": 3,
+       "event": "Open Responses AAIF",
+       "area": "AI Agents",
+       "tier": 1
+      }
+     ],
+     "picks": {
+      "0": [
+       "p1/3 OpenAI: OpenAI가 AAIF에 기증한 Open Responses: 여러 LLM 제공자를 같은",
+       "p2/4 Anthropic: Anthropic says one AI agent beats many subagents",
+       "p2/3 Anthropic: Anthropic Scion: 하루 3만 건 병합을 감당하려 Git을 대체한 버전 관리"
+      ],
+      "3": [
+       "p1/3 OpenAI: OpenAI가 AAIF에 기증한 Open Responses: 여러 LLM 제공자를 같은",
+       "p2/4 Anthropic: Anthropic says one AI agent beats many subagents",
+       "p2/3 Anthropic: Anthropic Scion: 하루 3만 건 병합을 감당하려 Git을 대체한 버전 관리"
+      ],
+      "4": [
+       "(핵심 칸 생략)"
+      ]
+     }
+    }
+   }
+  },
+  "2026-10-26": {
+   "missing": [],
+   "prompts": {
+    "refined": {
+     "labels": [
+      {
+       "n": 0,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Build agentic retrieval on a Managed Amazon Bedrock Knowledge Base with CDK",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 3,
+       "event": "Agentic RAG Bedrock CDK",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 1,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Fleet-wide computer vision lifecycle at the edge with SageMaker SDK v3",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "Edge CV SageMaker v3",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 2,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Groundhog Day for AI agents: Prompt caching patterns for using OpenAI models on Amazon Bedrock",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 3,
+       "event": "Bedrock prompt caching agents",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 3,
+       "media": "AWS Korea Tech Blog",
+       "decision": "PUBLISH",
+       "headline": "기존 LangGraph 워크플로우를 Amazon Bedrock AgentCore Runtime으로: 아이지에이웍스 클레어의 프로덕션 이관과 운영 경험",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 3,
+       "event": "LangGraph to AgentCore migration",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 4,
+       "media": "Anthropic News",
+       "decision": "PUBLISH",
+       "headline": "Anthropic files S-1 with the SEC for proposed initial public offering",
+       "org": "Anthropic",
+       "type": "policy",
+       "importance": 5,
+       "event": "Anthropic IPO S-1",
+       "area": "Industry & Business",
+       "tier": 1
+      },
+      {
+       "n": 5,
+       "media": "Google AI (The Keyword)",
+       "decision": "PUBLISH",
+       "headline": "Our newest AI Quest: Mapping the human brain",
+       "org": "Google",
+       "type": "applied",
+       "importance": 1,
+       "event": "AI Quests brain mapping",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 6,
+       "media": "Google Developers Blog",
+       "decision": "PUBLISH",
+       "headline": "Preview, edit, and collaborate on markdown (.md) files natively in Google Docs and Drive",
+       "org": "Google",
+       "type": "applied",
+       "importance": 2,
+       "event": "Markdown in Google Docs",
+       "area": "Models & Releases",
+       "tier": 2
+      },
+      {
+       "n": 7,
+       "media": "Google Cloud AI & ML",
+       "decision": "PUBLISH",
+       "headline": "Scale agents securely with IAM Helper Agent Skills and MCP Tools",
+       "org": "Google",
+       "type": "launch",
+       "importance": 3,
+       "event": "IAM Helper agent skills",
+       "area": "AI Agents",
+       "tier": 1
+      },
+      {
+       "n": 8,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Anthropic opens its books for Wall Street, showing record revenue and mounting obligations",
+       "org": "",
+       "type": "other",
+       "importance": 5,
+       "event": "Anthropic IPO S-1",
+       "area": "Industry & Business",
+       "tier": 3
+      },
+      {
+       "n": 9,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Meta plans up to $95 billion in stock sales to fund its AI buildout",
+       "org": "",
+       "type": "other",
+       "importance": 4,
+       "event": "Meta stock sale AI",
+       "area": "Industry & Business",
+       "tier": 3
+      },
+      {
+       "n": 10,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Reddit's r/opensource bans all AI-related projects, sparking backlash and a rival subreddit",
+       "org": "",
+       "type": "other",
+       "importance": 2,
+       "event": "r/opensource AI ban",
+       "area": "Industry & Business",
+       "tier": 3
+      },
+      {
+       "n": 11,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Researchers find six patterns that make AI text so exhausting to read",
+       "org": "",
+       "type": "other",
+       "importance": 3,
+       "event": "AI text reading patterns",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 12,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Wall Street's fastest traders are building data centers and backing chip startups to stay ahead in AI",
+       "org": "",
+       "type": "other",
+       "importance": 3,
+       "event": "Trading firms AI compute",
+       "area": "Industry & Business",
+       "tier": 3
+      },
+      {
+       "n": 13,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "Anthropic, Agent Skills 표준을 AAIF에 기증: SKILL.md는 그대로, 배포와 보안은 남은 과제",
+       "org": "Anthropic",
+       "type": "policy",
+       "importance": 4,
+       "event": "Agent Skills AAIF donation",
+       "area": "AI Agents",
+       "tier": 1
+      },
+      {
+       "n": 14,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "Corgi: Claude Code, Codex 등 여러 코딩 에이전트를 한 터미널에서 지켜보는 멀티플렉서 (feat. Ghostty, herdr)",
+       "org": "",
+       "type": "applied",
+       "importance": 2,
+       "event": "Corgi agent multiplexer",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 15,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "Jane Street 및 NVIDIA, Mamba-2 순전파를 Triton보다 최대 1.82배 빠르게 구현한 cuTile 커널 공개",
+       "org": "",
+       "type": "applied",
+       "importance": 3,
+       "event": "Mamba-2 cuTile kernels",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 16,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "StepFun, Step 5 Preview 가중치 공개: H200 8장에서 도는 FP8 체크포인트 (단, 상업적 사용 시 별도 계약 필요)",
+       "org": "StepFun",
+       "type": "launch",
+       "importance": 4,
+       "event": "Step 5 Preview weights",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 17,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "추론 전용 NPU에서 325M 언어모델을 0부터 사전학습하고, B200 GPU와 짝지은 비교로 품질 동등성을 검증한 기록",
+       "org": "",
+       "type": "applied",
+       "importance": 3,
+       "event": "NPU pretraining 325M",
+       "area": "Inference & Hardware",
+       "tier": 2
+      }
+     ],
+     "picks": {
+      "0": [
+       "p1/5 Anthropic: Anthropic files S-1 with the SEC for proposed in",
+       "p1/3 Google: Scale agents securely with IAM Helper Agent Skil",
+       "p2/3 Amazon: Build agentic retrieval on a Managed Amazon Bedr"
+      ],
+      "3": [
+       "p1/5 Anthropic: Anthropic files S-1 with the SEC for proposed in",
+       "p1/3 Google: Scale agents securely with IAM Helper Agent Skil",
+       "p2/3 Amazon: Build agentic retrieval on a Managed Amazon Bedr"
+      ],
+      "4": [
+       "p1/5 Anthropic: Anthropic files S-1 with the SEC for proposed in",
+       "p2/3 Amazon: Build agentic retrieval on a Managed Amazon Bedr",
+       "p2/3 applied: Jane Street 및 NVIDIA, Mamba-2 순전파를 Triton보다 최대 1"
+      ]
+     }
+    }
+   }
+  },
+  "2026-10-27": {
+   "missing": [],
+   "prompts": {
+    "refined": {
+     "labels": [
+      {
+       "n": 0,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "AWS named a Leader in the 2026 Gartner Magic Quadrant for Contact Center as a Service",
+       "org": "Amazon (AWS)",
+       "type": "other",
+       "importance": 2,
+       "event": "AWS Gartner CCaaS Leader",
+       "area": "Industry & Business",
+       "tier": 3
+      },
+      {
+       "n": 1,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Announcing SOCI-indexed images for faster SageMaker AI jobs",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "SageMaker SOCI indexed images",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 2,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Exowatt beats frontier models on accuracy with SageMaker serverless model customization",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 3,
+       "event": "Exowatt SageMaker customization",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 3,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Fix evaluation bias to unlock better models on Amazon Bedrock",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 3,
+       "event": "Bedrock evaluation label bias",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 4,
+       "media": "Claude Blog",
+       "decision": "PUBLISH",
+       "headline": "Claude for Financial Advisors",
+       "org": "Anthropic",
+       "type": "launch",
+       "importance": 3,
+       "event": "Claude for Financial Advisors",
+       "area": "Models & Releases",
+       "tier": 1
+      },
+      {
+       "n": 5,
+       "media": "Claude Blog",
+       "decision": "PUBLISH",
+       "headline": "Expanding Claude for Nonprofits",
+       "org": "Anthropic",
+       "type": "applied",
+       "importance": 2,
+       "event": "Claude for Nonprofits plugin",
+       "area": "Models & Releases",
+       "tier": 2
+      },
+      {
+       "n": 6,
+       "media": "Claude Blog",
+       "decision": "PUBLISH",
+       "headline": "Manage costs and demonstrate ROI for Claude Code on Google Cloud",
+       "org": "Anthropic",
+       "type": "applied",
+       "importance": 3,
+       "event": "Claude Code cost management",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 7,
+       "media": "Anthropic Research",
+       "decision": "PUBLISH",
+       "headline": "How AI agents shape experts’ judgment calls",
+       "org": "Anthropic",
+       "type": "other",
+       "importance": 4,
+       "event": "Agent influence on experts",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 8,
+       "media": "Google DeepMind",
+       "decision": "PUBLISH",
+       "headline": "Genie 4: A new generation of world simulation",
+       "org": "Google",
+       "type": "launch",
+       "importance": 5,
+       "event": "Genie 4 world model",
+       "area": "Models & Releases",
+       "tier": 1
+      },
+      {
+       "n": 9,
+       "media": "Google Research",
+       "decision": "PUBLISH",
+       "headline": "The sleep framework: A new way for LLMs to retain knowledge in continual learning",
+       "org": "Google",
+       "type": "other",
+       "importance": 4,
+       "event": "Sleep continual learning",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 10,
+       "media": "Google Developers Blog",
+       "decision": "PUBLISH",
+       "headline": "Building Conversational Commerce with Multi-Agent Swarms on GCP: A Working Prototype",
+       "org": "Google",
+       "type": "applied",
+       "importance": 3,
+       "event": "Conversational commerce agent swarms",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 11,
+       "media": "Google Developers Blog",
+       "decision": "PUBLISH",
+       "headline": "Fast, reliable A2UI, with swappable inference formats",
+       "org": "Google",
+       "type": "applied",
+       "importance": 3,
+       "event": "A2UI inference formats",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 12,
+       "media": "Google Cloud AI & ML",
+       "decision": "PUBLISH",
+       "headline": "Gemini Robotics Embodied Reasoning 2 is now available on Google Cloud",
+       "org": "Google",
+       "type": "launch",
+       "importance": 3,
+       "event": "Gemini Robotics ER 2",
+       "area": "Models & Releases",
+       "tier": 1
+      },
+      {
+       "n": 13,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Alibaba's latest Qwen models routed some requests through company servers, researchers find",
+       "org": "",
+       "type": "other",
+       "importance": 4,
+       "event": "Qwen routing through Alibaba servers",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 14,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "GPT-6.1 Terra halves OpenAI's API prices and still gains ground on its larger models",
+       "org": "OpenAI",
+       "type": "launch",
+       "importance": 5,
+       "event": "GPT-6.1 Terra",
+       "area": "Models & Releases",
+       "tier": 1
+      },
+      {
+       "n": 15,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Google Deepmind's Genie 4 puts a modern spin on agent designs that predate LLMs",
+       "org": "",
+       "type": "other",
+       "importance": 3,
+       "event": "Genie 4 world model",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 16,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "OpenAI asks outside experts, including a Nobel laureate, to check proofs its AI produced in math, computer science, and physics",
+       "org": "OpenAI",
+       "type": "other",
+       "importance": 4,
+       "event": "OpenAI AI-generated proofs",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 17,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "OpenAI's Ted Sanders shares a rule of thumb for picking the right GPT-model",
+       "org": "",
+       "type": "other",
+       "importance": 2,
+       "event": "GPT model naming",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 18,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "Build specialized multimodal models with LFM3",
+       "org": "Liquid AI",
+       "type": "launch",
+       "importance": 4,
+       "event": "Liquid LFM3 models",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 19,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "Can we trust LLMs to judge whether a research idea is novel?",
+       "org": "Ai2",
+       "type": "other",
+       "importance": 3,
+       "event": "LLM novelty judging",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 20,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "Memento: 성공과 실패 사례를 별도 공간에 저장하는 방식으로, LLM 파인튜닝 없이 성능을 높이는 딥 리서치 에이전트",
+       "org": "",
+       "type": "applied",
+       "importance": 3,
+       "event": "Memento deep research agent",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 21,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "ThinkingBox-Training 공개: DB 상태 채점 시 강화 학습 보상으로 매번 성공하는 과제 수를 2.8배 ↑",
+       "org": "Microsoft",
+       "type": "applied",
+       "importance": 3,
+       "event": "ThinkingBox-Training RL",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 22,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "durable-harness: 실행 중 함수가 죽어도 Claude Code와 Codex, Pi의 턴을 로그에서 이어 가게 하는 어댑터 (feat. Vercel)",
+       "org": "Vercel",
+       "type": "applied",
+       "importance": 3,
+       "event": "durable-harness coding agents",
+       "area": "AI Agents",
+       "tier": 2
+      }
+     ],
+     "picks": {
+      "0": [
+       "p1/5 Google: Genie 4: A new generation of world simulation",
+       "p1/5 OpenAI: GPT-6.1 Terra halves OpenAI's API prices and sti",
+       "p2/3 Amazon: Exowatt beats frontier models on accuracy with S"
+      ],
+      "3": [
+       "p1/5 Google: Genie 4: A new generation of world simulation",
+       "p1/5 OpenAI: GPT-6.1 Terra halves OpenAI's API prices and sti",
+       "p2/3 Amazon: Exowatt beats frontier models on accuracy with S"
+      ],
+      "4": [
+       "p1/5 Google: Genie 4: A new generation of world simulation",
+       "p1/5 OpenAI: GPT-6.1 Terra halves OpenAI's API prices and sti",
+       "p2/3 Amazon: Exowatt beats frontier models on accuracy with S"
+      ]
+     }
+    }
+   }
+  },
+  "2026-10-28": {
+   "missing": [],
+   "prompts": {
+    "refined": {
+     "labels": [
+      {
+       "n": 0,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Accelerating software delivery with agentic QA automation using Amazon Nova Act – Part 3",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "Nova Act QA Studio",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 1,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Building an Agentic AI Platform on Amazon Bedrock AgentCore",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 3,
+       "event": "AgentCore enterprise platform",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 2,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Distributed training with Ray Train DLCs and EFA on EKS",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "Ray Train EFA EKS",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 3,
+       "media": "Anthropic News",
+       "decision": "PUBLISH",
+       "headline": "Expanding our partnership with GSA to bring Claude to all levels of government",
+       "org": "Anthropic",
+       "type": "policy",
+       "importance": 4,
+       "event": "Anthropic GSA partnership",
+       "area": "Industry & Business",
+       "tier": 1
+      },
+      {
+       "n": 4,
+       "media": "Anthropic News",
+       "decision": "PUBLISH",
+       "headline": "Partnerships",
+       "org": "Anthropic",
+       "type": "other",
+       "importance": 2,
+       "event": "Anthropic partnerships page",
+       "area": "Industry & Business",
+       "tier": 3
+      },
+      {
+       "n": 5,
+       "media": "Claude Blog",
+       "decision": "PUBLISH",
+       "headline": "IDC brings Quanta into Claude and adopts Claude across the company",
+       "org": "Anthropic",
+       "type": "applied",
+       "importance": 2,
+       "event": "IDC Quanta Claude",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 6,
+       "media": "Claude Blog",
+       "decision": "PUBLISH",
+       "headline": "Introducing artifacts for legal work with Claude",
+       "org": "Anthropic",
+       "type": "applied",
+       "importance": 2,
+       "event": "Claude legal artifacts",
+       "area": "Models & Releases",
+       "tier": 2
+      },
+      {
+       "n": 7,
+       "media": "Claude Blog",
+       "decision": "PUBLISH",
+       "headline": "Smart reports, surveys, and pooled group budgets for Claude Enterprise",
+       "org": "Anthropic",
+       "type": "applied",
+       "importance": 3,
+       "event": "Claude Enterprise admin features",
+       "area": "Models & Releases",
+       "tier": 2
+      },
+      {
+       "n": 8,
+       "media": "Anthropic Research",
+       "decision": "PUBLISH",
+       "headline": "Early progress on accelerating drug development with Claude",
+       "org": "Anthropic",
+       "type": "applied",
+       "importance": 3,
+       "event": "Claude drug development",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 9,
+       "media": "Google DeepMind",
+       "decision": "PUBLISH",
+       "headline": "Gemini 4 Carbon: Our next frontier model",
+       "org": "Google",
+       "type": "launch",
+       "importance": 5,
+       "event": "Gemini 4 Carbon",
+       "area": "Models & Releases",
+       "tier": 1
+      },
+      {
+       "n": 10,
+       "media": "Google Developers Blog",
+       "decision": "PUBLISH",
+       "headline": "Hill-Climbing Agent Quality with Agents CLI Evaluation",
+       "org": "Google",
+       "type": "applied",
+       "importance": 2,
+       "event": "Agents CLI evaluation",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 11,
+       "media": "Meta Research",
+       "decision": "PUBLISH",
+       "headline": "How American Universities Are Using AI Models From Meta to Accelerate Medical and Scientific Breakthroughs",
+       "org": "Meta",
+       "type": "applied",
+       "importance": 2,
+       "event": "Meta university research",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 12,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "AI agents hacked Anthropic, maker of arguably the most capable AI models for cyberdefense",
+       "org": "",
+       "type": "other",
+       "importance": 4,
+       "event": "Cathedral hacks Anthropic",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 13,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Google Deepmind releases Gemini 4 Carbon just two weeks after Argon with gains across the board",
+       "org": "",
+       "type": "other",
+       "importance": 4,
+       "event": "Gemini 4 Carbon",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 14,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Google opens Android development to third-party AI agents and unveils new Gemini APIs",
+       "org": "Google",
+       "type": "applied",
+       "importance": 3,
+       "event": "Android Studio agents",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 15,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "New Artificial Analysis index widens the gap between open and closed models",
+       "org": "",
+       "type": "other",
+       "importance": 3,
+       "event": "Artificial Analysis index v5",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 16,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Nvidia's open Nemotron 3.5 Transcribe combines transcription, translation, and speaker recognition",
+       "org": "NVIDIA",
+       "type": "launch",
+       "importance": 3,
+       "event": "Nemotron 3.5 Transcribe",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 17,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "NVIDIA Nemotron 3.5 Transcribe and Granary v2: Intelligent Multilingual Transcription You Can Prompt and Adapt",
+       "org": "NVIDIA",
+       "type": "launch",
+       "importance": 3,
+       "event": "Nemotron 3.5 Transcribe",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 18,
+       "media": "Simon Willison",
+       "decision": "PUBLISH",
+       "headline": "The October inflection point for vibe game development",
+       "org": "",
+       "type": "other",
+       "importance": 2,
+       "event": "Vibe game development",
+       "area": "AI Agents",
+       "tier": 3
+      },
+      {
+       "n": 19,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "Nanbeige4.3-33B, 3B 증류용 교사 학습으로 만든 33B 규모의, 유사 크기 모델들 대비 우수한 성능을 보인 에이전트 모델 공개",
+       "org": "Kanzhun",
+       "type": "launch",
+       "importance": 2,
+       "event": "Nanbeige4.3-33B",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 20,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "OpenGCUA: 클릭 대신 Python 프로그램으로 컴퓨터를 다루게 해 기존 모델 성능을 높이는 에이전트 하네스",
+       "org": "Alibaba",
+       "type": "applied",
+       "importance": 2,
+       "event": "OpenGCUA harness",
+       "area": "AI Agents",
+       "tier": 2
+      }
+     ],
+     "picks": {
+      "0": [
+       "p1/5 Google: Gemini 4 Carbon: Our next frontier model",
+       "p1/4 Anthropic: Expanding our partnership with GSA to bring Clau",
+       "p2/3 Amazon: Building an Agentic AI Platform on Amazon Bedroc"
+      ],
+      "3": [
+       "p1/5 Google: Gemini 4 Carbon: Our next frontier model",
+       "p1/4 Anthropic: Expanding our partnership with GSA to bring Clau",
+       "p2/3 Amazon: Building an Agentic AI Platform on Amazon Bedroc"
+      ],
+      "4": [
+       "p1/5 Google: Gemini 4 Carbon: Our next frontier model",
+       "p1/4 Anthropic: Expanding our partnership with GSA to bring Clau",
+       "p2/3 Amazon: Building an Agentic AI Platform on Amazon Bedroc"
+      ]
+     }
+    }
+   }
+  },
+  "2026-10-29": {
+   "missing": [],
+   "prompts": {
+    "refined": {
+     "labels": [
+      {
+       "n": 0,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Accelerate agentic AI with NVIDIA Nemotron models on Amazon EKS and SageMaker HyperPod EKS",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 3,
+       "event": "Nemotron on EKS",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 1,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Build a repeatable PHP-to-Java migration engine with Kiro",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "Kiro PHP-to-Java migration",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 2,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Building intent-driven UI testing with Amazon Nova Act",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 3,
+       "event": "Epsilon Nova Act UI testing",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 3,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "How MoEngage turned over 400 APIs into agent tools with AgentCore Gateway",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 3,
+       "event": "MoEngage AgentCore Gateway",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 4,
+       "media": "AWS ML Blog",
+       "decision": "PUBLISH",
+       "headline": "Lend and borrow resources across teams with AWS Batch’s quota management for SageMaker Training jobs",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 3,
+       "event": "AWS Batch quota management",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 5,
+       "media": "AWS Korea Tech Blog",
+       "decision": "PUBLISH",
+       "headline": "AWS Lambda Web Functions 실전 가이드 1부: 실행 모델, 과금, Amazon CloudFront 오리진 구성",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "Lambda Web Functions",
+       "area": "Applied AI",
+       "tier": 2
+      },
+      {
+       "n": 6,
+       "media": "AWS Korea Tech Blog",
+       "decision": "PUBLISH",
+       "headline": "AWS Lambda Web Functions 실전 가이드 2부: Amazon Bedrock AgentCore Runtime V2 에이전트를 위한 BFF 구성",
+       "org": "Amazon (AWS)",
+       "type": "applied",
+       "importance": 2,
+       "event": "Lambda Web Functions",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 7,
+       "media": "Anthropic News",
+       "decision": "PUBLISH",
+       "headline": "AI for Science expands to foundations and institutions",
+       "org": "Anthropic",
+       "type": "policy",
+       "importance": 3,
+       "event": "AI for Science expansion",
+       "area": "Applied AI",
+       "tier": 1
+      },
+      {
+       "n": 8,
+       "media": "Google Developers Blog",
+       "decision": "PUBLISH",
+       "headline": "Build Generative UI Apps with A2UI & CopilotKit Agents",
+       "org": "Google",
+       "type": "applied",
+       "importance": 3,
+       "event": "A2UI generative UI",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 9,
+       "media": "Google Developers Blog",
+       "decision": "PUBLISH",
+       "headline": "Smaller apps and faster GPU inference with LiteRT in Google Play services",
+       "org": "Google",
+       "type": "applied",
+       "importance": 3,
+       "event": "LiteRT Play services GPU",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 10,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Chinese spies targeted Nvidia CEO Jensen Huang, according to The New York Times",
+       "org": "",
+       "type": "other",
+       "importance": 3,
+       "event": "Nvidia Huang spy report",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 11,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Experts adopt AI agent's random opinions and think they're their own, Anthropic study finds",
+       "org": "",
+       "type": "other",
+       "importance": 3,
+       "event": "Anthropic expert AI influence",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 12,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "OpenAI's Astra becomes the main target for Chinese AI labs after Anthropic tightens its defenses",
+       "org": "",
+       "type": "other",
+       "importance": 3,
+       "event": "Chinese labs distill Astra",
+       "area": "Industry & Business",
+       "tier": 3
+      },
+      {
+       "n": 13,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "Paris-based Mistral releases \"Le Chonk,\" a strong coding model that still trails China overall",
+       "org": "Mistral",
+       "type": "launch",
+       "importance": 4,
+       "event": "Mistral Large 4",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 14,
+       "media": "The Decoder",
+       "decision": "PUBLISH",
+       "headline": "US antitrust regulators are scrutinizing Nvidia's Hugging Face deal and sales practices",
+       "org": "",
+       "type": "other",
+       "importance": 3,
+       "event": "Nvidia antitrust scrutiny",
+       "area": "Safety, Security & Policy",
+       "tier": 3
+      },
+      {
+       "n": 15,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "Announcing Project ProtoStar: Making Publicly Funded Science AI-Ready",
+       "org": "Hugging Face",
+       "type": "policy",
+       "importance": 2,
+       "event": "Project ProtoStar",
+       "area": "Applied AI",
+       "tier": 3
+      },
+      {
+       "n": 16,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "Granite Switch 4.1.1 — Update models like you update software",
+       "org": "IBM",
+       "type": "applied",
+       "importance": 2,
+       "event": "Granite Switch 4.1.1",
+       "area": "Models & Releases",
+       "tier": 2
+      },
+      {
+       "n": 17,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "Introducing AnySpeechRecognizer and AnyDecisionModel: Open Models for Speech and Decisions on Apple Platforms",
+       "org": "Hugging Face",
+       "type": "applied",
+       "importance": 2,
+       "event": "AnySpeechRecognizer Apple",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 18,
+       "media": "Hugging Face Blog",
+       "decision": "PUBLISH",
+       "headline": "Welcome Le Chonk: Mistral Large 4 on Hugging Face",
+       "org": "Mistral",
+       "type": "launch",
+       "importance": 4,
+       "event": "Mistral Large 4",
+       "area": "Models & Releases",
+       "tier": 3
+      },
+      {
+       "n": 19,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "Day Trader Skill: Python으로 숫자들을 계산하고, 주문은 사람의 2번 승인이 필요한 (미국 주식 전용) Claude용 트레이딩 스킬",
+       "org": "",
+       "type": "applied",
+       "importance": 2,
+       "event": "Day Trader skill",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 20,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "Digital Human Koubo: Renoise로 만든 AI 발표자 영상을 Remotion으로 편집하는 에이전트 스킬",
+       "org": "",
+       "type": "applied",
+       "importance": 2,
+       "event": "Digital Human Koubo",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 21,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "OpenDuet: 내 서버와 원하는 모델로 운영하는, Claude Duet 같은 선제적 업무 에이전트",
+       "org": "CopilotKit",
+       "type": "applied",
+       "importance": 2,
+       "event": "OpenDuet proactive agent",
+       "area": "AI Agents",
+       "tier": 2
+      },
+      {
+       "n": 22,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "RecIR: PyTorch 추천 모델 정의 하나로 GPU와 TPU 학습을 모두 처리하는 Meta의 컴파일러",
+       "org": "Meta",
+       "type": "applied",
+       "importance": 3,
+       "event": "RecIR recsys compiler",
+       "area": "Inference & Hardware",
+       "tier": 2
+      },
+      {
+       "n": 23,
+       "media": "PyTorch Korea 읽을거리",
+       "decision": "PUBLISH",
+       "headline": "tstack: 코딩 에이전트가 변경 증명부터 리뷰 봇 대응, PR 병합까지 맡게 하는 스킬 9종 (feat. Theo Browne)",
+       "org": "",
+       "type": "applied",
+       "importance": 2,
+       "event": "tstack agent skills",
+       "area": "AI Agents",
+       "tier": 2
+      }
+     ],
+     "picks": {
+      "0": [
+       "p1/3 Anthropic: AI for Science expands to foundations and instit",
+       "p2/3 Amazon: Accelerate agentic AI with NVIDIA Nemotron model",
+       "p2/3 Google: Build Generative UI Apps with A2UI & CopilotKit "
+      ],
+      "3": [
+       "p1/3 Anthropic: AI for Science expands to foundations and instit",
+       "p2/3 Amazon: Accelerate agentic AI with NVIDIA Nemotron model",
+       "p2/3 Google: Build Generative UI Apps with A2UI & CopilotKit "
+      ],
+      "4": [
+       "p2/3 Amazon: Accelerate agentic AI with NVIDIA Nemotron model",
+       "p2/3 Google: Build Generative UI Apps with A2UI & CopilotKit ",
+       "p2/3 Meta: RecIR: PyTorch 추천 모델 정의 하나로 GPU와 TPU 학습을 모두 처리하는"
+      ]
+     }
+    }
+   }
+  }
+ },
+ "golden_variant": "refined",
+ "golden_candidate": {
+  "scored": 131,
+  "correct": 115,
+  "accuracy": 0.8778625954198473,
+  "gate": 0.85,
+  "gate_pass": true,
+  "mismatch_boundary": 11,
+  "mismatch_nonboundary": 5,
+  "failures": [],
+  "mismatches": [
+   {
+    "run_date": "2026-10-17",
+    "source_id": "66309d653c28db86f284658407214ebe183587e51d17b5858542e1cc7d36532d",
+    "headline": "Anthropics' Claude cracks a 25-year-old NSA cryptography mystery in under 30 min",
+    "gold": "Applied AI",
+    "pred": "Safety, Security & Policy",
+    "boundary": true,
+    "alt_old_code": "MR",
+    "reason": ""
+   },
+   {
+    "run_date": "2026-10-17",
+    "source_id": "c84ad09f0d8c313444a6754880c1d3f72c1d6fde497290dd71fa579101362a03",
+    "headline": "Mathematicians say OpenAI doesn't understand its own Navier-Stokes proof",
+    "gold": "Applied AI",
+    "pred": "Industry & Business",
+    "boundary": false,
+    "alt_old_code": null,
+    "reason": ""
+   },
+   {
+    "run_date": "2026-10-18",
+    "source_id": "2175db07a224555cc6c52225fded94dfaa1a572ce7dd182672e0a9e724b19155",
+    "headline": "AI agents chasing a $465 train refund invented excuses, leaked medical data, and",
+    "gold": "AI Agents",
+    "pred": "Safety, Security & Policy",
+    "boundary": true,
+    "alt_old_code": "PS",
+    "reason": ""
+   },
+   {
+    "run_date": "2026-10-20",
+    "source_id": "0f9040a829dafb40a44d45a41da11fc2ee218d082bc1f1ab804c4059c320783f",
+    "headline": "Mistral AI launches Voxtral 3, a full voice agent stack that listens, thinks, an",
+    "gold": "Models & Releases",
+    "pred": "AI Agents",
+    "boundary": true,
+    "alt_old_code": "AG",
+    "reason": ""
+   },
+   {
+    "run_date": "2026-10-20",
+    "source_id": "90004ff7ee6e4f813a59eeec34db1d5cd26ffbc6c646428e93f31513e635a68a",
+    "headline": "Fine-tuning GPT-OSS-20B for multilingual reasoning on Amazon SageMaker HyperPod",
+    "gold": "Inference & Hardware",
+    "pred": "Models & Releases",
+    "boundary": true,
+    "alt_old_code": null,
+    "reason": ""
+   },
+   {
+    "run_date": "2026-10-20",
+    "source_id": "aacdec460533c3d2a7808677d731a7fc030d8a815774253b2e9928631ab6c8e3",
+    "headline": "NVIDIA Cosmos3-H-Dreams: Bringing Clinical Surgery to Life Through Generative Si",
+    "gold": "Models & Releases",
+    "pred": "Applied AI",
+    "boundary": true,
+    "alt_old_code": "RS",
+    "reason": ""
+   },
+   {
+    "run_date": "2026-10-20",
+    "source_id": "ed1b0bde85670a877308498b6979e71dee7c0baae9244a00f0fc388f39e0ef4e",
+    "headline": "From data to decisions: Conversational supply chain intelligence with Amazon Qui",
+    "gold": "AI Agents",
+    "pred": "Applied AI",
+    "boundary": true,
+    "alt_old_code": null,
+    "reason": ""
+   },
+   {
+    "run_date": "2026-10-20",
+    "source_id": "ff8522efce867d54a1a994d9a0a327b29eb1013297189eb54f654be9ab051ea2",
+    "headline": "Introducing Gemini for government services",
+    "gold": "Models & Releases",
+    "pred": "AI Agents",
+    "boundary": true,
+    "alt_old_code": "PS",
+    "reason": ""
+   },
+   {
+    "run_date": "2026-10-21",
+    "source_id": "3ca71ea6b5ddd0c8e9fa0225131e8f1078434e9d27efe847409ed76f9ec3229a",
+    "headline": "Claude Security now scans continuously and tracks fixes",
+    "gold": "AI Agents",
+    "pred": "Safety, Security & Policy",
+    "boundary": true,
+    "alt_old_code": "PS",
+    "reason": ""
+   },
+   {
+    "run_date": "2026-10-21",
+    "source_id": "c8178a156b1825aa300b0da632183a52495b8e620a7684ad6843c66ab1e61e7a",
+    "headline": "Beyond the KV cache: Training and serving i14’s Laplace 3B linear attention mode",
+    "gold": "Applied AI",
+    "pred": "Inference & Hardware",
+    "boundary": false,
+    "alt_old_code": null,
+    "reason": ""
+   },
+   {
+    "run_date": "2026-10-22",
+    "source_id": "1defd9d87e2a52c5cbda257ddbf820417cbecbd403f828b845d02b010f0eda1d",
+    "headline": "Major US banks are locking out AI agents that log in with customer credentials",
+    "gold": "Safety, Security & Policy",
+    "pred": "Industry & Business",
+    "boundary": true,
+    "alt_old_code": "AG",
+    "reason": ""
+   },
+   {
+    "run_date": "2026-10-22",
+    "source_id": "537e4434b93485e0e5cf9ca4ed8fa9b4793eb32f33714ba5d7ba397a41b7a4fa",
+    "headline": "Recursive shows first result of its AI-driven research process with Flint",
+    "gold": "Applied AI",
+    "pred": "Models & Releases",
+    "boundary": false,
+    "alt_old_code": null,
+    "reason": ""
+   },
+   {
+    "run_date": "2026-10-22",
+    "source_id": "81290c3608db780b8f3f67d47558d532efda49c1b3142cca9624dbdf1dff7a97",
+    "headline": "Streaming comes to API Gateway: real-time and AI-ready APIs, without changing yo",
+    "gold": "Models & Releases",
+    "pred": "Applied AI",
+    "boundary": false,
+    "alt_old_code": null,
+    "reason": ""
+   },
+   {
+    "run_date": "2026-10-23",
+    "source_id": "0e75aa67958225050cbc6819826abf07d008f60ca74019f76cfd4773addc944f",
+    "headline": "Multi-Turn Reinforcement Learning on Amazon SageMaker AI: A hands-on guide",
+    "gold": "Inference & Hardware",
+    "pred": "AI Agents",
+    "boundary": true,
+    "alt_old_code": null,
+    "reason": ""
+   },
+   {
+    "run_date": "2026-10-23",
+    "source_id": "bbaa0d6bbc4891bb66881b631f8097aac0caffdb0927a8204fc31b055b4da15e",
+    "headline": "Claude Duet Safety, Privacy, and Security",
+    "gold": "Safety, Security & Policy",
+    "pred": "AI Agents",
+    "boundary": true,
+    "alt_old_code": "MR",
+    "reason": ""
+   },
+   {
+    "run_date": "2026-10-23",
+    "source_id": "d21cabf12bab8164643cdaea5a5a02c5a24143c172574b57d2f83c01d4fd14ed",
+    "headline": "Anthropic says its unreleased model is both more capable and better aligned than",
+    "gold": "Models & Releases",
+    "pred": "Safety, Security & Policy",
+    "boundary": false,
+    "alt_old_code": null,
+    "reason": ""
+   }
+  ]
+ }
+}
