@@ -335,31 +335,52 @@ def test_extract_body_reads_canonical_link():
     assert _extract_body(_ARTICLE_HTML)[3] == ""                                            # canonical 없음 → ""
 
 
-def test_extract_article_drops_offsite_canonical(capsys):
+def test_extract_article_keeps_offsite_canonical_with_warning(capsys):
+    """canonical 이 다른 호스트여도 **버리지 않고 경고만** — 2026-10-30 완화(미래 방어).
+
+    배경: Meta 는 플래그십 모델 글을 ai.meta.com 에 내고 research.meta.ai 목록에 미러한다(canonical 교차 —
+    Muse Spark 2026-04-08·Muse Image/Video 2026-07-05, 둘 다 목록 고정 노출). 구 규칙은 이런 글을 날짜를 보기도
+    전에 버리므로 같은 패턴의 다음 발표가 *신선할 때* 누락된다. 문서 페이지의 *반복* 발행(Best practices 14회)은
+    ② 신원층 URL 키(90일)가 막으므로 수집층 차단은 중복 보호였다. 잔여 = 문서 페이지 사용자당 90일 1회 가능.
+    ★ 10-30 당시엔 "최근 발표 4일 누락"으로 오진했다 — 두 글은 옛 글이라 offsite 가 아니어도 48h 창에서 걸러졌다.
+    """
     from briefing.core.retrieval import sources as s
     orig = s._extract_body
     try:
+        # 실제 사례 1 — Meta 두 도메인 운영: 글이 살아남고 url 은 목록 링크 그대로
+        s._extract_body = lambda _h: ("Introducing Muse Spark", _ARTICLE, "2026-10-26",
+                                      "https://ai.meta.com/blog/introducing-muse-spark-msl/")
+        art = s._extract_article("<html/>", "https://research.meta.ai/blog/introducing-muse-spark-msl",
+                                 "meta-research", "https://research.meta.ai/blog")
+        assert art is not None
+        assert art.url == "https://research.meta.ai/blog/introducing-muse-spark-msl"
+        assert "다른 호스트" in capsys.readouterr().err                           # 비무음 — 무엇이 왜 넘어갔나
+        # 실제 사례 2 — 문서 페이지(Best practices)도 수집층에선 통과 → 반복은 ② URL 키가 막는다
         s._extract_body = lambda _h: ("Best practices", _ARTICLE, "2026-10-06",
                                       "https://code.claude.com/docs/en/best-practices")
         assert s._extract_article("<html/>", "https://www.anthropic.com/engineering/claude-code-best-practices",
-                                  "anthropic-eng", "https://www.anthropic.com/engineering") is None
+                                  "anthropic-eng", "https://www.anthropic.com/engineering") is not None
         assert "다른 호스트" in capsys.readouterr().err
-        assert s._extract_article("<html/>", "https://x/a", "k") is not None   # listing_url 없으면 검사 안 함
+        # listing_url 없으면(RSS 전문 경로) 검사 자체를 안 한다 → 경고 없음
+        assert s._extract_article("<html/>", "https://x/a", "k") is not None
+        assert "다른 호스트" not in capsys.readouterr().err
     finally:
         s._extract_body = orig
 
 
-def test_fetch_generic_html_skips_offsite_page(monkeypatch):
-    """리스팅 링크가 다른 호스트의 문서로 넘어가면(canonical) 그 링크만 빠진다 — 정상 글은 그대로."""
+def test_fetch_generic_html_keeps_offsite_page(monkeypatch, capsys):
+    """리스팅 링크의 canonical 이 다른 호스트여도 html 리스팅 경로에서 글이 살아남는다(경고만) — 순서 보존."""
     from briefing.core.retrieval import sources as s
-    docs_page = _ARTICLE_HTML.replace(
-        "<head>", '<head><link rel="canonical" href="https://code.claude.com/docs/en/best-practices">')
-    pages = {"/news": '<a href="/news/opus">O</a><a href="/news/claude-code-best-practices">B</a>',
-             "/news/opus": _ARTICLE_HTML, "/news/claude-code-best-practices": docs_page}
+    mirror_page = _ARTICLE_HTML.replace(
+        "<head>", '<head><link rel="canonical" href="https://ai.meta.com/blog/introducing-muse-spark-msl/">')
+    pages = {"/news": '<a href="/news/opus">O</a><a href="/news/introducing-muse-spark-msl">M</a>',
+             "/news/opus": _ARTICLE_HTML, "/news/introducing-muse-spark-msl": mirror_page}
     monkeypatch.setattr(s, "discover_feed", lambda _u: "")
     monkeypatch.setattr(s, "_http_get", lambda u: pages[u.replace("https://www.anthropic.com", "")])
     arts = s.fetch_generic_html(_src(), window_hours=0, max_items=5)
-    assert [a.url for a in arts] == ["https://www.anthropic.com/news/opus"]
+    assert [a.url for a in arts] == ["https://www.anthropic.com/news/opus",
+                                     "https://www.anthropic.com/news/introducing-muse-spark-msl"]
+    assert "다른 호스트" in capsys.readouterr().err
 
 
 # ── 페치 시간 상한 ── 한 소스가 멈춰도 브리핑 전체가 정지하지 않아야 한다 ──

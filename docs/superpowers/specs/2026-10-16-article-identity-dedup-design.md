@@ -131,6 +131,15 @@ EventBridge(매시) → Lambda(fire-and-return) → AgentCore runtime(add_async_
 - 버릴 때마다 `_debug.warn`(DEBUG 무관, CloudWatch 도달) — 무엇을 왜 버렸는지.
 - 실측(2026-10-10, html 소스 4곳 링크 77개): cross-host = **best-practices 1건뿐**(최종 URL·canonical 모두 `code.claude.com`). 정상 글 오탐 0.
 
+> **2026-10-30 개정 — ① 은 경고 전용으로 완화(차단 해제, 미래 방어).** 표본 밖에서 cross-host 오탐이 실재했다: Meta 는 플래그십
+> 모델 글을 ai.meta.com 에 내고 research.meta.ai 목록에 미러한다(canonical 교차 — Muse Spark 2026-04-08·Muse Image/Video
+> 2026-07-05, 목록 고정 노출로 10-18 이후 매 run `fetch offsite`). 두 글은 옛 글이라 실제 누락 피해는 없었지만(offsite 가 아니어도
+> 48h 창에서 걸러짐), 같은 패턴의 **다음 발표는 신선할 때 날짜 검사 전에 버려진다.** 리다이렉트 여부로는 Best practices(308→docs)와
+> 못 가른다(둘 다 최종 URL 이 다른 호스트). 문서 페이지의 *반복*은 ② URL 키 + ③ 90일 lookback 이 막으므로 ① 의 남은 역할은
+> "첫 1회 발행 방지"뿐 → 발표 누락 위험이 더 크다. 코드: `_extract_article` 의 `return None` 제거, `fetch offsite` 경고는 유지.
+> 라이브 확인: 두 글이 완화 경로를 통과(본문 8,209·6,108자)하고 날짜로 걸러짐 → 출력 무변화. 잔여: 문서 페이지가 사용자당 90일에
+> 1회 실릴 수 있음(노출 = 77링크 중 1건) · ai.meta.com 페이지의 trafilatura 날짜 추출 오류(Muse Image/Video → 2022-11-18, 별건).
+
 ### ② 신원층: 기사 신원 키 3종 (`pipeline.py` dedup + 신규 키 함수 모듈)
 
 | 키 | 정의 | 잡는 사례 |

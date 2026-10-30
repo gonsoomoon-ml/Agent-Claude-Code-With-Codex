@@ -97,7 +97,7 @@
 ### article-identity-dedup (같은 기사 중복 발송 차단) — DRAFT (2026-10-16)
 | 문서 | 상태 |
 |---|---|
-| specs `2026-10-16-article-identity-dedup-design` | **DRAFT** — 감사: 07-08~10-15 8기사·초과 45장. 원인 3층(문서 페이지 오인·본문 해시 신원·7일 lookback) → ① canonical 호스트 검사 ② URL·제목 신원 키 ③ lookback 90일+pagination. DB 스키마·일일 흐름 ASCII 수록. 결정: source-store join + 90일(2026-10-16) |
+| specs `2026-10-16-article-identity-dedup-design` | **DRAFT** — 감사: 07-08~10-15 8기사·초과 45장. 원인 3층(문서 페이지 오인·본문 해시 신원·7일 lookback) → ① canonical 호스트 검사 ② URL·제목 신원 키 ③ lookback 90일+pagination. DB 스키마·일일 흐름 ASCII 수록. 결정: source-store join + 90일(2026-10-16) · **10-30 개정:** ① 은 경고 전용으로 완화(Meta ai.meta.com 미러 글 선제 방어) — 반복 차단은 ②③ 담당 |
 | plans `2026-10-16-article-identity-dedup` | **DRAFT** — 7 Task(신원 키 → 스토어 get_meta·pagination → 설정 90일 → 파이프라인 → canonical 검사 → 재생 게이트(≤10-15 에서 45장·8기사·AI Times 0) → 출하) |
 
 ### claude-codex-upgrade (CLI·모델 업그레이드 + 전후 품질·비용 비교) — 실험 완료·main 병합·단계 배포 중 (2026-10-18)

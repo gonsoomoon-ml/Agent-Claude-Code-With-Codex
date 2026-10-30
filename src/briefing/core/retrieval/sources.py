@@ -426,6 +426,8 @@ def _host(u: str) -> str:
 def _is_offsite(canonical: str, listing_url: str) -> bool:
     """canonical 이 리스팅과 *다른 사이트*면 True — 블로그 리스팅에 남은 링크가 문서 등으로 옮겨간 경우.
 
+    ★ 2026-10-30 부터 **분류(경고)용**이지 차단이 아니다 — `_extract_article` 참조.
+
     ★ fail-open: canonical 없음·상대경로(판단 불가)와 서브도메인 관계(blog.x.com ↔ x.com)는 False(통과).
     실측(2026-10-10): html 소스 4곳 링크 77개 중 True 는 best-practices(→ code.claude.com) 1건뿐.
     """
@@ -438,15 +440,21 @@ def _is_offsite(canonical: str, listing_url: str) -> bool:
 def _extract_article(html_text: str, url: str, source_key: str, listing_url: str = "") -> FetchedArticle | None:
     """HTML 기사 → FetchedArticle. title·본문 둘 다 있고 본문이 기사 길이여야 채택(`_is_stub`).
 
-    listing_url 을 주면(html 리스팅 경로) canonical 이 다른 사이트인 페이지를 버린다 — 문서 페이지는
-    최종 수정일을 날짜로 내서 수정될 때마다 "새 글"로 보이기 때문(2026-10 감사: Best practices 14회 재발송).
+    listing_url 을 주면(html 리스팅 경로) canonical 이 다른 사이트인 페이지를 **경고만 남기고 통과**시킨다(2026-10-30).
+    - 원래(10-16)는 버렸다 — 문서 페이지는 최종 수정일을 날짜로 내서 수정될 때마다 "새 글"로 보이기 때문
+      (2026-10 감사: Best practices 14회 재발송).
+    - 완화 이유(미래 방어): Meta 는 플래그십 모델 글을 ai.meta.com 에 내고 research.meta.ai 목록에 미러한다(canonical 교차;
+      Muse Spark 04-08·Muse Image/Video 07-05 실측, 목록 고정 노출). 구 규칙은 이런 글을 날짜 검사 전에 버리므로 같은 패턴의
+      다음 발표가 신선할 때 누락된다. 문서 페이지의 *반복* 발행은 ② 신원층 URL 키(pipeline dedup, 90일 lookback)가 막으므로
+      수집층 차단은 중복 보호였고, 남은 역할("첫 1회 발행 방지")보다 발표 누락 위험이 크다. 통과한 글도 `_is_stale` 창 검사는 그대로.
+    - 경고는 유지(비무음, 라벨 `fetch offsite` 불변 — 런북 grep) — 어떤 글이 다른 호스트로 넘어갔는지 CloudWatch 에서 본다.
     """
     title, text, published, canonical = _extract_body(html_text)
     if not (title and text):
         return None
-    if listing_url and _is_offsite(canonical, listing_url):  # non-silent — 무엇을 왜 버렸나
-        _debug.warn("fetch offsite", f"{source_key}: canonical 이 다른 호스트 — 글이 아니라 건너뜀: {url} → {canonical}")
-        return None
+    if listing_url and _is_offsite(canonical, listing_url):  # non-silent — 통과시키되 기록(10-30 전엔 여기서 버렸다)
+        _debug.warn("fetch offsite", f"{source_key}: canonical 이 다른 호스트 — 경고만, 통과(반복은 URL 키 dedup 이 막음): "
+                                     f"{url} → {canonical}")
     if _is_stub(text):  # 리스팅/쿠키월/스켈레톤에서 부스러기만 추출된 경우 — non-silent
         _debug.warn("fetch stub", f"{source_key}: 본문 미확보({len(text)}자 < {MIN_SOURCE_CHARS}) — {title[:40]}")
         return None
