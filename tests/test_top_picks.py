@@ -54,6 +54,32 @@ def test_tier_requires_big_org_and_announcement_type():
     assert tier(_lb(0, "", "applied")) == 2
 
 
+def test_tier_applied_slot_prefers_agents_and_applied_ai_areas():
+    """2026-10-30 사용자 관심(AI Agents·Applied AI·5대 기업 큰 발표): 응용 칸(2티어)은 분야가 AI Agents/Applied AI 일 때만.
+    type applied 라도 Inference & Hardware 등 다른 분야면 그 밖(3티어) — 10-29 'Nemotron on EKS' 가 응용 칸을 차지한 사례."""
+    assert tier(_lb(0, "", "applied", area="AI Agents")) == 2
+    assert tier(_lb(0, "", "applied", area="Applied AI")) == 2
+    assert tier(_lb(0, "", "applied", area="Inference & Hardware")) == 3
+    assert tier(_lb(0, "", "applied", area="Models & Releases")) == 3
+    assert tier(_lb(0, "Amazon", "applied", area="Inference & Hardware")) == 3   # 5대 기업이어도 applied 는 큰 발표 아님
+    assert tier(_lb(0, "Google", "launch", area="Inference & Hardware")) == 1    # 큰 발표는 분야 무관
+
+
+def test_assign_applied_slot_takes_agents_area_over_infra_howto():
+    # 10-29 재현: 큰 발표 1 + applied 셋(인프라 how-to 3 · Applied AI 3 · AI Agents 3) → 응용 칸은 선호 분야 둘, 인프라는 3티어
+    labels = [_lb(0, "Anthropic", "policy", 3, area="Applied AI"),
+              _lb(1, "Amazon", "applied", 3, area="Inference & Hardware"),
+              _lb(2, "Amazon", "applied", 3, area="Applied AI"),
+              _lb(3, "Google", "applied", 3, area="AI Agents")]
+    secs = ["Anthropic", "Amazon (AWS)", "Amazon (AWS)", "Google"]
+    assert assign_top(labels, secs) == [0, 2, 3]
+    # 선호 분야 applied 가 없으면 기존대로 그 밖에서 채운다 — 인프라 how-to 도 후보(중요도순)
+    labels2 = [_lb(0, "Anthropic", "policy", 3, area="Applied AI"),
+               _lb(1, "Amazon", "applied", 3, area="Inference & Hardware"),
+               _lb(2, "", "other", 4, area="Safety, Security & Policy")]
+    assert assign_top(labels2, ["Anthropic", "Amazon (AWS)", "News & Media"]) == [0, 2, 1]
+
+
 def test_assign_caps_big_announcements_and_keeps_one_applied():
     labels = [_lb(0, "OpenAI", "launch", 5), _lb(1, "Google", "launch", 5), _lb(2, "Meta", "launch", 4),
               _lb(3, "", "applied", 2), _lb(4, "", "other", 5)]

@@ -158,7 +158,8 @@ pipeline(사용자 u)
 > (TorchTPU 통합·IAM Helper·AWS Batch 할당량) — "major feature" 문구 탓. 새 정의 = 새 모델·새 제품/서비스·플랫폼 GA 만, 점진
 > 기능·통합·SDK/스킬 추가·튜토리얼·엔지니어링 글은 applied. 10일 재생(Sonnet 5.5): 1티어 후보 58→33장, 플래그십 유지, 골든 게이트
 > 89.3→87.8%(같은 날 기준선, 잡음). 기각 = importance 하한·"연구→other"·앵커(근거 `work_note/Oct-2026/261030-improve-today-briefing/`).
-> 정책(5대 기업·칸 배분)은 여전히 코드(`assign_top`) — 분류만 프롬프트.
+> 정책(5대 기업·칸 배분)은 여전히 코드(`assign_top`) — 분류만 프롬프트. 같은 날 **2티어(응용 칸)에 분야 조건** 추가(`tier`: type
+> applied 이고 분야 ∈ {AI Agents, Applied AI}) — 사용자 관심 명시; Inference & Hardware how-to 가 응용 칸을 차지한 10-29 사례, 10일 시뮬 1일 변화.
 
 ## 7. 품질 게이트 (결정 6)
 

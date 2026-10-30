@@ -18,6 +18,8 @@
   통과시키며 주말엔 핵심 3 자체가 생략됨 ② "연구 결과→other" 문구 — 응용 칸의 연구 픽(전문가 판단·신약)을 밀어내고 10-24
   OpenAI 연구 보도(policy 오분류)는 못 고침 ③ importance 앵커 — 점수가 여전히 들쭉날쭉(Terra 5→4). 잔존 1건/10일(연구 보도가
   policy)은 수용.
+★ 2026-10-30 응용 칸(2티어) = type applied **이고** 분야 ∈ {AI Agents, Applied AI}(`APPLIED_AREAS`, `tier` 참조) — 사용자 관심
+  명시("AI Agents·Applied AI·5대 기업 큰 발표"). 10일 시뮬 1일 변화.
 
 분야 밴드(2026-10-24 사용자 결정, `docs/superpowers/specs/2026-10-24-topic-grouping-design.md`):
 - 같은 라벨 호출에 `area`(공용 `areas.AREAS` 중 하나, **정확 일치**)를 더한다 — 추가 호출 0. 입력은 ⚠(QUARANTINE)
@@ -43,6 +45,8 @@ if TYPE_CHECKING:
 TOP_K = 3
 TOP_MIN_CARDS = 6   # 발행 카드가 이보다 적으면 라벨 호출 생략 — 짧은 메일(주말)에선 순서만 바뀌는 셈(9/20~ 34회 최소 10장)
 MAX_BIG = 2         # 큰 발표 칸 상한 — 나머지는 응용 AI·에이전트(있으면 최소 1장)
+APPLIED_AREAS = frozenset({"AI Agents", "Applied AI"})   # 응용 칸(2티어)이 받는 분야 — 2026-10-30 사용자 관심(tier 참조)
+assert APPLIED_AREAS <= set(AREAS)
 
 # (보이는 카드, 카드별 메일 섹션 이름) -> 완전한 라벨 목록(카드마다 {n(0-기반), org, type, importance, event, area}).
 # 불완전·실패는 예외(LabelIncomplete 등). production = relevance_bedrock.make_bedrock_labels(LABEL_MODEL_ID).
@@ -90,10 +94,16 @@ def big_org(org: str) -> str:
 
 
 def tier(label: dict) -> int:
-    """1 = 5대 기업의 큰 발표(launch·policy) · 2 = 응용 AI·에이전트 · 3 = 그 밖."""
+    """1 = 5대 기업의 큰 발표(launch·policy) · 2 = 응용 AI·에이전트(type applied **이고** 분야 ∈ APPLIED_AREAS) · 3 = 그 밖.
+
+    ★ 2026-10-30 2티어에 분야 조건 추가 — `applied` 정의가 서빙·추론·온디바이스·비용까지 넓어 Inference & Hardware how-to 가
+    응용 칸을 차지했다(10-29 "Nemotron on EKS"). 사용자 관심 = AI Agents·Applied AI·5대 기업 큰 발표. 10-20~29 시뮬레이션
+    (변경안 라벨 그대로)에서 바뀐 날은 1일(10-29 → Nova Act UI 테스트) — 칸 이름과 판정을 일치시키는 작은 변경. 선호 분야의
+    applied 가 없으면 기존대로 3티어(그 밖, 인프라 how-to 포함)에서 채운다(`assign_top` ③).
+    """
     if label.get("type") in ("launch", "policy") and big_org(label.get("org", "")):
         return 1
-    return 2 if label.get("type") == "applied" else 3
+    return 2 if label.get("type") == "applied" and label.get("area") in APPLIED_AREAS else 3
 
 
 def _importance(label: dict) -> int:

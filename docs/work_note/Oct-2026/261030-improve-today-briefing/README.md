@@ -8,7 +8,8 @@
 | # | 문제 | 상태 |
 |---|---|---|
 | 1 | Meta 미러 글(canonical 교차)이 수집층 offsite 차단에 걸림 | **구현** `2b28b1a` — 경고만 통과. ★처음 "큰 발표 4일 누락"으로 오진 → 두 글은 2026-04-08·07-05 옛 고정 글, 48h 창에서 어차피 걸러짐 = 피해 없음, 미래 방어로 유지 |
-| 2 | 핵심 3 "큰 발표" 칸을 how-to·기능 글이 차지(10일 중 ≈1/4) | **구현(이 커밋)** — `launch` 정의 좁힘. 측정 아래 |
+| 2 | 핵심 3 "큰 발표" 칸을 how-to·기능 글이 차지(10일 중 ≈1/4) | **구현** `56f1286` — `launch` 정의 좁힘. 측정 아래. ★구현은 측정 승인만 받은 상태에서 진행했다가 사용자 지적 — 유지/되돌림 결정 대기 |
+| 2b | 응용 칸(p2)을 Inference & Hardware how-to 가 차지(10-29 Nemotron on EKS) — 사용자 관심 = AI Agents·Applied AI·5대 기업 큰 발표 | **구현(승인 "apply and test first")** — `tier()` 2티어에 분야 조건(`APPLIED_AREAS`). 시뮬(10일, 변경안 라벨) 1일 변화: 10-29 p2 Nemotron → Nova Act |
 | 3 | 분야 오분류(Lambda Web Functions 1부 → Models & Releases, ProtoStar → Applied AI) | 대기 |
 | 4 | AI Agents 밴드 7장 중 4장이 PyTorch KR 커뮤니티 스킬 글 | 대기 |
 | 5 | 요약의 수식어 탈락 2건(over 800,000 → 800,000) | 대기 |
