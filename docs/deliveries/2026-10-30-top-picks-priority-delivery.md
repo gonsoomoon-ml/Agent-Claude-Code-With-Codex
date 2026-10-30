@@ -23,7 +23,7 @@
 ## 3. 배포
 
 - `uv run python -m briefing.runtime.deploy_runtime` → launch 75s → READY(1/60) → `.env` writeback. 다른 컴포넌트(webapi·scheduler) 무변경.
-- 주의: 이 세션은 worktree 에서 작업 → `ExitWorktree(keep)` 뒤 main 에서 `--ff-only` 병합·push. deploy 는 main 작업 트리 `src` 를 실음(다른 세션 미커밋 변경 없음 확인).
+- 주의: 이 세션은 worktree 에서 작업 → `ExitWorktree(keep)` 뒤 main 에서 `--ff-only` 병합·push. deploy 는 main 작업 트리를 실음 — 빌드 컨텍스트 = `src/briefing` + `runtime/container` 자산 + `users/`(`stage_build_context`). `src`·`tests` 미커밋 변경 없음 확인; `CLAUDE.md` 는 다른 세션의 미커밋 변경이 있었으나 빌드 컨텍스트 밖이라 컨테이너에 안 실림. 배포 뒤 확인: DEFAULT 엔드포인트 liveVersion=65(10:43Z) · dispatch Lambda `BRIEFING_DRY_RUN=0`·ARN 일치(07-04 이후 무변경) · `invoke_runtime --mode smoke` 7명 workflow_complete.
 
 ## 4. 첫 run 검증 체크리스트 (2026-10-31 05:00 KST = 10-30 20:00Z)
 
