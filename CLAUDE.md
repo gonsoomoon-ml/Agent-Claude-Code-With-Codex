@@ -77,3 +77,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - **적용 대상:** Markdown 문서(`*.md`), 설계 스펙, README, 모듈/함수/클래스 docstring, 인라인 주석.
   - **코드 자체는 영어 유지:** 식별자, 함수/변수/클래스명, API 명, CLI 플래그, 파일 경로, 로그 메시지는 이식성을 위해 영어로.
   - 정확한 영어 기술 용어가 도움이 될 때는 **이중 언어로** — 예: `검증 후 실행 게이트(verify-before-fire gate)`, `의무 원장(obligation ledger)` — 두 언어에서 의미가 분명해지도록.
+
+## 하나씩 보여주기 (Show one at a time: code · list items) — 사용자 요청 시
+
+- **"show me the code" 류 요청이면 하나씩:** 변경 단위(파일 또는 함수) 하나마다 **전체 경로(full path)** 를 적고, **그 바로 아래에 무엇이 어떻게 달라졌는지 요약(difference summary) 한두 줄**을 쓴 뒤, **변경 전(before) → 변경 후(after)** 코드를 나란히 보인다. 한 번에 하나만 보이고 멈춘다 — 사용자가 승인("ok" 등)하면 다음 코드로 넘어간다.
+- **목록의 항목도 같은 규칙:** 문제 목록·해결책 목록·선택지 목록처럼 여러 항목을 제시한 뒤 사용자가 "show me the item(s)" 라고 하면, **항목 하나만** 자세히 보이고 멈춘다 — 승인하면 다음 항목. 전체 항목을 한 번에 펼치지 않는다.
+- **왜:** 사용자는 전체 덤프가 아니라 하나씩 확인하며 승인하고 싶어한다(2026-10-30 "show me code with before and after per file with full path" · 2026-10-31 문제 목록 "show me one day after one" · 2026-11-01 명시).
