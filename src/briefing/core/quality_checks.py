@@ -34,7 +34,13 @@ _EN_QUAL = (r"up to|as many as|as much as|more than|over|at least|nearly|almost|
 _KO_QUAL_BEFORE = r"최대|약|최소|거의|대략|평균"
 _KO_QUAL_AFTER = r"이상|이하|미만|초과|이내|여|가량|넘게|넘는|안팎|정도|남짓|내외|가까이|까지|선|수준|전후|쯤|즈음"
 _RE_QUAL_BEFORE = re.compile(rf"(?:{_EN_QUAL}|{_KO_QUAL_BEFORE})\s*\$?\s*$", re.I)
-_RE_QUAL_AFTER = re.compile(rf"^\s*[^\s\d.,]{{0,4}}\s*(?:{_KO_QUAL_AFTER})")
+# 숫자 뒤 한정어 — 낱말 덩어리(공백·숫자 없는 ≤4자) **최대 2개** 뒤까지 본다: '23만 명 이상'(단위어 + 조수사 + 한정어)·
+# '10M 토큰까지'. 덩어리가 숫자를 못 넘으므로 뒤 숫자의 한정어를 끌어오지 않는다('3개에서 최대 20개' 의 3 은 그대로 맨숫자).
+# 2026-10-31: 운영 10일 qualifier_dropped 13건이 전부 이 표기(+ 아래 _NUM_TAIL 의 복합 수사)라 오탐이었다(work_note 261030 #5).
+_RE_QUAL_AFTER = re.compile(rf"^\s*(?:[^\s\d.,]{{1,4}}\s*){{0,2}}(?:{_KO_QUAL_AFTER})")
+# 숫자 뒤에 이어져 한 수를 이루는 글자 — 복합 수사('2억 5천만'·'2만5000'·'8만 6,900')는 여기를 건너뛴 자리부터 한정어를 찾는다.
+# 마침표는 뺀다(소수점은 _RE_DIGITS 가 먹고, 남는 마침표는 문장 끝이라 다음 문장의 '이상'을 끌어오면 안 된다).
+_NUM_TAIL = ", 만억조천백십"
 _RE_DIGITS = re.compile(r"\d[\d,]*(?:\.\d+)?")
 # 따옴표 인용(6자 이상) — 종류별로 여는·닫는 짝을 맞춘다. 곧은 작은따옴표(')는 영어 아포스트로피('Claude's')와
 # 구분이 안 돼 뺀다(기준값 점검에서 아포스트로피부터 다음 따옴표까지를 인용으로 잡은 오탐이 나왔다).
@@ -90,8 +96,11 @@ def _occurrences(text: str) -> list[tuple[set[float], str]]:
     out = []
     for m in _RE_DIGITS.finditer(text):
         vals = _nums(text[m.start():_number_end(text, m.end())])
+        tail = m.end()   # 복합 수사의 끝 — '2억 5천만 끼 이상' 은 '끼 이상' 부터 본다
+        while tail < len(text) and (text[tail].isdigit() or text[tail] in _NUM_TAIL):
+            tail += 1
         q = (_RE_QUAL_BEFORE.search(text[max(0, m.start() - 16):m.start()])
-             or _RE_QUAL_AFTER.search(text[m.end():m.end() + 10]))
+             or _RE_QUAL_AFTER.search(text[tail:tail + 14]))
         out.append((vals, " ".join(q.group().split()).strip("$ ") if q else ""))
     return out
 

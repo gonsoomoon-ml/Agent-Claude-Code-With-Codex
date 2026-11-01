@@ -69,6 +69,52 @@ def test_korean_qualifiers_inai_and_seon():
     assert "qualifier_dropped" not in _checks(card, src)
 
 
+def test_korean_counter_word_between_number_and_qualifier():
+    """'23만 명 이상' — 단위어(만) + 조수사(명) 뒤의 한정어도 한정어다. 운영 10일(2026-10-21~30) qualifier_dropped 13건이
+    전부 이 표기('80만 명 이상'·'10만 개 넘는'·'500억 개 미만')라 오탐이었다(work_note 261030 #5). 맨숫자는 그대로 걸려야 한다."""
+    src = "Anthropic is partnering with HCLTech, a global technology company with more than 230,000 people."
+    kept = _card(summary="Anthropic은 직원 23만 명 이상을 둔 HCLTech와 파트너십을 맺었다.", claims=("직원 23만 명 이상.",))
+    assert "qualifier_dropped" not in _checks(kept, src)
+    bare = _card(summary="Anthropic은 직원 23만 명을 둔 HCLTech와 파트너십을 맺었다.", claims=("직원 23만 명.",))
+    assert "230000" in _checks(bare, src)["qualifier_dropped"]
+    src2 = "More than 100K Android apps bundle their own copy of LiteRT today."
+    card2 = _card(summary="현재 10만 개 넘는 Android 앱이 LiteRT를 자체 번들한다.", claims=("10만 개 넘는 앱.",))
+    assert "qualifier_dropped" not in _checks(card2, src2)
+    src3 = "Flint leads among MoE models with fewer than 50 billion parameters."
+    card3 = _card(summary="Flint는 500억 개 미만 매개변수의 MoE 모델 중 선두다.", claims=("500억 개 미만.",))
+    assert "qualifier_dropped" not in _checks(card3, src3)
+
+
+def test_compound_korean_numeral_keeps_its_qualifier():
+    """복합 수사('2억 5천만'·'2만5000'·'8만 6,900')는 수사 전체를 지난 자리부터 한정어를 찾는다 — 앞 조각(2·2·8)의 자리에서
+    뒤 숫자에 막혀 한정어를 못 보던 오탐(운영 3건)."""
+    src = "U.S. Hunger reports delivering more than 250 million meals."
+    card = _card(summary="Hunger는 지금까지 2억 5천만 끼 이상을 배달했다.", claims=("2억 5천만 끼 이상.",))
+    assert "qualifier_dropped" not in _checks(card, src)
+    src2 = "Over 90 clinicians have evaluated more than 25,000 chest radiographs."
+    card2 = _card(summary="90명 이상의 임상의가 2만5000건 이상의 흉부 X선을 판독했다.", claims=("2만5000건 이상.",))
+    assert "qualifier_dropped" not in _checks(card2, src2)
+    src3 = "MathDB contains more than 86,900 research-level open problems."
+    card3 = _card(summary="8만 6,900개 넘는 미해결 문제를 담은 MathDB 기반 벤치마크를 만든다.", claims=("8만 6,900개 넘는.",))
+    assert "qualifier_dropped" not in _checks(card3, src3)
+
+
+def test_kkaji_after_unit_word_is_a_qualifier():
+    """'10M 토큰까지' — 단위 낱말 뒤의 '까지'(= up to)도 한정어다."""
+    src = "Our sleep method demonstrated near-perfect scaling up to 10M tokens."
+    card = _card(summary="BABILong에서 10M 토큰까지 거의 완벽한 확장성을 보였다.", claims=("10M 토큰까지.",))
+    assert "qualifier_dropped" not in _checks(card, src)
+
+
+def test_two_word_lookahead_does_not_cross_the_next_number():
+    """낱말 2개 허용이 뒤 숫자의 한정어를 앞 숫자에 붙이면 안 된다: '서버 3대가 요청 1만 건 이상' 의 3 은 맨숫자(원문 roughly 3
+    → 걸림), 1만 건 이상은 한정어 보존(안 걸림)."""
+    src = "Roughly 3 servers handled more than 10,000 requests during the test."
+    card = _card(summary="서버 3대가 요청 1만 건 이상을 처리했다.", claims=("서버 3대, 요청 1만 건 이상.",))
+    detail = _checks(card, src)["qualifier_dropped"]
+    assert "3(" in detail and "10000" not in detail
+
+
 # ── 3. 따옴표 인용은 원문 그대로(한국어 원문만 — 영어 원문은 번역이라 제외) ───────────────
 
 
