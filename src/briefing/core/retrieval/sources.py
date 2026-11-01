@@ -559,8 +559,11 @@ def fetch_generic_html(
     listing = _http_get(source.url)
     if not listing:
         raise RuntimeError(f"html listing fetch 실패: {source.url}")
+    links = _article_links(listing, source.url, source.article_path, source.exclude_paths)
+    if not links:   # 죽은 소스 신호 — 비무음(2026-11-01 +b: anthropic-eng 가 사이트 개편 뒤 3주간 *조용히* 0건이었다)
+        _debug.warn("fetch listing", f"{source.key}: 목록에서 글 링크 0개 — 목록 구조/경로(article_path) 변경 의심: {source.url}")
     out: list[FetchedArticle] = []
-    for url in _article_links(listing, source.url, source.article_path, source.exclude_paths):
+    for url in links:
         if len(out) >= max_items:
             break
         if time.monotonic() >= deadline:

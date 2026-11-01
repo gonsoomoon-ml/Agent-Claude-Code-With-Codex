@@ -74,8 +74,19 @@
   lang: en
   category: Anthropic
   window_hours: 48   # date-only 메타데이터 — late-post 보정(anthropic 과 동일)
+  article_path: /research/  # 2026-11-01(work_note 261030 +b): 10-13 이후 엔지니어링 글이 /research/<slug> 로 이동(옛 /engineering/<slug> 는 308).
+                            #   /engineering 은 JS 모음 페이지지만 정적 HTML 에 /research/ 글 링크 24편이 있어 이 접두로 읽힌다(운영 함수 29링크, 맨 앞 = 최신).
+                            #   anthropic-research 가 같은 글을 받아도 curate 가 source_id(본문 해시)로 접어 카드 1장(카탈로그 순 = 이 소스가 남음).
+                            #   ★ 개편 뒤 3주간 0링크를 아무도 몰랐다 → fetch_generic_html 이 목록 링크 0개면 `fetch listing` 경고(비무음)
+  page_type: article        # 모음 페이지 29링크 실측(11-01): 글 24 = article, 팀 허브 5 = website → 선언 유형 관문(+a 와 동일)
+  exclude_paths:            # 아는 팀 허브(/research/team/<team>) — 최신 글 날짜를 달고 있어 48h 창을 통과할 수 있다(30일 창 재현에서 3쪽 통과 실측)
+    - /research/team/alignment
+    - /research/team/economics
+    - /research/team/frontier-red-team
+    - /research/team/interpretability
+    - /research/team/societal-impacts
   # 공식 발표(anthropic/news)와 별개의 엔지니어링 블로그 — 리스팅+trafilatura 평문 200, fragile 아님.
-  # 발행 빈도 낮음(월 단위) → 24h 윈도우 특성상 새 글 있는 날만 카드 기여(quiet source). last-verified: 2026-07-06
+  # 발행 빈도 낮음(월 단위) → 24h 윈도우 특성상 새 글 있는 날만 카드 기여(quiet source). last-verified: 2026-11-01(마지막 글 10-13)
 
 - key: claude-blog
   name: Claude Blog

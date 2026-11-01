@@ -472,7 +472,7 @@ def test_catalog_hub_exclusions_and_page_type():
             "/news/features", "/news/policy", "/news/safeguards"} <= set(by["anthropic"].exclude_paths)
     assert "/t/topic/407" in by["pytorch-kr-news"].exclude_paths   # 카테고리 설명 글(113자, 매 run 스텁 경고)
     assert "/search" in by["google-dev"].exclude_paths              # 검색 페이지(날짜 08-17 — 바뀌면 카드가 된다)
-    assert all(s.page_type == "" for k, s in by.items() if k != "anthropic")   # opt-in 은 anthropic 뿐
+    assert all(s.page_type == "" for k, s in by.items() if k not in ("anthropic", "anthropic-eng"))   # opt-in 은 anthropic.com 두 소스뿐
 
 
 # ── 페치 시간 상한 ── 한 소스가 멈춰도 브리핑 전체가 정지하지 않아야 한다 ──
@@ -737,3 +737,23 @@ def test_fetched_article_json_roundtrip_with_cited():
     a = FetchedArticle("k", "https://x/a", "t", "본문", "2026-10-25", cited=("claude.com/a",))
     b = FetchedArticle(**json.loads(json.dumps(asdict(a))))   # Gateway 경로와 같은 왕복
     assert tuple(b.cited) == ("claude.com/a",)
+
+
+def test_fetch_generic_html_warns_when_listing_has_no_article_links(monkeypatch, capsys):
+    """목록에서 글 링크 0개 = 죽은 소스 신호(2026-11-01 +b: anthropic-eng 가 사이트 개편 뒤 3주간 *조용히* 0건) — 비무음."""
+    from briefing.core.retrieval import sources as s
+    monkeypatch.setattr(s, "discover_feed", lambda _u: "")
+    monkeypatch.setattr(s, "_http_get", lambda _u: "<html><body><a href='/about'>x</a></body></html>")
+    assert s.fetch_generic_html(_src(), window_hours=0, max_items=3) == []
+    err = capsys.readouterr().err
+    assert "fetch listing" in err and "0개" in err and "anthropic" in err
+
+
+def test_catalog_anthropic_eng_reads_research_paths():
+    by = {s.key: s for s in CATALOG}
+    assert by["anthropic-eng"].url == "https://www.anthropic.com/engineering"
+    assert by["anthropic-eng"].article_path == "/research/"   # 10-13 이후 엔지니어링 글 = /research/<slug>(모음 페이지가 링크)
+    # 모음 페이지는 팀 허브(/research/team/<team>, og:type=website, 최신 글 날짜를 담)도 링크한다 — +a 와 같은 관문으로 막는다
+    assert by["anthropic-eng"].page_type == "article"
+    assert {"/research/team/alignment", "/research/team/economics", "/research/team/frontier-red-team",
+            "/research/team/interpretability", "/research/team/societal-impacts"} <= set(by["anthropic-eng"].exclude_paths)

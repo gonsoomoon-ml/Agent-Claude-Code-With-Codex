@@ -636,3 +636,12 @@ def test_rereport_judge_called_once_for_two_users(tmp_path):
         return RereportVerdict(True, "same")
     d = _rereport_days(store, ledger, [_user("u1", ["aws-ml"]), _user("u2", ["aws-ml"])], rereport_fn=judge)
     assert [x.published for x in d] == [0, 0] and len(calls) == 1
+
+
+def test_same_article_from_two_sources_in_one_run_yields_one_card(tmp_path):
+    """같은 글을 두 소스가 같은 run 에 가져오면 카드 1장 — curate 가 source_id(본문 해시)로 접고 먼저 온 소스(카탈로그 순)가 남는다.
+    회귀 가드(2026-11-01, work_note 261030 +b): anthropic-eng(article_path /research/)와 anthropic-research 가 같은 엔지니어링 글을
+    받는 날(10-13 실측: 두 페이지에 다 실림)에 이 보장이 카드 2장을 막는다 — ledger 의 cross-day dedup 과는 별개의 run 내 보장."""
+    store = SourceStore(str(tmp_path / "store"))
+    out = run_briefing(SimpleNamespace(), store, [_user("u", ["aws-ml", "anthropic"])], **_dedup_kw())  # _fetch = 소스 무관 같은 기사
+    assert out[0].published == 1 and len(out[0].cards) == 1
