@@ -155,6 +155,8 @@ def _yaml(text: str) -> Path:
     "- {key: x, name: X, url: u, kind: html, lang: en, category: C, exclude_paths: /news/hub}",   # 목록이 아님
     "- {key: x, name: X, url: u, kind: html, lang: en, category: C, exclude_paths: [news/hub]}",  # '/' 로 시작 안 함
     "- {key: x, name: X, url: u, kind: html, lang: en, category: C, page_type: hub}",             # 미지원 page_type
+    "- {key: x, name: X, url: u, kind: html, lang: en, category: C, listing_urls: https://a/b}",      # 목록이 아님
+    "- {key: x, name: X, url: u, kind: html, lang: en, category: C, listing_urls: [/research/team/x]}",  # URL 아님
 ])
 def test_catalog_validation_rejects(bad):
     with pytest.raises(ValueError):
@@ -757,3 +759,45 @@ def test_catalog_anthropic_eng_reads_research_paths():
     assert by["anthropic-eng"].page_type == "article"
     assert {"/research/team/alignment", "/research/team/economics", "/research/team/frontier-red-team",
             "/research/team/interpretability", "/research/team/societal-impacts"} <= set(by["anthropic-eng"].exclude_paths)
+
+
+# ── 보조 목록(listing_urls) (2026-11-01, work_note 261030 +d) ──
+# 배경: Anthropic /research 메인 목록은 22편만 보여 주고 Frontier Red Team·Interpretability 글은 팀 페이지(/research/team/<team>)에만
+# 있어 19일간 4편이 카드가 된 적 없었다. 한 소스가 목록 페이지 여러 장을 읽는다 — 키 불변(프로필·webapi 무변경).
+
+def _research_src(*extra):
+    return Source("anthropic-research", "Anthropic Research", "https://www.anthropic.com/research", "html", "en",
+                  listing_urls=tuple(extra))
+
+
+def test_fetch_generic_html_merges_extra_listings_in_order(monkeypatch):
+    from briefing.core.retrieval import sources as s
+    pages = {
+        "/research": '<a href="/research/a">A</a><a href="/research/b">B</a>',
+        "/research/team/red": '<a href="/research/b">B</a><a href="/research/c">C</a><a href="/research/team/blue">T</a>',
+        "/research/a": _ARTICLE_HTML, "/research/b": _ARTICLE_HTML, "/research/c": _ARTICLE_HTML,
+    }
+    monkeypatch.setattr(s, "discover_feed", lambda _u: "")
+    monkeypatch.setattr(s, "_http_get", lambda u: pages[u.replace("https://www.anthropic.com", "")])
+    arts = s.fetch_generic_html(_research_src("https://www.anthropic.com/research/team/red"), window_hours=0, max_items=5)
+    # 주 목록 → 보조 목록 순, 같은 URL(b)은 1회, 팀 페이지끼리의 링크(/research/team/blue)는 글 모양이 아니라 제외
+    assert [a.url.rsplit("/", 1)[-1] for a in arts] == ["a", "b", "c"]
+
+
+def test_fetch_generic_html_extra_listing_failure_is_not_fatal(monkeypatch, capsys):
+    """보조 목록 하나가 안 열려도 소스는 죽지 않는다 — 그 목록만 건너뛰고 경고(비무음)."""
+    from briefing.core.retrieval import sources as s
+    pages = {"/research": '<a href="/research/a">A</a>', "/research/a": _ARTICLE_HTML, "/research/team/red": ""}
+    monkeypatch.setattr(s, "discover_feed", lambda _u: "")
+    monkeypatch.setattr(s, "_http_get", lambda u: pages[u.replace("https://www.anthropic.com", "")])
+    arts = s.fetch_generic_html(_research_src("https://www.anthropic.com/research/team/red"), window_hours=0, max_items=5)
+    assert [a.url.rsplit("/", 1)[-1] for a in arts] == ["a"]
+    err = capsys.readouterr().err
+    assert "fetch listing" in err and "team/red" in err
+
+
+def test_catalog_anthropic_research_team_listings():
+    by = {s.key: s for s in CATALOG}
+    teams = ("alignment", "economics", "frontier-red-team", "interpretability", "societal-impacts")
+    assert by["anthropic-research"].listing_urls == tuple(f"https://www.anthropic.com/research/team/{t}" for t in teams)
+    assert all(s.listing_urls == () for k, s in by.items() if k != "anthropic-research")

@@ -49,6 +49,9 @@ class Source:
     #                                      허브(기사 모음)·카테고리 설명·검색 페이지. 2026-11-01 +a: 허브가 카드로 발행된 사고 뒤 도입
     page_type: str = ""     # ""|"article". "article" = 페이지가 선언한 유형(og:type / JSON-LD @type)이 기사가 아니면 제외+경고 —
     #                         *모르는* 새 허브를 잡는 신호. 선언이 일관된 사이트만 켠다(Discourse 는 글도 website 라 켜면 전멸)
+    listing_urls: tuple[str, ...] = ()  # html 리스팅의 *보조* 목록 페이지들(같은 사이트의 섹션·팀 페이지). url(주 목록) 뒤에 이어 읽고
+    #                                     글 링크를 합친다(URL 중복 1회). 경로 규칙은 주 목록 기준. 2026-11-01 +d: Anthropic /research 메인이
+    #                                     22편만 보여 Frontier Red Team 글이 19일간 4편 누락 → 팀 페이지 5개를 보조 목록으로
 
 
 _KINDS = frozenset({"rss", "html", "auto", "sitemap"})
@@ -98,6 +101,9 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
         pt = e.get("page_type", "")
         if pt not in ("", "article"):
             raise ValueError(f"catalog[{i}] '{e['key']}': page_type 는 ''|'article' (got {pt!r})")
+        lu = e.get("listing_urls", [])
+        if not isinstance(lu, list) or any(not isinstance(u, str) or not u.startswith(("http://", "https://")) for u in lu):
+            raise ValueError(f"catalog[{i}] '{e['key']}': listing_urls 는 http(s) URL 목록 (got {lu!r})")
         out.append(
             Source(
                 key=e["key"],
@@ -116,6 +122,7 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
                 article_path=ap,
                 exclude_paths=tuple(ex),
                 page_type=pt,
+                listing_urls=tuple(lu),
             )
         )
     return tuple(out)
@@ -560,6 +567,16 @@ def fetch_generic_html(
     if not listing:
         raise RuntimeError(f"html listing fetch 실패: {source.url}")
     links = _article_links(listing, source.url, source.article_path, source.exclude_paths)
+    for extra in source.listing_urls:   # 보조 목록(섹션·팀 페이지) — 주 목록 뒤에 이어 붙이고 URL 중복 1회. 실패는 그 목록만 skip(비무음)
+        html_extra = _http_get(extra)
+        if not html_extra:
+            _debug.warn("fetch listing", f"{source.key}: 보조 목록 fetch 실패 — 이 목록만 건너뜀: {extra}")
+            continue
+        seen_links = set(links)
+        for u in _article_links(html_extra, source.url, source.article_path, source.exclude_paths):  # 경로 규칙 = 주 목록 기준
+            if u not in seen_links:
+                seen_links.add(u)
+                links.append(u)
     if not links:   # 죽은 소스 신호 — 비무음(2026-11-01 +b: anthropic-eng 가 사이트 개편 뒤 3주간 *조용히* 0건이었다)
         _debug.warn("fetch listing", f"{source.key}: 목록에서 글 링크 0개 — 목록 구조/경로(article_path) 변경 의심: {source.url}")
     out: list[FetchedArticle] = []

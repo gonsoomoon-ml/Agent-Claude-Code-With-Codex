@@ -121,6 +121,16 @@
   max_items: 10      # 월 약 12건·하루 최대 5건(10-16) → 사실상 전부. 선별이 발송 기록 대조보다 먼저라 상한이 작으면
                      #   48h 창 둘째 날 전날 보낸 글을 골라 새 글이 밀린다 → 선별이 안 돌 만큼 크게
   select: llm        # 48h 안에 11건 이상 몰리는 드문 날에만 작동하는 안전장치
+  listing_urls:      # 2026-11-01(work_note 261030 +d): 메인 /research 는 22편만 보여 주고 Frontier Red Team·Interpretability 글은
+                     #   팀 페이지에만 있다(메인과 겹침 0) → 19일간 red-team 글 4편(ecdsa-curve-origins·attack-surface-reduction·
+                     #   formal-verification·discovering-vulnerabilities-with-claude)이 카드가 된 적 없음. 팀 5개를 보조 목록으로(주 → 팀 순,
+                     #   URL 중복 1회, 경로 규칙은 /research/<slug>). 팀끼리의 링크(/research/team/*)는 모양이 달라 자연히 빠짐.
+                     #   비용 = 매 run 요청 130(목록 6 + 글 124), 실측 22s(11-01). 사이트맵은 lastmod=수정일이라 대안 아님(+a 조사)
+    - https://www.anthropic.com/research/team/alignment
+    - https://www.anthropic.com/research/team/economics
+    - https://www.anthropic.com/research/team/frontier-red-team
+    - https://www.anthropic.com/research/team/interpretability
+    - https://www.anthropic.com/research/team/societal-impacts
   # 에이전트 안전·보안·과학 연구(Frontier Red Team 이 /research 로 통합됨). /news 와 겹친 글 0. 적법성 B(Anthropic
   #   Consumer Terms 일반 문구, robots Allow:/). 일부 글 맨 앞 "Subscribe to … newsletter" 한 줄(숫자 없음 — 그대로 둠).
   # 실측 12/12 추출(4k~8k자), 10-16 하루 5건은 페이지 메타로 확인한 실제 발행. last-verified: 2026-10-18
