@@ -1,7 +1,7 @@
 # 전달 기록 — html 목록 허브 관문 + PTK 캡 4 + 한정어 그림자 검사 수정 (2026-11-01)
 
-> `deploy_runtime` READY v65 → **v66**(2026-11-01 01:36Z, 컨테이너 `20261101-013459-435`) → **v67**(02:37Z, 컨테이너 `20261101-023553-035`, +b 추가), ARN 불변 `briefing_agent-b9uh7rDAqL`.
-> main `4755fff`(origin 푸시 완료). 다른 컴포넌트(webapi·scheduler) 무변경 — 새 카탈로그 필드는 수집(runtime)만 쓴다.
+> `deploy_runtime` READY v65 → **v66**(2026-11-01 01:36Z, 컨테이너 `20261101-013459-435`) → **v67**(02:37Z, 컨테이너 `20261101-023553-035`, +b) → **v68**(03:33Z, 컨테이너 `20261101-033232-609`, +d), ARN 불변 `briefing_agent-b9uh7rDAqL`.
+> main `3a3c2b1`(origin 푸시 완료). 다른 컴포넌트(webapi·scheduler) 무변경 — 새 카탈로그 필드는 수집(runtime)만 쓴다.
 > 작업 노트: `docs/work_note/Oct-2026/261030-improve-today-briefing/`(README 문제 표 · `problem-7-html-listing-rewalk.md` §6-a).
 
 ## 1. 무엇이 실렸나
@@ -49,3 +49,15 @@ aws logs filter-log-events --region us-east-1 --log-group-name /aws/bedrock-agen
   dispatch Lambda `BRIEFING_DRY_RUN=0`·ARN 일치 · smoke invoke 7명 workflow_complete.
 - 첫 run 확인(11-02 05:00 KST)에 추가: `fetch listing` 경고 0(anthropic-eng 가 링크 25개를 읽음) · 다음 엔지니어링 글이 나오면 Anthropic Engineering 카드 1장(research 와 중복 0).
 - 새 항목 +d(미정의): `/research` 목록 페이지가 211편 중 22편만 노출 — 10-13 이후 보안·레드팀 글 4편이 카드가 된 적 없음(`tools/research_gap.py`).
+
+## 6. 같은 날 3차 배포 — runtime v68 (03:33Z): +d Anthropic Research 팀 페이지 보조 목록
+
+- 커밋 `3863083` feat(retrieval) · `3a3c2b1` docs. 원인 = `/research` 메인 목록(22편)은 사이트 편집 선택이라 Frontier Red Team·Interpretability 글을 한 편도
+  싣지 않음(팀 페이지 5개에만, 메인과 겹침 0) → 10-13 이후 red-team 글 4편이 카드가 된 적 없음(09-01 이후 8편). 변경 = `Source.listing_urls`(보조 목록, 주 → 보조 순
+  합치기·URL 중복 1회·보조 실패는 그 목록만 skip+`fetch listing` 경고) + 카탈로그 anthropic-research 에 팀 페이지 5개. 키 불변 → 프로필·webapi 무변경.
+- 검증: 테스트 834 통과·ruff clean · 운영 함수 재현 48h 요청 130(목록 6)·22s / 30일 창 통과 17편(이전엔 안 보이던 red-team 4편 등 6편 포함) ·
+  배포 뒤 liveVersion **68** READY · dispatch Lambda `BRIEFING_DRY_RUN=0`·ARN 일치 · smoke invoke 7명 workflow_complete.
+- 첫 run 확인(11-02 05:00 KST)에 추가: anthropic-research 수집 시간 ≈22s(run 총시간 +20s 안팎) · 새 red-team/interpretability 글이 나오면 Anthropic Research 카드로 등장.
+- **알려진 잔여(미승인·보류):** 팀 페이지가 링크하는 옛 글 4쪽이 매 run 경고 4줄 — interpretability `/research/crosscoder-model-diffing`(2025-02, 381자)·
+  `/research/features-as-classifiers`(2024-10, 430자)·`/research/transformer-circuits`(2024-03, 475자) = `fetch stub`, societal-impacts `/research/AI-fluency-index`
+  (2026-02, canonical academy.claude.com) = `fetch offsite`. 전부 창 밖이라 카드 영향 0. 처치 = `exclude_paths` 4줄(사용자 결정 대기).
