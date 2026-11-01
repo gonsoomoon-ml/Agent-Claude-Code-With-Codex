@@ -79,7 +79,7 @@
 
 ### (a) Anthropic News **허브 페이지가 카드로 발행됨** — 독자 영향 있음, #8 보다 우선
 
-> **상태(2026-11-01): 구현 C(사용자 승인 "go") — 작업 트리, 미커밋·미배포.** 관문 = 카탈로그 `exclude_paths`(아는 비기사 URL 을 목록
+> **상태(2026-11-01): 구현 C(사용자 승인 "go") — main `edbe30f` · runtime v66 배포(01:36Z) · 첫 run 검증 = 11-02 05:00 KST.** 관문 = 카탈로그 `exclude_paths`(아는 비기사 URL 을 목록
 > 단계에서 제거) + `page_type: article`(선언된 og:type/JSON-LD 가 기사가 아니면 skip + `[WARN fetch non-article]`, 모르는 새 허브용).
 > 근거·기각 선택지는 README 행과 `hub-signals-20261101.txt`·`tools/hub_signals.py`·`tools/feed_sitemap_probe.py`·
 > `tools/sitemap_lastmod_vs_published.py`·`tools/gate_replay.py`. 아래 정의는 발견 당시 기록 그대로.
