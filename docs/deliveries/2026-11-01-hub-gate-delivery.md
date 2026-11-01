@@ -17,6 +17,7 @@
 
 - 테스트 826 통과·5 skip, ruff clean. 관문 테스트 8개는 구현 전 실패(RED) 확인 뒤 통과.
 - 운영 함수 재현(11-01, `tools/gate_replay.py`): anthropic 요청 27→20 · PTK 31→30 · google-dev 39→38, 세 소스 모두 경고 0, 제외 경로 요청 0.
+- PTK 캡 4 시뮬(배포 뒤 11-01, `tools/ptk_cap4_sim.py`, 운영 Haiku 선별자 2회): PTK 5장이던 3일(10-23·26·29) 15→12장, AI Agents 밴드행 8→8 — 탈락은 Inference & Hardware 글(TorchNeuron imp 4·RecIR imp 3), 10-26 은 Corgi↔NPU 흔들림. 관문·캡 모두 클라우드 실제 run 은 11-02(관문)·11-03 평일(캡)부터.
 - 배포 뒤: DEFAULT 엔드포인트 `liveVersion=66` READY(01:36Z) · dispatch Lambda `BRIEFING_DRY_RUN=0`·ARN 일치 · `invoke_runtime --mode smoke` 7명 workflow_complete.
 
 ## 3. 첫 정기 run 확인(11-02 05:00 KST = 11-01 20:00Z)
