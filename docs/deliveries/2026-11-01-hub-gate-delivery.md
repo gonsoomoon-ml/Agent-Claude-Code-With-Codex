@@ -1,7 +1,7 @@
 # 전달 기록 — html 목록 허브 관문 + PTK 캡 4 + 한정어 그림자 검사 수정 (2026-11-01)
 
-> `deploy_runtime` READY v65 → **v66**(2026-11-01 01:36Z, ARN 불변 `briefing_agent-b9uh7rDAqL`, 컨테이너 `20261101-013459-435`).
-> main `1b92df8`(origin 푸시 완료). 다른 컴포넌트(webapi·scheduler) 무변경 — 새 카탈로그 필드는 수집(runtime)만 쓴다.
+> `deploy_runtime` READY v65 → **v66**(2026-11-01 01:36Z, 컨테이너 `20261101-013459-435`) → **v67**(02:37Z, 컨테이너 `20261101-023553-035`, +b 추가), ARN 불변 `briefing_agent-b9uh7rDAqL`.
+> main `4755fff`(origin 푸시 완료). 다른 컴포넌트(webapi·scheduler) 무변경 — 새 카탈로그 필드는 수집(runtime)만 쓴다.
 > 작업 노트: `docs/work_note/Oct-2026/261030-improve-today-briefing/`(README 문제 표 · `problem-7-html-listing-rewalk.md` §6-a).
 
 ## 1. 무엇이 실렸나
@@ -38,3 +38,14 @@ aws logs filter-log-events --region us-east-1 --log-group-name /aws/bedrock-agen
 - anthropic.com 사이트맵은 `lastmod` = 수정일(최근 94건 중 84건이 옛 글) → `kind: sitemap` 전환 금지. RSS 는 없음.
 - 사이트맵에 `/engineering/` 0건, 엔지니어링 글이 `/research/` 아래 → 새 항목 (b) "anthropic-eng 0건"의 원인 후보(미확인).
 - 배포는 작업 트리 `src/briefing` 을 실으므로 커밋 뒤 `src`·`tests` 미커밋 변경 없음 확인(이번 11-01: 없음; `CLAUDE.md`·`README.md` 의 다른 세션 변경은 빌드 컨텍스트 밖).
+
+## 5. 같은 날 2차 배포 — runtime v67 (02:37Z): +b anthropic-eng 되살림
+
+- 커밋 `a3464a4` feat(retrieval) · `4755fff` docs. 원인 = Anthropic 사이트 개편(10-13 이후 엔지니어링 글이 `/research/<slug>` 로, `/engineering` 은 JS 모음 페이지) →
+  anthropic-eng 가 3주간 조용히 0건(새 글 0편이라 독자 손실 없음). 변경: 카탈로그 `article_path: /research/` + `page_type: article` + 팀 허브 5개 `exclude_paths`
+  (`/research/team/*` 는 og:type=website·최신 글 날짜 — 30일 창 재현에서 3쪽 통과 실측) + `fetch_generic_html` 목록 링크 0개면 `[WARN fetch listing]`.
+- run 내 같은 글(anthropic-research 와 겹침)은 `curate` 가 `source_id` 로 접음(확인, 파이프라인 변경 없음 — 회귀 가드 테스트).
+- 검증: 테스트 829 통과·ruff clean · 운영 함수 재현 48h 요청 25·통과 0·경고 0 / 30일 창 통과 1(10-13 글)·팀 허브 요청 0 · 배포 뒤 liveVersion **67** READY ·
+  dispatch Lambda `BRIEFING_DRY_RUN=0`·ARN 일치 · smoke invoke 7명 workflow_complete.
+- 첫 run 확인(11-02 05:00 KST)에 추가: `fetch listing` 경고 0(anthropic-eng 가 링크 25개를 읽음) · 다음 엔지니어링 글이 나오면 Anthropic Engineering 카드 1장(research 와 중복 0).
+- 새 항목 +d(미정의): `/research` 목록 페이지가 211편 중 22편만 노출 — 10-13 이후 보안·레드팀 글 4편이 카드가 된 적 없음(`tools/research_gap.py`).
