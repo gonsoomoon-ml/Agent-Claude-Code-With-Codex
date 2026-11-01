@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import calendar
 import html as _html
+import json
 import re
 import threading
 import time
@@ -44,6 +45,10 @@ class Source:
     select: str = ""       # 캡 초과 시 선별 방식: ""|"latest"(최신순 잘림=현행) | "llm"(Haiku pick-K — curate 가 select_fn 주입 시)
     headlines_only: bool = False  # True = 제목·링크만(본문 미수집·카드 없음) — 기사별 "AI 활용 금지" 고지 소스(headlines.py)
     article_path: str = ""  # html 리스팅의 글 링크 접두 경로(예 Discourse "/t/"). 빈값 = 리스팅 경로 바로 아래 한 단계만 글
+    exclude_paths: tuple[str, ...] = ()  # html 리스팅의 *아는* 비기사 URL 경로('/…', 호스트 기준) — 목록 단계에서 제거(요청·경고 없음).
+    #                                      허브(기사 모음)·카테고리 설명·검색 페이지. 2026-11-01 +a: 허브가 카드로 발행된 사고 뒤 도입
+    page_type: str = ""     # ""|"article". "article" = 페이지가 선언한 유형(og:type / JSON-LD @type)이 기사가 아니면 제외+경고 —
+    #                         *모르는* 새 허브를 잡는 신호. 선언이 일관된 사이트만 켠다(Discourse 는 글도 website 라 켜면 전멸)
 
 
 _KINDS = frozenset({"rss", "html", "auto", "sitemap"})
@@ -87,6 +92,12 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
         ap = e.get("article_path", "")
         if not isinstance(ap, str) or (ap and not ap.startswith("/")):
             raise ValueError(f"catalog[{i}] '{e['key']}': article_path 는 '/' 로 시작하는 경로 (got {ap!r})")
+        ex = e.get("exclude_paths", [])
+        if not isinstance(ex, list) or any(not isinstance(p, str) or not p.startswith("/") for p in ex):
+            raise ValueError(f"catalog[{i}] '{e['key']}': exclude_paths 는 '/' 로 시작하는 경로 목록 (got {ex!r})")
+        pt = e.get("page_type", "")
+        if pt not in ("", "article"):
+            raise ValueError(f"catalog[{i}] '{e['key']}': page_type 는 ''|'article' (got {pt!r})")
         out.append(
             Source(
                 key=e["key"],
@@ -103,6 +114,8 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
                 select=sel,
                 headlines_only=ho,
                 article_path=ap,
+                exclude_paths=tuple(ex),
+                page_type=pt,
             )
         )
     return tuple(out)
@@ -340,26 +353,79 @@ def _excerpt(text: str, limit: int = MAX_SOURCE_CHARS) -> str:
     return (cut[:sp] if sp > limit * 0.6 else cut).strip()
 
 
-def _article_links(listing_html: str, listing_url: str, article_path: str = "") -> list[str]:
+def _article_links(
+    listing_html: str, listing_url: str, article_path: str = "", exclude_paths: Sequence[str] = ()
+) -> list[str]:
     """리스팅에서 기사 링크만 — 제너릭 휴리스틱, 사이트별 코드 아님.
 
     기본: listing path 한 단계 아래 `{path}/{slug}`. article_path 를 주면 그 접두 경로 아래 링크(예 Discourse
     목록 `/c/news/14` 의 글 = `/t/<slug>/<id>` — 목록 경로 밖). href 는 큰·작은따옴표 둘 다(Discourse = 작은따옴표).
+    exclude_paths(카탈로그 데이터) 의 경로는 모양이 맞아도 뺀다 — 허브(`/news/partnerships`)는 `{path}/{slug}` 모양이
+    기사와 같아 모양만으로는 못 가른다(2026-11-01 +a).
     """
     base = urlparse(listing_url)
     path = (article_path or base.path).rstrip("/")
+    excluded = {p.rstrip("/") for p in exclude_paths}
     out: list[str] = []
     seen: set[str] = set()
     for href in re.findall(r"""href=["']([^"']+)["']""", listing_html):
         clean = href.split("#")[0].split("?")[0]
         p = urlparse(urljoin(f"{base.scheme}://{base.netloc}", clean)).path.rstrip("/")
         tail = p[len(path) + 1:]
+        if p in excluded:
+            continue
         if p.startswith(path + "/") and tail and (article_path or "/" not in tail):
             absu = f"{base.scheme}://{base.netloc}{p}"
             if absu not in seen:
                 seen.add(absu)
                 out.append(absu)
     return out
+
+
+_OG_TYPE_RE = re.compile(
+    r"""<meta\b[^>]*\bproperty=["']og:type["'][^>]*\bcontent=["']([^"']+)["']"""
+    r"""|<meta\b[^>]*\bcontent=["']([^"']+)["'][^>]*\bproperty=["']og:type["']""", re.I)
+_LD_JSON_RE = re.compile(r"""<script\b[^>]*type=["']application/ld\+json["'][^>]*>(.*?)</script>""", re.I | re.S)
+# 기사류로 보는 선언값(소문자) — og:type "article" + schema.org 의 Article 계열. 그 밖의 선언(website·collectionpage…)은 비기사.
+_ARTICLE_TYPES = frozenset({"article", "newsarticle", "blogposting", "techarticle", "scholarlyarticle",
+                            "reportagenewsarticle", "discussionforumposting", "report"})
+
+
+def _ld_types(data: object) -> list[str]:
+    """JSON-LD 값(dict / list / @graph) 안의 @type 문자열을 전부 모은다."""
+    out: list[str] = []
+    if isinstance(data, list):
+        for item in data:
+            out.extend(_ld_types(item))
+    elif isinstance(data, dict):
+        t = data.get("@type")
+        if isinstance(t, str):
+            out.append(t)
+        elif isinstance(t, list):
+            out.extend(x for x in t if isinstance(x, str))
+        out.extend(_ld_types(data.get("@graph", [])))
+    return out
+
+
+def _declared_page_type(html_text: str) -> str:
+    """페이지가 *스스로* 선언한 유형 — "article"(기사류) / 그 외 선언값(예 "website") / ""(선언 없음 → 호출자는 통과).
+
+    og:type 과 JSON-LD @type 을 모두 읽고 **하나라도 기사류면 "article"** — claude.com 은 WebSite 와 BlogPosting 을 함께
+    선언한다(2026-11-01 실측). 사이트별 코드 0: 사이트가 적은 표식을 읽을 뿐이고, 켤지는 카탈로그 `page_type` 이 정한다
+    (anthropic.com: 기사 19 = article·NewsArticle, 허브 7 = website — 26쪽 전부 일치).
+    """
+    labels: list[str] = []
+    for m in _OG_TYPE_RE.finditer(html_text):
+        labels.append((m.group(1) or m.group(2) or "").strip().lower())
+    for blob in _LD_JSON_RE.findall(html_text):
+        try:
+            labels.extend(t.strip().lower() for t in _ld_types(json.loads(blob.strip())))
+        except ValueError:
+            continue
+    labels = [x.rsplit("/", 1)[-1] for x in labels if x]   # "https://schema.org/NewsArticle" 꼴도 허용
+    if any(x in _ARTICLE_TYPES for x in labels):
+        return "article"
+    return labels[0] if labels else ""
 
 
 # 본문 끝에 붙는 매체 부트플레이트(구독 권유·저자 소개) — 기사가 아니므로 동결 원문에서 뺀다.
@@ -494,7 +560,7 @@ def fetch_generic_html(
     if not listing:
         raise RuntimeError(f"html listing fetch 실패: {source.url}")
     out: list[FetchedArticle] = []
-    for url in _article_links(listing, source.url, source.article_path):
+    for url in _article_links(listing, source.url, source.article_path, source.exclude_paths):
         if len(out) >= max_items:
             break
         if time.monotonic() >= deadline:
@@ -504,6 +570,12 @@ def fetch_generic_html(
         page = _http_get(url)
         if not page:
             continue
+        if source.page_type == "article":   # 허브/목록 관문(opt-in) — 선언이 기사가 아니면 skip, 비무음(새 허브는 여기서 보인다)
+            declared = _declared_page_type(page)
+            if declared and declared != "article":
+                _debug.warn("fetch non-article",
+                            f"{source.key}: 선언된 페이지 유형이 기사가 아님({declared}) — skip(아는 허브면 exclude_paths 로): {url}")
+                continue
         art = _extract_article(page, url, source.key, source.url)
         if art and not _is_stale(art.published_at, window_hours):
             out.append(art)

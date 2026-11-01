@@ -31,11 +31,12 @@ def test_catalog_loaded_from_yaml():
 
 
 def test_catalog_max_items_and_select():
-    """pytorch-kr-news = 커뮤니티 큐레이션(평일 평균 4.7건, 2026-10-18 실측) → 캡 5 + LLM 선별.
-    the-decoder = 일 5~6건 → 기본 캡 5 + LLM 선별(최신순이면 가장 이른 글이 잘린다). 나머지 소스는 기본(0="")."""
+    """pytorch-kr-news = 커뮤니티 큐레이션(평일 평균 4.7건, 2026-10-18 실측) → 캡 4 + LLM 선별(2026-10-31 5→4: AI Agents
+    밴드 편중 완화 — 캡 5 는 평일 풀 ≤ 캡이라 선별이 안 돌았다). the-decoder = 일 5~6건 → 기본 캡 5 + LLM 선별(최신순이면
+    가장 이른 글이 잘린다). 나머지 소스는 기본(0="")."""
     by_key = {s.key: s for s in CATALOG}
     p = by_key["pytorch-kr-news"]
-    assert p.max_items == 5 and p.select == "llm" and p.lang == "ko"
+    assert p.max_items == 4 and p.select == "llm" and p.lang == "ko"
     assert by_key["the-decoder"].max_items == 0 and by_key["the-decoder"].select == "llm"
     assert by_key["aws-ml"].max_items == 0 and by_key["aws-ml"].select == ""   # 기존 소스 무변경
 
@@ -151,6 +152,9 @@ def _yaml(text: str) -> Path:
     "- {key: x, name: X, url: u, kind: rss, lang: en, category: C, window_hours: 48h}",  # 비정수 윈도우
     "- {key: x, name: X, url: u, kind: rss, lang: en, category: C, max_items: -3}",      # 음수 캡
     "- {key: x, name: X, url: u, kind: rss, lang: en, category: C, select: rank}",       # 미지원 select
+    "- {key: x, name: X, url: u, kind: html, lang: en, category: C, exclude_paths: /news/hub}",   # 목록이 아님
+    "- {key: x, name: X, url: u, kind: html, lang: en, category: C, exclude_paths: [news/hub]}",  # '/' 로 시작 안 함
+    "- {key: x, name: X, url: u, kind: html, lang: en, category: C, page_type: hub}",             # 미지원 page_type
 ])
 def test_catalog_validation_rejects(bad):
     with pytest.raises(ValueError):
@@ -381,6 +385,94 @@ def test_fetch_generic_html_keeps_offsite_page(monkeypatch, capsys):
     assert [a.url for a in arts] == ["https://www.anthropic.com/news/opus",
                                      "https://www.anthropic.com/news/introducing-muse-spark-msl"]
     assert "다른 호스트" in capsys.readouterr().err
+
+
+# ── 허브/목록 페이지 관문 (2026-11-01, work_note 261030 +a) ──
+# 배경: Anthropic News 목록의 `/news/partnerships` 같은 허브(기사 모음) 페이지가 `_article_links` 경로 모양 검사를 통과해
+# 카드로 발행됐다(10-21 "Announcements"·10-28 "Partnerships", 7명 발송). 관문은 소스별 opt-in 신호 2개:
+# ① exclude_paths — 아는 비기사 URL 을 목록 단계에서 제거(요청 없음·조용히) ② page_type: article — 페이지가 선언한
+# 유형(og:type / JSON-LD @type)이 기사가 아니면 제외 + 경고(모르는 새 허브를 잡는다). 선언이 없으면 통과(fail-open).
+
+def _with_head(html: str, extra: str) -> str:
+    return html.replace("<head>", "<head>" + extra)
+
+
+def test_article_links_excludes_configured_paths():
+    listing = '<a href="/news/foo">F</a><a href="/news/partnerships">P</a><a href="/news/bar">B</a>'
+    links = _article_links(listing, "https://www.anthropic.com/news", exclude_paths=("/news/partnerships", "/news/bar/"))
+    assert links == ["https://www.anthropic.com/news/foo"]   # 정확한 경로 일치(끝 '/' 무시)
+
+
+def test_declared_page_type_reads_og_type_and_jsonld():
+    from briefing.core.retrieval.sources import _declared_page_type
+    assert _declared_page_type('<meta property="og:type" content="article">') == "article"
+    assert _declared_page_type('<meta content="website" property="og:type">') == "website"   # 속성 순서 반대
+    assert _declared_page_type('<script type="application/ld+json">{"@type": "NewsArticle"}</script>') == "article"
+    assert _declared_page_type('<script type="application/ld+json">{"@type": ["WebSite", "BlogPosting"]}</script>') == "article"
+    assert _declared_page_type('<meta property="og:type" content="website">'
+                               '<script type="application/ld+json">{"@graph": [{"@type": "BlogPosting"}]}</script>') == "article"
+    assert _declared_page_type("<html><body>no declaration</body></html>") == ""
+
+
+def _hub_pages():
+    """목록 + 기사(og article) + 허브(og website, 본문은 기사 길이) + 선언 없는 기사."""
+    return {
+        "/news": '<a href="/news/opus">O</a><a href="/news/partnerships">P</a><a href="/news/plain">N</a>',
+        "/news/opus": _with_head(_ARTICLE_HTML, '<meta property="og:type" content="article">'),
+        "/news/partnerships": _with_head(_ARTICLE_HTML, '<meta property="og:type" content="website">'),
+        "/news/plain": _ARTICLE_HTML,
+    }
+
+
+def test_fetch_generic_html_skips_declared_non_article_when_opted_in(monkeypatch, capsys):
+    from briefing.core.retrieval import sources as s
+    pages = _hub_pages()
+    monkeypatch.setattr(s, "discover_feed", lambda _u: "")
+    monkeypatch.setattr(s, "_http_get", lambda u: pages[u.replace("https://www.anthropic.com", "")])
+    src = Source("anthropic", "Anthropic", "https://www.anthropic.com/news", "html", "en", page_type="article")
+    arts = s.fetch_generic_html(src, window_hours=0, max_items=5)
+    assert [a.url for a in arts] == ["https://www.anthropic.com/news/opus", "https://www.anthropic.com/news/plain"]
+    err = capsys.readouterr().err
+    assert "non-article" in err and "partnerships" in err and "website" in err   # 비무음 — 새 허브가 보인다
+
+
+def test_fetch_generic_html_keeps_declared_non_article_without_opt_in(monkeypatch, capsys):
+    """page_type 미설정 소스는 선언을 보지 않는다 — Discourse(PyTorch KR)는 글마다 og:type=website 라 켜면 글이 전멸한다."""
+    from briefing.core.retrieval import sources as s
+    pages = _hub_pages()
+    monkeypatch.setattr(s, "discover_feed", lambda _u: "")
+    monkeypatch.setattr(s, "_http_get", lambda u: pages[u.replace("https://www.anthropic.com", "")])
+    arts = s.fetch_generic_html(_src(), window_hours=0, max_items=5)
+    assert len(arts) == 3
+    assert "non-article" not in capsys.readouterr().err
+
+
+def test_fetch_generic_html_excluded_paths_are_never_requested(monkeypatch, capsys):
+    from briefing.core.retrieval import sources as s
+    pages = _hub_pages()
+    requested: list[str] = []
+
+    def get(u):
+        requested.append(u)
+        return pages[u.replace("https://www.anthropic.com", "")]
+    monkeypatch.setattr(s, "discover_feed", lambda _u: "")
+    monkeypatch.setattr(s, "_http_get", get)
+    src = Source("anthropic", "Anthropic", "https://www.anthropic.com/news", "html", "en",
+                 exclude_paths=("/news/partnerships",))
+    arts = s.fetch_generic_html(src, window_hours=0, max_items=5)
+    assert [a.url for a in arts] == ["https://www.anthropic.com/news/opus", "https://www.anthropic.com/news/plain"]
+    assert "https://www.anthropic.com/news/partnerships" not in requested   # 요청 자체가 없다
+    assert capsys.readouterr().err == ""                                      # 아는 허브는 조용히
+
+
+def test_catalog_hub_exclusions_and_page_type():
+    by = {s.key: s for s in CATALOG}
+    assert by["anthropic"].page_type == "article"
+    assert {"/news/announcements", "/news/partnerships", "/news/product", "/news/security",
+            "/news/features", "/news/policy", "/news/safeguards"} <= set(by["anthropic"].exclude_paths)
+    assert "/t/topic/407" in by["pytorch-kr-news"].exclude_paths   # 카테고리 설명 글(113자, 매 run 스텁 경고)
+    assert "/search" in by["google-dev"].exclude_paths              # 검색 페이지(날짜 08-17 — 바뀌면 카드가 된다)
+    assert all(s.page_type == "" for k, s in by.items() if k != "anthropic")   # opt-in 은 anthropic 뿐
 
 
 # ── 페치 시간 상한 ── 한 소스가 멈춰도 브리핑 전체가 정지하지 않아야 한다 ──

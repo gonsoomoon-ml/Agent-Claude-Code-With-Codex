@@ -53,6 +53,18 @@
   lang: en
   category: Anthropic
   window_hours: 48   # date-only 메타데이터(W≥U+P) — 오후 PT 발행 글 유실 보정(2026-07-11 reflect-with-claude 등 4건 실증). dedup=ledger
+  page_type: article # 2026-11-01(work_note 261030 +a): 페이지가 og:type/JSON-LD 로 기사가 아니라고 선언하면 제외+경고(`fetch non-article`).
+                     #   anthropic.com 은 기사 19 = article·NewsArticle, 허브 7 = website 로 일관(26쪽 실측) → 모르는 새 허브도 잡힌다
+  exclude_paths:     # 아는 허브(기사 모음) 7개 — 목록 단계에서 제거(요청·경고 없음). 허브는 본문이 최신 글 리드 모음(≥500자)이고 추출 날짜가
+                     #   맨 위 글 날짜라 창 검사를 통과해 카드가 됐다(10-21 "Announcements"·10-28 "Partnerships", 7명 발송). RSS 없음·사이트맵은
+                     #   lastmod=수정일(최근 94건 중 84건이 옛 글)이라 대안 아님. product/security 는 <500자 스텁 → 매 run `fetch stub` 경고의 원인(#8)
+    - /news/announcements
+    - /news/partnerships
+    - /news/product
+    - /news/security
+    - /news/features
+    - /news/policy
+    - /news/safeguards
   # /news + 기사 본문 평문 200(robots Allow:/) → fetch_generic_html(trafilatura), fragile 아님
 
 - key: anthropic-eng
@@ -152,7 +164,8 @@
   category: Google
   require_ai: true   # 종합 개발 블로그(Android·Chrome 등 혼재) → AI 관련만 통과(Gemini API·ADK·에이전트)
   window_hours: 48   # date-only 메타데이터(리스팅+trafilatura) — late-post 보정
-  # 피드 자동발견 없음 → 리스팅+trafilatura 전문 200. last-verified: 2026-07-06
+  exclude_paths: [/search]  # 검색 페이지(본문 4,600자·날짜 08-17) — 날짜가 바뀌면 카드가 되는 허브 유형(2026-11-01 +a). og:type 없는 사이트라 page_type 불가
+  # 피드 자동발견 없음 → 리스팅+trafilatura 전문 200. RSS(/rss)는 있으나 날짜 태그가 없어 창을 못 씀(2026-11-01). last-verified: 2026-07-06
 
 - key: gcloud-ai
   name: Google Cloud AI & ML
@@ -251,10 +264,14 @@
   lang: ko
   category: Community
   article_path: /t/  # Discourse 글 = /t/<slug>/<id> — 목록 경로(/c/news/14) 밖이라 접두 경로로 지정
+  exclude_paths: [/t/topic/407]  # 카테고리 설명 글(113자, 2019-12-31) — 목록 상단 고정이라 매 run 열어 `fetch stub` 경고(#8, 2026-11-01).
+                                 #   page_type 은 켜지 않는다: Discourse 는 글도 og:type=website 라 켜면 글이 전멸(실측)
   window_hours: 48   # 글 페이지 날짜가 날짜만 → late-post 보정(W≥U+P). 하루 겹침 중복은 ledger cross-day dedup
-  max_items: 5       # 평일 평균 4.7건(최대 6)·주말 3.2건(2026-10-18 실측, 7월 추정 6~9건보다 적음) → 사실상 전부
-                     #   (2026-10-18 3→5, 사용자 결정 — 글이 선별 기준 P2b(에이전트·Applied AI)와 잘 맞아 자를 이유가 약함)
-  select: llm        # 최신순 잘림 = 고정 시간대 사각지대(실측) → Haiku pick-3(폴백=최신순)
+  max_items: 4       # 2026-10-31 5→4(사용자 결정 A, work_note 261030 #4b): AI Agents 밴드의 41%(10일 21/51장)가 이 소스라 줄임.
+                     #   평일 평균 4.7건·주말 3.2건(10-18 실측)이라 캡 5 는 "사실상 전부"(선별 미작동)였다 → 캡 4 면 평일 48h 풀(5건+)에서
+                     #   Haiku pick-4 가 거의 매일 돈다. ★선별은 발송 기록 dedup 보다 먼저라 어제 보낸 글도 후보 → 새 글이 4건 미만인 날
+                     #   가능(수용; 새 글끼리만 선별하는 fresh-first 안은 브랜치 draft/4b-fresh-first-cap3). 이력 07-11 3 → 10-18 5 → 10-31 4
+  select: llm        # 최신순 잘림 = 고정 시간대 사각지대(실측) → Haiku pick-4(폴백=최신순)
   # Discourse news(읽을거리&정보공유) 카테고리 스코프 — qna/lounge 원천 제외(사이트맵은 전 카테고리라 안 씀).
   # 2026-10-17 정정: robots `Disallow: /c/*.rss` 가 예전 url(/c/news/14.rss)을 막고 있었다 → 허용된 카테고리 목록 페이지.
   # 2차 큐레이션(커뮤니티 요약) — certifier 는 포럼 글 기준 검증. 전문 3~8k자. last-verified: 2026-10-17
