@@ -1,0 +1,134 @@
+### anthropic (https://www.anthropic.com/news) 링크 26
+slug                                             og:type    ld@type                pagetype   chars date       ndate sibl
+announcements                                    website    -                      website     1433 2026-10-28     0   19  Announcements
+public-benefit-fund                              article    NewsArticle            article     2792 2026-10-18     0    5  Investing in the public benefi
+s1-sec                                           article    NewsArticle            article     1467 2026-10-26     0    1  Anthropic files S-1 with the S
+features                                         website    -                      website     1239 2026-09-21     0    0  Features
+ai-for-science-expands-foundations-research-inst article    NewsArticle            article     8177 2026-10-28     0    5  AI for Science expands to foun
+expanding-partnership-gsa                        article    NewsArticle            article     3980 2026-10-27     0    6  Expanding our partnership with
+partnerships                                     website    -                      website     1706 2026-10-27     0   24  Partnerships
+donating-agent-skills-to-the-agentic-ai-foundati article    NewsArticle            article     2394 2026-10-22     0    5  Donating Agent Skills to the A
+product                                          website    -                      website      394 2026-10-22     0   24  Product
+open-call-guest-investigators-life-sciences      article    NewsArticle            article     2747 2026-10-22     0    5  Open call for guest investigat
+christopher-stubbs-joins-long-term-benefit-trust article    NewsArticle            article     3769 2026-10-21     0    6  Physicist Christopher Stubbs j
+an-update-on-independent-evaluators              article    NewsArticle            article     5972 2026-10-15     0    5  Anthropic update on independen
+policy                                           website    -                      website      794 2026-10-15     0   23  Policy
+2026-us-midterms                                 article    NewsArticle            article    10323 2026-10-14     0    8  Preparing for the 2026 US midt
+safeguards                                       website    -                      website     1891 2026-10-14     0   22  Safeguards
+singapore-office-opening                         article    NewsArticle            article     5695 2026-10-14     0    6  Singapore office and governmen
+distillation-defenses                            article    NewsArticle            article    12593 2026-10-12     1    4  Strengthening our defenses aga
+anthropic-cyber-mission                          article    NewsArticle            article    10105 2026-10-08     0    4  Introducing the Anthropic Cybe
+security                                         website    -                      website      414 2026-10-08     0   13  Security
+2026-usage-policy-update                         article    NewsArticle            article     7160 2026-10-08     0    6  2026 Usage Policy update
+genesis-mission-commitment                       article    NewsArticle            article     2389 2026-10-08     0    9  Building on our commitment to 
+cyber-verification-program                       article    NewsArticle            article     8669 2026-10-06     0    5  Expanding the Cyber Verificati
+claude-frontier-academy                          article    NewsArticle            article     4064 2026-10-02     0    5  Claude Frontier Academy: $100M
+barclays-scales-claude                           article    NewsArticle            article     4747 2026-10-01     0    5  Barclays scales Claude to upgr
+accenture-embedded-evaluation                    article    NewsArticle            article     2957 2026-09-18     0    5  Partnering with Accenture on e
+life-sciences-verification-program               article    NewsArticle            article     7966 2026-09-17     0    5  Introducing the Life Sciences 
+### claude-blog (https://claude.com/resources/articles) 링크 10
+slug                                             og:type    ld@type                pagetype   chars date       ndate sibl
+building-agents-when-to-fold-subagents-into-your article    WebSite,Organization,Brand,BlogPosting,B website    17256 2026-10-22     0    7  Building agents: When to fold 
+smart-reports-surveys-pooled-budgets             article    WebSite,Organization,Brand,BlogPosting,B article     5594 2026-10-28     0    4  Smart reports, surveys, and po
+idc-brings-quanta-into-claude-and-adopts-claude- article    WebSite,Organization,Brand,BlogPosting,B article     5581 2026-10-28     0    4  IDC brings Quanta into Claude 
+introducing-artifacts-for-legal-work             article    WebSite,Organization,Brand,BlogPosting,B article    11888 2026-10-28     0    4  Introducing artifacts for lega
+how-to-manage-costs-and-demonstrate-roi-for-clau article    WebSite,Organization,Brand,BlogPosting,B article    15979 2026-10-27     0    2  Manage costs and demonstrate R
+claude-for-financial-advisors                    article    WebSite,Organization,Brand,BlogPosting,B article    18495 2026-10-27     1    4  Claude for Financial Advisors
+expanding-claude-for-nonprofits                  article    WebSite,Organization,Brand,BlogPosting,B article    13165 2026-10-26     0    4  Expanding Claude for Nonprofit
+unified-claude-enterprise                        article    WebSite,Organization,Brand,BlogPosting,B article     4632 2026-10-23     1    6  Claude Cowork and chat come to
+claude-duet-safety-privacy-and-security          article    WebSite,Organization,Brand,BlogPosting,B website    11154 2026-10-23     0    5  Claude Duet Safety, Privacy, a
+claude-models-on-google-cloud-anthropic-managed  article    WebSite,Organization,Brand,BlogPosting,B article     5357 2026-10-22     0    4  Claude Platform is now availab
+### anthropic-research (https://www.anthropic.com/research) 링크 22
+slug                                             og:type    ld@type                pagetype   chars date       ndate sibl
+claude-scorpion-toxin-binder-design              article    Article                article    14877 2026-10-20     0    5  How Claude designed protein bi
+the-missing-map-of-the-sky                       article    Article                article     8576 2026-10-08     0    2  Using Claude Science to produc
+project-swap                                     article    Article                article    19999 2026-09-24     0    3  Project Swap: What happens whe
+early-progress-drug-development                  article    Article                article    11694 2026-10-27     0    2  Early progress on accelerating
+agents-judgment-calls                            article    Article                article    18675 2026-10-27     0    4  How AI agents shape experts’ j
+alignment-assessment-ukaisi                      article    Article                article    19999 2026-10-23     1    3  An alignment assessment of the
+expectations-for-the-future                      article    Article                article     3335 2026-10-16     0    5  Working at the frontier shapes
+employment-at-anthropic                          article    Article                article    19998 2026-10-16     0    7  How employment is changing at 
+ai-expectations-gap                              article    Article                article    17755 2026-10-16     1    5  The AI expectations gap
+designing-efficient-quantum-circuits             article    Article                article    19999 2026-10-16     0    5  Designing more efficient quant
+redesigning-source-control                       article    Article                article    19993 2026-10-13     0    1  Redesigning source control at 
+investigating-unintended-model-actions           article    Article                article    19117 2026-10-09     1    2  Investigating unintended model
+claude-shaped-science                            article    Article                article    19998 2026-10-01     0    5  Claude-shaped science
+what-work-can-robots-do                          article    Article                article    19997 2026-09-30     0    5  Can we predict the jobs robots
+your-thoughts-on-ai                              article    Article                article     8650 2026-09-29     1    7  What do you want from AI?
+claude-discovers-novel-enzyme-system             article    Article                article     9697 2026-09-23     0    3  Claude discovers a novel enzym
+claude-uplifts-biomolecular-modeling             article    Article                article    10699 2026-09-17     0    3  How Claude is uplifting biomol
+alignment-assessment-cybersecurity-incidents     article    Article                article    19999 2026-09-09     0    3  An alignment assessment of rec
+formalizing-fermats-last-theorem                 article    Article                article    11362 2026-09-04     0    3  Formalizing Fermat's Last Theo
+automated-researchers-mitigate-alignment-failure article    Article                article     6599 2026-08-28     0    6  Automated researchers can reli
+enabling-independent-research                    article    Article                article    12116 2026-08-26     0    5  Enabling independent research 
+Claude-accelerates-protein-design                article    Article                article    19992 2026-08-18     0    4  Claude accelerates protein des
+### google-dev (https://developers.googleblog.com/) 링크 38
+slug                                             og:type    ld@type                pagetype   chars date       ndate sibl
+css2                                             (http 실패)
+glue-icon                                        -          -                      -              0 -              0    0  
+community                                        (http 실패)
+fast-reliable-a2ui                               -          BreadcrumbList,Article article    10611 2026-10-27     0   22  Fast, reliable A2UI, with swap
+preview-edit-and-collaborate-on-markdown-md-file -          BreadcrumbList,Article article     1707 2026-10-26     0   22  Preview, edit, and collaborate
+architecting-governed-self-evolving-ai-agents-on -          BreadcrumbList,Article article    14457 2026-10-22     0   24  Architecting Governed, Self-Ev
+unifying-edge-ai-how-coral-npus-open-standard-br -          BreadcrumbList,Article article     7775 2026-10-20     1   27  Unifying Edge AI: How Coral NP
+gemini-4-argon-for-robotics                      -          BreadcrumbList,Article article    19995 2026-10-13     0   20  Gemini 4 Argon for Robotics
+optimizing-a-200000-line-python-codebase-overnig -          BreadcrumbList,Article article     8776 2026-10-13     0   23  Optimizing a 200,000-line Pyth
+embeddinggemma-2-the-developer-guide             -          BreadcrumbList,Article article     5803 2026-10-06     0   19  EmbeddingGemma 2: The Develope
+google-ai-edge-with-embeddinggemma-2             -          BreadcrumbList,Article article     9305 2026-10-06     0   24  Bring multimodal semantic sear
+the-outer-loop-insights-first-an-ambient-quality -          BreadcrumbList,Article article    14743 2026-10-08     0   22  The Outer Loop, Insights First
+devfest-is-back                                  -          BreadcrumbList,Article article     1729 2026-10-30     1   18  DevFest is back!
+build-generative-ui-apps-with-a2ui-copilotkit-ag -          BreadcrumbList,Article article     8023 2026-10-29     0   19  Build Generative UI Apps with 
+hill-climbing-agent-quality-with-agents-cli-eval -          BreadcrumbList,Article article    17333 2026-10-28     0   18  Hill-Climbing Agent Quality wi
+search                                           -          -                      -           4600 2026-08-17     0   24  - Google Developers Blog
+smaller-apps-and-faster-gpu-inference-with-liter -          BreadcrumbList,Article article     3499 2026-10-28     0   19  Smaller apps and faster GPU in
+building-conversational-commerce-with-multi-agen -          BreadcrumbList,Article article    19965 2026-10-27     0   19  Building Conversational Commer
+powering-the-agent-development-lifecycle-with-an -          BreadcrumbList,Article article    19995 2026-10-21     0   22  Powering the Agent Development
+announcing-new-vllm-and-sglang-inference-engines -          BreadcrumbList,Article article     7881 2026-10-20     0   22  Announcing New vLLM and SGLang
+bringing-visual-graph-debugging-to-custom-edge-c -          BreadcrumbList,Article article     3644 2026-10-20     0   21  Bringing Visual Graph Debuggin
+native-model-authoring-for-edge-with-litert-tens -          BreadcrumbList,Article article    10304 2026-10-19     0   21  Native Model Authoring for Edg
+announcing-dpop-support-for-google-oauth-securin -          BreadcrumbList,Article article     6042 2026-10-15     0   21  Announcing DPoP Support for Go
+ml-drift-next-gen-gpu-aiml-inference-at-the-edge -          BreadcrumbList,Article article    10538 2026-10-08     0   24  ML Drift: Next-Gen GPU AI/ML I
+introducing-credentio-open-source-c-library-for- -          BreadcrumbList,Article article     2983 2026-08-13     0   22  Introducing Credentio: Open So
+streaming-comes-to-api-gateway-real-time-and-ai- -          BreadcrumbList,Article article     6552 2026-10-22     0   22  Streaming comes to API Gateway
+integrating-torchtpu-into-torchtitan-and-optimiz -          BreadcrumbList,Article article    19986 2026-10-20     0   23  Integrating TorchTPU into Torc
+evaluating-ai-agents-moving-past-the-vibe-check  -          BreadcrumbList,Article article    10683 2026-10-15     0   23  Evaluating AI agents: moving p
+developers                                       (http 실패)
+googlefordevs                                    (http 실패)
+gdevs-li                                         (http 실패)
+3FReQXN                                          (http 실패)
+gdevs-tw                                         (http 실패)
+program                                          (http 실패)
+publish                                          (http 실패)
+home                                             (http 실패)
+products                                         (http 실패)
+privacy                                          (http 실패)
+### meta-research (https://research.meta.ai/blog) 링크 18
+slug                                             og:type    ld@type                pagetype   chars date       ndate sibl
+muse-wonder                                      article    BlogPosting            article     6867 2026-10-12     0    4  Muse Wonder: A Frontier Model 
+supporting-medical-scientific-research           article    BlogPosting            article    19650 2026-10-28     0    9  How American Universities Are 
+muse-spark-open                                  article    BlogPosting            article     4045 2026-10-15     0    5  Introducing Muse Spark Open, T
+accelerating-scientific-research-in-health-data- article    BlogPosting            article    19999 2026-10-14     0    4  Accelerating Scientific Resear
+developing-capable-models-responsibly            article    BlogPosting            article     5262 2026-10-02     0    4  Developing Capable Models Resp
+solving-open-research-problems-together          article    BlogPosting            article     9722 2026-10-02     1    4  Solving Open Research Problems
+bringing-your-muse-to-life                       article    BlogPosting            article     5583 2026-09-23     0    4  Bringing Your Muse to Life
+security-and-safety-for-ai-agents-our-approach-w article    BlogPosting            article    19995 2026-09-08     0    4  How We Built Safety Into Muse
+introducing-muse-spark-1-3                       article    BlogPosting            article     9824 2026-09-02     0    4  Introducing Muse Spark 1.3
+introducing-muse-voice-transcribe                article    BlogPosting            article    19997 2026-09-01     1    4  Introducing Muse Voice Transcr
+multimodal-intelligence-of-muse-spark-1-2        article    BlogPosting            article     4488 2026-08-20     1    4  The Multimodal Intelligence of
+addressing-third-party-testing-misconfiguration- article    BlogPosting            blogpostin  5658 2026-08-14     0    4  Addressing an issue involving 
+introducing-muse-glimmer-open-agentic-model      article    BlogPosting            article     7875 2026-08-10     0    5  Introducing Muse Glimmer: An O
+introducing-muse-code-and-muse-spark-1-2         article    BlogPosting            article     4467 2026-08-05     0    3  Introducing Muse Code and Muse
+introducing-muse-spark-meta-model-api            article    BlogPosting            article     5268 2026-07-09     0    4  Introducing Muse Spark 1.1
+introducing-muse-image-muse-video-msl            (http 실패)
+introducing-muse-spark-msl                       -          -                      -           8209 2026-04-08     0    0  Introducing Muse Spark: Scalin
+introducing-next-generation-unified-media-genera -          -                      -           6108 2022-11-18     4    4  Introducing Muse Image and Mus
+### pytorch-kr-news (https://discuss.pytorch.kr/c/news/14) 링크 8
+slug                                             og:type    ld@type                pagetype   chars date       ndate sibl
+407                                              website    -                      website      113 2019-12-31     0    2  '새로운 소식' 카테고리의 설명
+12310                                            website    -                      website    10067 2026-10-31     1    7  neuron explorer: 최대 활성 예시 대신 스
+12335                                            website    -                      website    12794 2026-10-31     0    7  OpenQodex: 코딩 에이전트의 변경을 push 전
+12322                                            website    -                      website    10187 2026-10-30     3    5  VocabX: 토큰 빈도 대신 생성 비용으로 어휘를 골
+12334                                            website    -                      website    10986 2026-10-30     3   10  ThinkRail: Pi 코딩 에이전트를 Git 워크트
+12336                                            website    -                      website    15838 2026-10-30     1    6  Claude Code 팀의 코드 리뷰 방식: 병합 PR
+12346                                            website    -                      website     6837 2026-10-29     3    5  Runway Praxis-1: 웹 영상으로 사전학습한 
+12343                                            website    -                      website    10480 2026-10-29     0    6  RecIR: PyTorch 추천 모델 정의 하나로 GP

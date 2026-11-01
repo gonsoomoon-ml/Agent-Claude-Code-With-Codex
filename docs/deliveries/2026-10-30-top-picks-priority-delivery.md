@@ -41,7 +41,7 @@ CloudWatch `/aws/bedrock-agentcore/runtimes/briefing_agent-b9uh7rDAqL-DEFAULT`:
 
 ## 5. 남은 일 (문제 목록 #3~9 + 새 항목)
 
-- #3 분야 라벨 run 간 흔들림 6% → **수용·무변경(10-30 사용자 결정; 연재물 묶기는 오류를 번지게 해 철회)** · #4 PyTorch KR 편중 → **수용·무변경(10-31; "한 소스 3장+/밴드" 는 Decoder 5회·PTK 2회로 PTK 만의 현상 아님)** · #5 수식어 탈락 · #6 해석층 폴백 · #7 날짜 없는 목록의 매일 재열람 · #8 `fetch stub` 노이즈 · #9 고유명사 미포함
+- #3 분야 라벨 run 간 흔들림 6% → **수용·무변경(10-30 사용자 결정; 연재물 묶기는 오류를 번지게 해 철회)** · #4 PyTorch KR 편중 → **수용·무변경(10-31; "한 소스 3장+/밴드" 는 Decoder 5회·PTK 2회로 PTK 만의 현상 아님)** → 사용자 재검토로 **#4b 구현(10-31, 미배포 — 다음 runtime 배포에 실림): pytorch-kr-news 캡 5→4(A; 캡 5 에선 안 돌던 Haiku pick-K 가 평일 거의 매일 작동). fresh-first 안(B)은 보류 — 코드는 브랜치 `draft/4b-fresh-first-cap3`** · #5 수식어 탈락 → **오진: 그림자 검사 오탐(한국어 "23만 명 이상" 표기를 맨숫자로 봄) → `quality_checks.py` 정규식 수정 + 회귀 테스트 4개(10-31, 미배포; 로그 전용) — 복원한 13건 중 실제 탈락 0건** · #6 해석층 폴백 · #7 날짜 없는 목록의 매일 재열람 · #8 `fetch stub` 노이즈 · #9 고유명사 미포함
 - 새 항목: ai.meta.com 페이지 trafilatura 날짜 추출 오류(Muse Image/Video → 2022-11-18) · Anthropic News 목록 페이지("Announcements"·"Partnerships")가 카드로 수집됨
 - 핵심 칸 확대(K>3) 시 손볼 것: "섹션당 1장" 규칙이 주말(섹션 2개)엔 3장에서 멈춤 · 단계 ④ 잔여 큰 발표가 표시 정렬에서 3번째 큰 발표처럼 보임(10-27)
 
