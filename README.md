@@ -148,6 +148,7 @@ web/                # ④ 프론트엔드 (Vite + React → CloudFront)
 infra/              # CloudFormation + 배포 단위 인덱스
 design/             # 설계 문서 — PRD · 리서치 · 아키텍처 · UX
 docs/               # 실행 산출물 — 스펙 · 플랜 · 전달 기록
+field-experiment/   # 주간 브랜드 Field Experiment(현장 실험) — 토요일 실험 기사; 그 폴더의 README 가 진실
 ```
 
 ## AWS 배포 (us-east-1)
