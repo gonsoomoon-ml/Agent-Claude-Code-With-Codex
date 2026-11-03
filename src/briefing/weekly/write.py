@@ -118,7 +118,7 @@ def write(seed: Seed, cards: list[WeekCard], texts: dict[int, str], issue_date: 
           model_id: str = "", effort: str | None = None, run_author=None, recorder=None, today: str | None = None) -> Draft:
     run = run_author or _author._run_author
     text = run(build_write_system_prompt(), build_write_user_prompt(seed, cards, texts, issue_date, today=today),
-               settings, model_id=model_id, effort=effort, recorder=recorder)
+               settings, model_id=model_id, effort=effort, recorder=recorder, prompt_via_stdin=True)
     return parse_draft(text)
 
 
@@ -126,7 +126,7 @@ def revise(prev: Draft, feedback: list[str], settings, *, model_id: str = "", ef
            run_author=None, recorder=None) -> Draft:
     run = run_author or _author._run_author
     text = run(build_write_system_prompt(), build_revise_user_prompt(prev, feedback), settings,
-               model_id=model_id, effort=effort, recorder=recorder)
+               model_id=model_id, effort=effort, recorder=recorder, prompt_via_stdin=True)
     return parse_draft(text)
 
 

@@ -93,3 +93,21 @@ def test_interpretation_inherits_author_values_when_interp_unset(calls):
     author.draft_interpretation(_SRC, (Claim("C1", "주장.", "entailment"),), _USER, s, "요약.")
     assert calls[0]["env"]["ANTHROPIC_MODEL"] == "M-author"
     assert calls[0]["argv"][-3:-1] == ["--effort", "medium"]
+
+
+def test_prompt_via_stdin_moves_user_prompt_off_argv(monkeypatch):
+    """주간(2026-11-03): 긴 프롬프트는 stdin 으로. 기본값은 종전 그대로(argv 마지막 + stdin 닫음) — 데일리 무변경 회귀."""
+    seen = []
+
+    def fake_run(argv, **kw):
+        seen.append({"argv": argv, "input": kw.get("input"), "stdin": kw.get("stdin")})
+
+        class _Proc:
+            returncode, stderr, stdout = 0, "", json.dumps({"result": "ok", "total_cost_usd": 0.0})
+        return _Proc()
+    monkeypatch.setattr(author.subprocess, "run", fake_run)
+    author._run_author("SYS", "USR", _settings(author_effort="medium"))
+    assert seen[0]["argv"][-1] == "USR" and seen[0]["input"] is None and seen[0]["stdin"] == author.subprocess.DEVNULL
+    author._run_author("SYS", "가" * 200_000, _settings(author_effort="medium"), prompt_via_stdin=True)
+    assert seen[1]["argv"] == ["claude", "-p", "--system-prompt", "SYS", "--output-format", "json", "--effort", "medium"]
+    assert seen[1]["input"] == "가" * 200_000 and seen[1]["stdin"] is None

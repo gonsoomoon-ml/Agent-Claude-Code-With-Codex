@@ -301,7 +301,7 @@ def _parse_interp(text: str) -> Interpretation:
 
 def _run_author(
     system_prompt: str, user_prompt: str, settings: Settings, *, recorder=None,
-    model_id: str = "", effort: str | None = None,
+    model_id: str = "", effort: str | None = None, prompt_via_stdin: bool = False,
 ) -> str:
     """headless `claude -p`(Claude Code) on Bedrock → 최종 답변 텍스트.
 
@@ -313,6 +313,8 @@ def _run_author(
     role/권한을 모르는 순수 비용 sink — 이 함수는 recorder 가 *무엇을 위한 것인지* 모른다(신뢰 경계).
     `model_id`·`effort`(F3·F7) — 생략하면 요약 AI 값(author_model_id·author_effort). 해석층이 자기 값을 넘긴다.
     effort 가 빈 값이나 'default' 면 `--effort` 를 붙이지 않는다 = CLI 기본값(배선 전과 같은 명령).
+    `prompt_via_stdin`(2026-11-03, 주간) — 긴 user 프롬프트(카드 116장 · 원문 3편 ≈ 180KB)는 argv 한 개 상한(리눅스 128KB)을
+    넘으므로 stdin 으로 넘긴다. 기본 False = 종전과 같은 argv + stdin 닫음(데일리 무변경).
     """
     model_id = model_id or settings.author_model_id
     effort = settings.author_effort if effort is None else effort
@@ -324,22 +326,17 @@ def _run_author(
     effort_args = ["--effort", effort] if effort and effort != "default" else []
     clean_dir = tempfile.mkdtemp(prefix="author-clean-")  # 빈 dir → repo 컨텍스트 미상속(격리)
     t0 = time.monotonic()
+    argv = ["claude", "-p", "--system-prompt", system_prompt, "--output-format", "json", *effort_args]
     try:
         proc = subprocess.run(
-            [
-                "claude", "-p",
-                "--system-prompt", system_prompt,
-                "--output-format", "json",
-                *effort_args,
-                user_prompt,
-            ],
+            argv if prompt_via_stdin else [*argv, user_prompt],
             cwd=clean_dir,
             capture_output=True,
             text=True,
             timeout=_AUTHOR_TIMEOUT_S,
             env=bedrock_author_env(settings, model_id),
-            stdin=subprocess.DEVNULL,
             check=False,
+            **({"input": user_prompt} if prompt_via_stdin else {"stdin": subprocess.DEVNULL}),
         )
     finally:
         shutil.rmtree(clean_dir, ignore_errors=True)

@@ -128,5 +128,5 @@ def select(cards: list[WeekCard], issue_date: str, settings, *, model_id: str = 
     """한 주 카드 → Seed. `run_author` 주입 가능(테스트 = fake); 기본 = 데일리 `_run_author`(clean dir · Bedrock env)."""
     run = run_author or _author._run_author
     text = run(build_select_system_prompt(), build_select_user_prompt(cards, issue_date), settings,
-               model_id=model_id, effort=effort, recorder=recorder)
+               model_id=model_id, effort=effort, recorder=recorder, prompt_via_stdin=True)
     return enforce(parse_seed(text), cards)
