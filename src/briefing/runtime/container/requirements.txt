@@ -10,3 +10,4 @@ pyyaml
 feedparser
 tzdata
 trafilatura>=2.1.0
+markdown>=3.11.2

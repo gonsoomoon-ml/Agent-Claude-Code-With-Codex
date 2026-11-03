@@ -12,6 +12,7 @@ dependencies = [
     "pyyaml",            # users/<id>/profile.yaml 파싱
     "feedparser",        # 클린 RSS 출처 파싱
     "trafilatura>=2.1.0",
+    "markdown>=3.11.2",  # 주간 기사 md → 메일 HTML(weekly/render.py)
 ]
 
 [dependency-groups]
