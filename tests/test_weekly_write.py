@@ -9,8 +9,9 @@ from briefing.core.stores.source_store import SourceStore
 from briefing.weekly.collect import WeekCard
 from briefing.weekly.gate import GateItem, GateResult
 from briefing.weekly.select import Candidate, Seed
-from briefing.weekly.write import (build_revise_user_prompt, build_write_system_prompt, build_write_user_prompt,
-                                   feedback_from_gate, none_issue_md, parse_draft, revise, source_text, write)
+from briefing.weekly.write import (LEGACY_TRUNCATED_MIN_CHARS, build_critique_user_prompt, build_revise_user_prompt,
+                                   build_write_system_prompt, build_write_user_prompt, critique, feedback_from_gate, none_issue_md,
+                                   parse_critique, parse_draft, revise, source_text, write)
 
 
 def _card(n, media, claims, verified, url="https://x/1"):
@@ -40,11 +41,16 @@ def test_source_text_frozen_then_refetch_only_when_truncated(tmp_path):
     assert len(source_text(store, c2, refetch=refetch)) == TRUNCATED_MIN_CHARS + 500 and calls == ["https://x/2"]
     assert len(source_text(store, c2, refetch=lambda u: (_ for _ in ()).throw(RuntimeError("x")))) == TRUNCATED_MIN_CHARS
     assert source_text(store, c2) and source_text(store, WeekCard(**{**c2.__dict__, "source_id": "없음"})) == ""
+    # 옛 8,000자 상한에 걸린 동결본(10-31 호 씨앗이 7,994자)도 다시 가져온다
+    legacy = store.freeze(url="https://x/3", title="t", raw_text="다" * LEGACY_TRUNCATED_MIN_CHARS, fetched_at="f")
+    c3 = WeekCard(**{**c1.__dict__, "n": 3, "source_id": legacy.source_id, "url": "https://x/3"})
+    assert len(source_text(store, c3, refetch=lambda u: "라" * 9000)) == 9000
 
 
 def test_system_prompt_carries_rules_and_terms():
     s = build_write_system_prompt()
     assert "## 출력 형식" in s and "내 시스템에 대입" in s and "② 의 문장은 전부 사실 문장이다" in s
+    assert "그림 1 개념도" in s and "그림 2 시스템도" in s and "```prompt" in s and "n=40: ≥70%" in s and '"card": 36}' in s
     assert "- 전염 → 일치율(agreement rate)" in s and "(FAIL: 우리가 만든 비유)" in s and "(WARN: 원문 lean" in s
 
 
@@ -53,7 +59,8 @@ def test_user_prompt_shows_only_verified_claims_and_texts():
     assert "기간 줄 = 2026-10-31 ~ 11-06" in p and "씨앗 = #36" in p and "② 보강 한 줄 = #38" in p
     assert "### 카드 #36 (씨앗)" in p and "### 카드 #38 (보강 한 줄)" in p
     assert "- C1: 분석가 50명" in p and "- C2: 86% 일치" in p and "- C3: 미검증" not in p
-    assert "동결 원문(4자):\n원문36" in p and p.index("#36") < p.index("#38")
+    assert "동결 원문(4자 — ② 의 판정기는 이 원문과 대조한다):\n원문36" in p and p.index("#36") < p.index("#38")
+    assert "읽기 보조" in p
 
 
 def test_parse_draft_and_errors():
@@ -92,3 +99,29 @@ def test_none_issue_md():
     md = none_issue_md(s, [A, W], "2026-11-07")
     assert md.startswith("# 이번 주 아이디어 없음\n2026-10-31 ~ 11-06 · 프론티어 1차 글 1편 검토")
     assert "- Anthropic Research — T36 — 제품 소식" in md and "하드 게이트 1" in md
+
+
+def test_critique_prompt_and_parse_and_pass_through():
+    d = parse_draft(json.dumps({"md": "# 제목\n## ② 이번 주 근거\n문장.", "cites": [{"text": "문장.", "card": 36}]}))
+    assert d.cites[0].claims == ()                                   # 2안: claim id 없음
+    u = build_critique_user_prompt(d, [A, W], {36: "원문36", 38: "원문38"})
+    assert "초안(JSON)" in u and "### 카드 #36 원문(4자)\n원문36" in u and "#38" not in u     # 인용한 카드의 원문만
+    assert parse_critique('{"issues": ["② 씨앗: 77% 누락", "", "③ 자 형식"]}') == ["② 씨앗: 77% 누락", "③ 자 형식"]
+    assert parse_critique(json.dumps({"issues": [str(i) for i in range(9)]})) == [str(i) for i in range(6)]
+    with pytest.raises(ValueError):
+        parse_critique('{"md": "x"}')
+    seen = []
+
+    def fake(system, user, settings, **kw):
+        seen.append(system)
+        return '{"issues": []}'
+    assert critique(d, [A, W], {36: "원문"}, settings=None, run_author=fake) == [] and "점검 항목" in seen[0]
+
+
+def test_feedback_skips_unfixable_items():
+    """certifier 미가용(fixable=False)은 작성자 피드백에서 뺀다 — 전부 그런 실패면 빈 목록(run 이 재작성을 생략)."""
+    r = GateResult("QUARANTINE", (GateItem("FAIL", "cite", "#36 … — codex DEMOTED: certifier 미가용", feedback="#36 … — 함의 아님", fixable=False),
+                                  GateItem("FAIL", "repo", "x — 경로 없음", feedback="③ 시작점 줄 `x` 을 통째로 뺀다")), (), ())
+    assert feedback_from_gate(r) == ["③ 시작점 줄 `x` 을 통째로 뺀다"]
+    only = GateResult("QUARANTINE", (r.items[0],), (), ())
+    assert feedback_from_gate(only) == []

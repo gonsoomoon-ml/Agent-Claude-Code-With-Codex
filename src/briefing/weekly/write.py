@@ -2,7 +2,9 @@
 
 재작성(revise)은 게이트가 FAIL 로 돌려준 항목만 작성자에게 보여 준다 — 데일리 maker-checker 와 같은 모양
 (확정적 사유만, certifier 의 근거 문장은 주지 않는다 = decorrelation 보존). 횟수 상한은 run.py 가 가진다.
-원문은 데일리 동결본(≤20,000자)을 쓰고, 잘린 것만 다시 가져온다(README §8 — 상한 60,000자, robots 는 데일리와 같은 `_http_get`).
+자기 비평(critique, 2026-11-04 A 설계)은 게이트 **앞**에서 같은 모델이 README 규칙으로 초안을 점검해 고칠 목록을 내고, 같은 revise 로 고친다
+(사실 경계는 그대로 — 비평은 원문 밖 사실을 보태라고 하지 않는다).
+원문은 데일리 동결본을 쓰고, 상한(옛 8,000자 · 지금 20,000자)에 걸린 것은 다시 가져온다(README §8 — 상한 60,000자, robots 는 데일리와 같은 `_http_get`).
 """
 from __future__ import annotations
 
@@ -18,7 +20,9 @@ from .gate import Cite, GateResult
 from .select import Seed
 
 REFETCH_MAX_CHARS = 60_000
+LEGACY_TRUNCATED_MIN_CHARS = 7_900     # 2026-10-28 전 동결본 상한(8,000자) 근처 — 10-31 호 씨앗 원문이 여기 걸렸다(7,994자)
 _PROMPT = Path(__file__).resolve().parent / "prompts" / "write_system.md"
+_CRITIQUE = Path(__file__).resolve().parent / "prompts" / "critique_system.md"
 _TERMS = Path(__file__).resolve().parent / "terms.md"
 
 
@@ -41,12 +45,12 @@ def refetch_url(url: str) -> str:
 
 
 def source_text(store, card: WeekCard, *, refetch=None) -> str:
-    """동결 원문. 잘린 동결본(상한 근처)이고 refetch 가 주어지면 다시 가져와 더 긴 쪽을 쓴다(상한 60,000자)."""
+    """동결 원문. 잘린 동결본(옛 8,000자 · 지금 20,000자 상한 근처)이고 refetch 가 주어지면 다시 가져와 더 긴 쪽을 쓴다(상한 60,000자)."""
     try:
         frozen = store.get_source(card.source_id).text
     except KeyError:
         frozen = ""
-    if refetch is not None and card.url and len(frozen) >= TRUNCATED_MIN_CHARS:
+    if refetch is not None and card.url and len(frozen) >= min(LEGACY_TRUNCATED_MIN_CHARS, TRUNCATED_MIN_CHARS):
         try:
             full = refetch(card.url)
         except Exception:  # noqa: BLE001 — 재수집 실패는 동결본으로(기사 생성을 막지 않는다)
@@ -73,8 +77,8 @@ def build_write_system_prompt() -> str:
 def _card_block(role: str, c: WeekCard, text: str) -> str:
     claims = "\n".join(f"- {cl.id}: {cl.text}" for cl in c.claims if cl.id in c.verified_ids) or "- (없음)"
     return (f"### 카드 #{c.n} ({role}) — {c.media} · {c.title or c.headline}\nurl: {c.url}\n"
-            f"검증된 사실(claims — ② 의 cites 는 이 id 로만):\n{claims}\n\n요약: {c.summary}\n\n"
-            f"동결 원문({len(text):,}자):\n{text}\n")
+            f"검증된 사실(claims — 읽기 보조; ② 의 사실은 아래 원문에 있는 것만, cites 는 카드 번호로):\n{claims}\n\n요약: {c.summary}\n\n"
+            f"동결 원문({len(text):,}자 — ② 의 판정기는 이 원문과 대조한다):\n{text}\n")
 
 
 def build_write_user_prompt(seed: Seed, cards: list[WeekCard], texts: dict[int, str], issue_date: str, *,
@@ -99,6 +103,33 @@ def build_revise_user_prompt(prev: Draft, feedback: list[str]) -> str:
             "② 문장을 고치면 cites 의 text 도 같이 고친다. 전체를 같은 JSON 형식으로 다시 출력하라.\n" + items)
 
 
+def build_critique_system_prompt() -> str:
+    return _CRITIQUE.read_text(encoding="utf-8")
+
+
+def build_critique_user_prompt(draft: Draft, cards: list[WeekCard], texts: dict[int, str]) -> str:
+    by_n = {c.n: c for c in cards}
+    srcs = "\n\n".join(f"### 카드 #{n} 원문({len(texts.get(n, '')):,}자)\n{texts.get(n, '')}"
+                         for n in sorted({c.card for c in draft.cites}) if n in by_n)
+    return "초안(JSON):\n" + draft.to_json() + "\n\n초안이 쓴 카드의 동결 원문:\n" + srcs + "\n\n위 초안을 점검 항목대로 보고 JSON 으로만 답하라."
+
+
+def parse_critique(text: str) -> list[str]:
+    obj = _author._last_json_object(text)
+    if obj is None or not isinstance(obj.get("issues"), list):
+        raise ValueError("비평 출력에서 issues 목록을 찾지 못함")
+    return [str(x).strip() for x in obj["issues"] if str(x).strip()][:6]
+
+
+def critique(draft: Draft, cards: list[WeekCard], texts: dict[int, str], settings, *, model_id: str = "",
+             effort: str | None = None, run_author=None, recorder=None) -> list[str]:
+    """README 규칙으로 초안을 점검한 고칠 목록(최대 6). 비면 통과. 같은 모델 · 같은 clean dir author."""
+    run = run_author or _author._run_author
+    text = run(build_critique_system_prompt(), build_critique_user_prompt(draft, cards, texts), settings,
+               model_id=model_id, effort=effort, recorder=recorder, prompt_via_stdin=True)
+    return parse_critique(text)
+
+
 def parse_draft(text: str) -> Draft:
     obj = _author._last_json_object(text)
     if obj is None or not str(obj.get("md", "")).strip():
@@ -110,8 +141,9 @@ def parse_draft(text: str) -> Draft:
 
 
 def feedback_from_gate(result: GateResult) -> list[str]:
-    """작성자에게 돌려줄 실패 항목 — 확정적 사유만(GateItem.feedback 우선, certifier 근거 제외)."""
-    return [it.feedback or it.msg for it in result.items if it.verdict == "FAIL"]
+    """작성자에게 돌려줄 실패 항목 — 확정적 사유만(GateItem.feedback 우선, certifier 근거 제외). 작성자가 고칠 수 없는 실패
+    (`fixable=False`, certifier 미가용)는 뺀다 — 비면 run 이 재작성을 생략한다."""
+    return [it.feedback or it.msg for it in result.items if it.verdict == "FAIL" and it.fixable]
 
 
 def write(seed: Seed, cards: list[WeekCard], texts: dict[int, str], issue_date: str, settings, *,

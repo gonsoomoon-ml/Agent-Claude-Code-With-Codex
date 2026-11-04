@@ -183,6 +183,6 @@ tests/test_weekly_*.py             fake 주입(데일리 패턴)
 
 ## 9. 결정 필요
 1. **공개 저장소의 `issues/`:** 1호 md 와 run 로그(발신 주소 포함)가 11-02 부터 공개되어 있다. 그대로 두고 기록할지, 공개 트리에서 뺄지 정한다(자동화 뒤 진실의 원천 = DDB 표).
-2. **주간 작성 모델:** 데일리처럼 Sonnet 5.5 로 할지, Opus 5.5 로 할지 정한다(`.env` `WEEKLY_AUTHOR_MODEL_ID`).
+2. ~~주간 작성 모델~~ → 2026-11-04 결정: 작성 · 선정 모두 Opus 5.5 high(`.env` `WEEKLY_AUTHOR_MODEL_ID` · `WEEKLY_SELECT_MODEL_ID`; README §10).
 3. **2단계 승인 마감:** 기본안은 토 12:00 이다.
 4. **도메인:** 3단계 전제이고, 사용자가 검토 중이다.

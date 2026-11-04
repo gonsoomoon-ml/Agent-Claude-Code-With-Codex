@@ -15,7 +15,8 @@ from briefing.core.verification.certifier import CertVerdict
 from briefing.weekly import gate as gate_mod
 from briefing.weekly import run as run_mod
 from briefing.weekly.issues import LocalIssueStore
-from briefing.weekly.run import WeeklySettings, _wait_for_friday, build, load_weekly_settings, pull, send
+from briefing.weekly.figure.build import FigureResult
+from briefing.weekly.run import WeeklySettings, _wait_for_friday, build, build_raw_email, load_weekly_settings, pull, send
 
 U, D = "admin-1", "2026-11-07"
 WS = WeeklySettings(admin_user_id=U, author_model_id="m-w", author_effort="medium", select_model_id="m-s", max_revisions=2)
@@ -218,11 +219,13 @@ def test_pull_writes_issue_and_log(env, tmp_path):
 
 
 def test_load_weekly_settings_env_first(monkeypatch):
-    for k in ("WEEKLY_ADMIN_USER_ID", "WEEKLY_AUTHOR_MODEL_ID", "WEEKLY_SELECT_MODEL_ID", "WEEKLY_STRICT", "WEEKLY_MAX_REVISIONS"):
+    for k in ("WEEKLY_ADMIN_USER_ID", "WEEKLY_AUTHOR_MODEL_ID", "WEEKLY_SELECT_MODEL_ID", "WEEKLY_STRICT", "WEEKLY_MAX_REVISIONS",
+              "WEEKLY_CRITIQUE", "WEEKLY_FIGURE"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("WEEKLY_ADMIN_USER_ID", "u1")
     ws = load_weekly_settings(_Settings())
     assert (ws.admin_user_id, ws.author_model_id, ws.select_model_id, ws.strict, ws.max_revisions) == ("u1", "m-d", "m-d", True, 2)
+    assert ws.critique and not ws.figure                              # env 기본: 비평 켬 · 그림 끔
     monkeypatch.setenv("WEEKLY_AUTHOR_MODEL_ID", "opus")
     monkeypatch.setenv("WEEKLY_STRICT", "0")
     ws = load_weekly_settings(_Settings())
@@ -230,3 +233,92 @@ def test_load_weekly_settings_env_first(monkeypatch):
     with pytest.raises(ValueError):
         build(D, _Settings(), WeeklySettings("", "m", "", "m"), store=None, card_cache=None, ledger=None, issue_store=None)
     assert run_mod.KST.key == "Asia/Seoul"
+
+
+CRITIQUE_JSON = json.dumps({"issues": ["② 씨앗: 원문의 77% 사실이 빠졌다"]}, ensure_ascii=False)
+
+
+def test_build_critique_pass_revises_before_gate(env, tmp_path):
+    ws = WeeklySettings(**{**WS.__dict__, "critique": True})
+    author = _author([SELECT_JSON, WRITE_JSON, CRITIQUE_JSON, WRITE_JSON])
+    r = build(D, _Settings(), ws, **_kw(env, author))
+    assert r["status"] == "ready" and r["attempts"] == 1 and len(author.calls) == 4
+    assert "점검 항목" in author.calls[2]["system"] + "x" or "초안(JSON)" in author.calls[2]["user"]
+    assert "이전 초안(JSON)" in author.calls[3]["user"] and "77%" in author.calls[3]["user"]
+    assert "자기 비평 1건" in env["issue_store"].get(D)["notes"]
+    author2 = _author([SELECT_JSON, WRITE_JSON, '{"issues": []}'])
+    build(D, _Settings(), ws, **{**_kw(env, author2), "issue_store": LocalIssueStore(str(tmp_path / "issues2"))})   # 비평이 비면 revise 없이(호출 3회)
+    assert len(author2.calls) == 3
+
+
+def test_build_figure_track_and_inline_send(env, tmp_path, monkeypatch):
+    monkeypatch.setenv("WEEKLY_ISSUES_PATH", str(tmp_path / "wi"))
+    ws = WeeklySettings(**{**WS.__dict__, "figure": True})
+    png = tmp_path / "fig.png"
+    png.write_bytes(b"\x89PNG")
+    seen = {}
+
+    def figure_fn(md, settings, *, out_dir, **kw):
+        seen["out_dir"] = str(out_dir)
+        return FigureResult("ready", png=str(png), html="h", spec_json="{}", items=[("PASS", "overflow", "ok")], rounds=1)
+    md_fig = MD.replace("- 과제\n", "- 과제\n- AWS 에서 돌리면: Bedrock.\n\n그림 2 — 구성\n```\n동료 -> 에이전트\n```\n")
+    write_fig = json.dumps({"md": md_fig, "cites": [{"text": "분석가 50명이 분석했다.", "card": 1}]}, ensure_ascii=False)
+    r = build(D, _Settings(), ws, **_kw(env, _author([SELECT_JSON, write_fig])), figure_fn=figure_fn)
+    assert r["status"] == "ready" and r["figure"] == "ready" and seen["out_dir"].endswith(f"wi/fig/{D}")
+    item = env["issue_store"].get(D)
+    assert item["figure_png"] == str(png) and "그림 ready" in item["notes"] and item["banner"] == ""
+    sent = []
+
+    def send_fn(to, subject, html, inline=None):
+        sent.append((html, inline))
+        return "mid-f"
+    dry = send(D, _Settings(), ws, issue_store=env["issue_store"], send_fn=send_fn, dry_run=True, load_user_fn=lambda u, st: _User())
+    assert dry["inline_png_bytes"] == 4 and sent == []
+    r = send(D, _Settings(), ws, issue_store=env["issue_store"], send_fn=send_fn, load_user_fn=lambda u, st: _User())
+    assert r["status"] == "sent" and sent[0][1] == [("fig2", b"\x89PNG", "image/png")] and "cid:fig2" in sent[0][0]
+    assert "동료 -&gt; 에이전트" not in sent[0][0] and "그림 2 — 구성" in sent[0][0]      # ASCII 는 빠지고 캡션은 남는다
+
+
+def test_send_without_section_three_figure_sends_no_attachment(env, tmp_path):
+    """③ 에 그림 블록이 없으면(옛 호) PNG 가 있어도 붙이지 않는다 — 참조 없는 첨부 방지."""
+    ws = WeeklySettings(**{**WS.__dict__, "figure": True})
+    png = tmp_path / "fig.png"
+    png.write_bytes(b"\x89PNG")
+    build(D, _Settings(), ws, **_kw(env, _author([SELECT_JSON, WRITE_JSON])),
+          figure_fn=lambda md, settings, **kw: FigureResult("ready", png=str(png)))
+    sent = []
+    r = send(D, _Settings(), ws, issue_store=env["issue_store"], send_fn=lambda to, s, h, inline=None: sent.append(inline) or "m",
+             load_user_fn=lambda u, st: _User())
+    assert r["status"] == "sent" and sent == [None]
+
+
+def test_build_figure_failure_does_not_block(env):
+    ws = WeeklySettings(**{**WS.__dict__, "figure": True})
+
+    def boom(md, settings, **kw):
+        raise RuntimeError("chromium")
+    r = build(D, _Settings(), ws, **_kw(env, _author([SELECT_JSON, WRITE_JSON])), figure_fn=boom)
+    assert r["status"] == "ready" and r["figure"] == "" and "그림 실패: RuntimeError" in env["issue_store"].get(D)["notes"]
+
+
+def test_build_raw_email_mime():
+    raw = build_raw_email("Field Experiment <s@x>", "a@b", "제목", "<p>본문 <img src=\"cid:fig2\"></p>", [("fig2", b"\x89PNG", "image/png")])
+    text = raw.decode("utf-8", errors="ignore")
+    assert "multipart/related" in text and "Content-ID: <fig2>" in text and "Content-Disposition: inline" in text and "image/png" in text
+    assert "From: Field Experiment <s@x>" in text and "To: a@b" in text
+
+
+def test_build_skips_revise_when_only_unfixable_failures(env, monkeypatch, tmp_path):
+    """certifier 미가용(codex-error)만 남으면 재작성을 돌리지 않고 바로 격리(2026-11-04: 2회 × $0.9 헛돎 실측)."""
+    monkeypatch.setattr(gate_mod._lint, "lint", lambda md: [("PASS", "1", "ok")])
+    author = _author([SELECT_JSON, WRITE_JSON])
+    unavailable = lambda cid, e: CertVerdict(cid, "DEMOTED", "certifier 미가용(보수적 미확인): codex exec rc=1", "codex-error")  # noqa: E731
+    r = build(D, _Settings(), WS, **{**_kw(env, author), "certify_fn": unavailable})
+    assert r["status"] == "quarantined" and r["attempts"] == 1 and len(author.calls) == 2   # select · write 만
+    item = env["issue_store"].get(D)
+    assert "재작성 생략" in item["notes"] and "certifier 미가용" in item["banner"]
+    # 산술 경로: 값 대조가 막고 codex 2차 판정이 오류 → certify() 는 BLOCKED · model "deterministic" 으로 감싼다(근거에 미가용 문구)
+    wrapped = lambda cid, e: CertVerdict(cid, "BLOCKED", "원문에 없는 수치 · codex DEMOTED: certifier 미가용(보수적 미확인): rc=1", "deterministic")  # noqa: E731
+    author2 = _author([SELECT_JSON, WRITE_JSON])
+    r2 = build(D, _Settings(), WS, **{**_kw(env, author2), "certify_fn": wrapped, "issue_store": LocalIssueStore(str(tmp_path / "issues2"))})
+    assert r2["status"] == "quarantined" and r2["attempts"] == 1 and len(author2.calls) == 2

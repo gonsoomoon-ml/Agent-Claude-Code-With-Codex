@@ -1,0 +1,39 @@
+/* vendored 2026-11-04 from gonsoomoon-ml/claude-extensions infographic-design 0.1.0 (templates/tokens.css) — 팔레트 · 크기는 여기서만 */
+/* infographic-design tokens. Every color and size a template uses lives here.
+   Templates and build pages never write a literal hex or px for these roles. */
+:root {
+  /* canvas: LinkedIn portrait 4:5. A two-panel landscape page overrides these to 1200 x 800. */
+  --canvas-w: 1080px;
+  --canvas-h: 1350px;
+  --pad-top: 30px;
+  --pad-x: 56px;
+  --pad-bottom: 24px;
+
+  /* color roles. Default palette sampled from the house examples (cream + one coral accent). */
+  --bg: #F6F2ED;          /* page background */
+  --surface: #FFFFFF;     /* boxes, cards */
+  --ink: #1A1715;         /* primary text, box strokes */
+  --ink-2: #2A2622;       /* secondary labels: still near-black, never light gray */
+  --ink-3: #332E2A;       /* footnotes, sources, legends */
+  --gray: #E5E0D8;        /* secondary boxes, chips, bar tracks */
+  --accent: #E84A2E;      /* the ONE accent: highlighted box stroke, key number, headline line */
+  --accent-fill: #FDE3D9; /* highlighted box fill */
+  --panel: #FBF9F7;       /* panel background inside the page (two-panel scheme) */
+  --rule: #D5CEC6;        /* band separators */
+  --dash: #8A847D;        /* dashed grouping containers, return arrows */
+
+  /* type scale, px at 1080 width (scale with the canvas) */
+  --fs-headline: 62px;    /* the one dominant line */
+  --fs-takeaway: 42px;    /* closing statement */
+  --fs-section: 32px;     /* band / column titles */
+  --fs-context: 28px;     /* lines above the headline */
+  --fs-sub: 26px;         /* line under the takeaway */
+  --fs-body: 23px;        /* notes under diagrams */
+  --fs-kicker: 22px;      /* small label above a title */
+  --fs-label: 18px;       /* labels inside diagrams */
+  --fs-small: 17px;       /* legends, attribution lines */
+  --fs-source: 16px;      /* sources footer: the floor */
+  --fs-number: 72px;      /* a measured number that is the message */
+
+  --font: "Noto Sans CJK KR", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+}

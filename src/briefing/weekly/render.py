@@ -1,7 +1,9 @@
-"""주간 기사 md → 메일 HTML(라이트 테마 · 인라인 스타일). 1호(2026-10-31) 발송 렌더와 같은 출력.
+"""주간 기사 md → 메일 HTML(라이트 테마 · 인라인 스타일). 1호(2026-10-31) 발송 렌더와 같은 출력(그림 · 조각 없을 때 바이트 동일).
 
 데일리 `core/render.py` 와 다른 브랜드라 틀 · 색을 따로 둔다(README §2). 메일 클라이언트가 <style> 을
 버리므로 스타일은 태그마다 인라인으로 넣는다.
+2026-11-04: ```prompt 조각(③)은 줄바꿈 허용 상자로, `figure_cid` 가 주어지면 ③ 의 그림(시스템도) 블록을 인라인 이미지(CID)로 바꾼다
+— md 의 ASCII 가 진실이고 PNG 는 메일에서만 대신한다(README §4).
 """
 from __future__ import annotations
 
@@ -21,6 +23,12 @@ _PRE = ('<pre style="font-family:ui-monospace,Menlo,Consolas,D2Coding,monospace;
         'background:#ece8df;padding:12px 14px;border-radius:4px;white-space:pre;overflow-x:auto;margin:10px 0">'
         '<code style="font-family:inherit;background:none;padding:0">')
 _CODE = '<code style="font-family:ui-monospace,Menlo,monospace;font-size:14px;background:#ece8df;padding:1px 4px;border-radius:3px">'
+_PRE_PROMPT = ('<pre style="font-family:ui-monospace,Menlo,Consolas,D2Coding,monospace;font-size:13px;line-height:1.5;'
+               'background:#f3efe4;border-left:3px solid #8a4b1f;padding:10px 14px;border-radius:4px;white-space:pre-wrap;'
+               'word-break:break-all;margin:10px 0"><code style="font-family:inherit;background:none;padding:0">')
+_PRE_LANG_RE = re.compile(r'<pre><code class="language-(\w+)">')
+_IMG = ('<img src="cid:{cid}" alt="{alt}" style="display:block;width:100%;max-width:640px;height:auto;'
+        'border:1px solid #e3dfd6;border-radius:4px;margin:10px 0">')
 
 
 def split_title(md: str) -> tuple[str, str]:
@@ -33,9 +41,38 @@ def email_subject(title: str) -> str:
     return f"[현장 실험] {title}"
 
 
-def render_email(md: str, *, footer: str = FOOTER, banner: str = "") -> str:
-    """banner(옵션) = 머리 아래 경고 한 줄(격리 호를 관리자에게 보낼 때). 비면 1호 발송 HTML 과 바이트까지 같다."""
+def _swap_figure(body_md: str, cid: str, alt: str) -> str:
+    """③ 의 첫 그림(```prompt 아님) 블록을 <img cid> 로 바꾼다. 캡션 줄은 그대로 둔다. ③ 에 그림이 없으면 원문 그대로."""
+    out: list[str] = []
+    lines = body_md.splitlines()
+    sec, in_code, lang, skipping, done = "", False, "", False, False
+    for line in lines:
+        if line.startswith("## "):
+            sec = line[3:4]
+        if line.strip().startswith("```"):
+            if not in_code:
+                lang = line.strip()[3:].strip().lower()
+                if sec == "③" and lang != "prompt" and not done:
+                    skipping, done = True, True
+                    out += ["", _IMG.format(cid=_html.escape(cid), alt=_html.escape(alt)), ""]
+                    in_code = True
+                    continue
+            elif skipping:
+                skipping, in_code = False, False
+                continue
+            in_code = not in_code
+        if not skipping:
+            out.append(line)
+    return "\n".join(out) + ("\n" if body_md.endswith("\n") else "")
+
+
+def render_email(md: str, *, footer: str = FOOTER, banner: str = "", figure_cid: str | None = None,
+                 figure_alt: str = "그림 2 — 개념도와 시스템도") -> str:
+    """banner(옵션) = 머리 아래 경고 한 줄(격리 호를 관리자에게 보낼 때). figure_cid(옵션) = ③ 그림을 인라인 이미지로.
+    둘 다 비면 1호 발송 HTML 과 바이트까지 같다."""
     title, body_md = split_title(md)
+    if figure_cid:
+        body_md = _swap_figure(body_md, figure_cid, figure_alt)
     warn = (f'<div style="background:#fbe9e7;border:1px solid #d9534f;color:#7a1f1f;padding:10px 12px;border-radius:4px;'
             f'font-size:13px;margin-bottom:16px">&#9888; {_html.escape(banner, quote=False)}</div>' if banner else "")
     body_md = _BARE_URL_ITEM.sub(r"- <\1>", body_md)
@@ -52,6 +89,7 @@ def render_email(md: str, *, footer: str = FOOTER, banner: str = "") -> str:
   <div style="border-top:1px solid #cfcac0;margin-top:28px;padding-top:12px;font-size:12px;color:#6b665e">{_html.escape(footer, quote=False)}</div>
 </div></body></html>"""
     # 순서가 중요: 그림(<pre><code>)을 일반 <code> 보다 먼저 바꾼다(블록 안 code 는 스타일 초기화).
-    doc = doc.replace("<h2>", _H2).replace("<pre><code>", _PRE).replace("<code>", _CODE)
+    doc = doc.replace("<h2>", _H2).replace("<pre><code>", _PRE)
+    doc = _PRE_LANG_RE.sub(lambda m: _PRE_PROMPT if m.group(1) == "prompt" else _PRE, doc).replace("<code>", _CODE)
     doc = doc.replace("<a href", '<a style="color:#8a4b1f" href')
     return doc.replace("<ul>", '<ul style="padding-left:20px;margin:6px 0">').replace("<li>", '<li style="margin:4px 0">')

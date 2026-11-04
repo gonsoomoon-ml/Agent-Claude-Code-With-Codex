@@ -4,6 +4,8 @@
 용어 목록은 같은 폴더 `terms.md`(9번 검사가 읽는다).
 여기서는 기계로 잴 수 있는 것만 잰다. ① 첫 줄이 구체적인 장면인지 · 사실 정확성 ·
 "한 사실은 한 번"은 재지 않는다(§9 8번 사람 확인 · 데일리 카드/Codex 대조의 몫).
+2026-11-04(A 설계): 그림은 고정 2장(② 「엮으면」 뒤 개념도 · ③ AWS 줄 아래 시스템도, 선택 = ① 장면) + 캡션 줄 `그림 N — …`,
+그림의 숫자는 본문 숫자이거나 ② 숫자 둘의 합 · 차(7b). ```prompt 블록(③ 실험 조각 ≤6줄 × 80칸, 메일에서는 줄바꿈 허용)은 그림 규칙 면제. 11-07 호 전 기사는 이 규칙 이전.
 
 실행: uv run python -m briefing.weekly.lint field-experiment/issues/YYYY-MM-DD.md
 종료 코드: FAIL 이 하나라도 있으면 1, 아니면 0(경고는 통과).
@@ -17,7 +19,11 @@ MAX_CHARS, TARGET_CHARS = 3000, 2600
 SECTION_TARGET = {"0": 250, "①": 250, "②": 1000, "③": 800, "④": 200}  # README §4 표의 "~" 목표
 WARN_RATIO = 1.25  # 목표의 1.25배를 넘으면 경고(목표가 근사치라 FAIL 아님)
 FLOW_MAX_LINES, FLOW_MAX_CELLS = 15, 40
-MAX_REPO_LINKS = 3
+PROMPT_MAX_LINES, PROMPT_MAX_CELLS = 6, 80   # ```prompt 실험 조각(③) — 그림이 아니다
+MIN_FIGURES, MIN_REPO_LINKS, MAX_REPO_LINKS = 2, 2, 3
+FIGURE_SECTIONS = ("②", "③")                 # 고정 그림 자리: 개념도(②) · 시스템도(③)
+NUM_RE = re.compile(r"\d+(?:,\d{3})*(?:\.\d+)?")   # 7b 그림 숫자 근거 — 값으로 비교(36%p · 4.00 · 1,234)
+CAPTION_RE = re.compile(r"^그림\s*\d+\s*[—-]")
 SECTIONS = ["①", "②", "③", "④"]
 
 URL_RE = re.compile(r"https?://[^\s)>\]]+")
@@ -26,6 +32,9 @@ REPO_RE = re.compile(r"https?://(?:www\.)?(?:github\.com|gitlab\.com)/([^/\s)]+/
 TABLE_RE = re.compile(r"^\s*\|.*\|\s*$")
 # 독자 본문 금지 표식(§4 · §6). '(제안)'은 ③ 제목에 정당하게 쓰이므로 제외.
 MARKER_RE = re.compile(r"✓|(?:\*\*|\(|\[)\s*(?:확인 필요|미검증|격리)\s*(?:\*\*|\)|\])")
+# 중괄호 자리표시(`{값}`) — 작성자가 모르는 값을 틀로 남긴 것(2026-11-04 Opus 재생성 "세션당 예산 {값}" 실측). 코드 블록(```prompt 의
+# `{k}` `{lean}` 은 변수) 밖에서만 본다.
+PLACEHOLDER_RE = re.compile(r"\{[^{}\n]{1,30}\}")
 # 그림 금지 기호: 박스 문자 · 블록 · 도형(▼▶●) · 화살표(→↓)
 FORBIDDEN_FLOW = [(0x2500, 0x257F), (0x2580, 0x259F), (0x25A0, 0x25FF), (0x2190, 0x21FF)]
 
@@ -64,12 +73,14 @@ def parse(md: str):
     """섹션(0 · ①~④ · 출처)별 줄 목록과 코드 블록(섹션, 줄들)을 돌려준다."""
     sections = {"0": []}
     blocks, order = [], []
-    cur, in_code, buf = "0", False, []
+    cur, in_code, buf, lang = "0", False, [], ""
     for line in md.splitlines():
         if line.strip().startswith("```"):
             if in_code:
-                blocks.append((cur, buf))
+                blocks.append((cur, buf, lang))
                 buf = []
+            else:
+                lang = line.strip()[3:].strip().lower()
             in_code = not in_code
             sections[cur].append(line)
             continue
@@ -84,6 +95,43 @@ def parse(md: str):
             sections.setdefault(cur, [])
         sections[cur].append(line)
     return sections, blocks, order, in_code
+
+
+def _nums(text: str) -> set[float]:
+    """텍스트의 숫자 값 집합(콤마 제거 · 소수 허용). 링크 주소는 뺀다."""
+    return {float(m.replace(",", "")) for m in NUM_RE.findall(URL_RE.sub("", text))}
+
+
+def allowed_figure_numbers(md: str) -> set[float]:
+    """그림(ASCII · 이미지 스펙)에 쓸 수 있는 숫자 — 본문(그림 밖) 숫자 ∪ ② 숫자 둘의 합 · 차(README §4: 36%p = 86 − 50)."""
+    sections, blocks, _, _ = parse(md)
+    prose_lines, in_code = [], False
+    for key in ["0", *SECTIONS]:
+        for line in sections.get(key, []):
+            if line.strip().startswith("```"):
+                in_code = not in_code
+            elif not in_code:
+                prose_lines.append(line)
+    two = _nums("\n".join(ln for ln in sections.get("②", []) if not ln.strip().startswith("```")))
+    return _nums("\n".join(prose_lines)) | {round(a + b, 6) for a in two for b in two} | {round(abs(a - b), 6) for a in two for b in two}
+
+
+def _fmt(v: float) -> str:
+    return str(int(v)) if v == int(v) else str(v)
+
+
+def _opens_figure(lines: list[str], i: int) -> bool:
+    """i 번째 줄이 그림(prompt 아님)을 *여는* ``` 인가 — 앞선 ``` 수가 짝수면 여는 줄."""
+    opens = sum(1 for ln in lines[:i] if ln.strip().startswith("```")) % 2 == 0
+    return opens and lines[i].strip()[3:].strip().lower() != "prompt"
+
+
+def _prev_text(lines: list[str], i: int) -> str:
+    """i 앞의 비어 있지 않은 줄."""
+    for ln in reversed(lines[:i]):
+        if ln.strip():
+            return ln.strip()
+    return ""
 
 
 def check_figure(lines: list[str]) -> list[str]:
@@ -146,6 +194,7 @@ def lint(md: str) -> list[tuple[str, str, str]]:
     tables = [line for line in plain if TABLE_RE.match(line)]
     out.append(("FAIL" if tables else "PASS", "3", f"표 줄 {len(tables)}개"))
     markers = sorted({m.group(0) for line in plain for m in MARKER_RE.finditer(line)})
+    markers += [f"자리표시 {h}" for h in sorted({m.group(0) for line in plain for m in PLACEHOLDER_RE.finditer(line)})]
     out.append(("FAIL" if markers else "PASS", "4", "표식 " + (", ".join(markers) or "없음")))
 
     # 5 저장소 링크
@@ -158,20 +207,47 @@ def lint(md: str) -> list[tuple[str, str, str]]:
             errs.append(f"③ 저장소 {len(repos)}개 > {MAX_REPO_LINKS}")
     n3 = len(set(REPO_RE.findall("\n".join(sections.get("③", [])))))
     out.append(("FAIL" if errs else "PASS", "5", "저장소 링크: " + ("; ".join(errs) or f"③ 에만 {n3}개")))
+    if not errs and n3 < MIN_REPO_LINKS:
+        out.append(("WARN", "5", f"③ 시작점(코드) {n3}줄 (README §7: 2~3줄)"))
 
     # 6 내 시스템에 대입
     has = "내 시스템에 대입" in "\n".join(sections.get("③", []))
     out.append(("PASS" if has else "FAIL", "6", "③ '내 시스템에 대입' 줄 " + ("있음" if has else "없음")))
 
-    # 7 그림(``` 블록): 개수 · 자리는 정하지 않는다(README §4 그림 규칙) — 모양 규칙 1)~3)만 검사
+    # 7 그림(``` 블록, prompt 제외): 모양 규칙 1)~3) + 고정 2장(② · ③) + 캡션 줄. ```prompt 는 ③ 실험 조각(별도 한도)
+    figures = [(k, ls) for k, ls, lang in blocks if lang != "prompt"]
+    prompts = [(k, ls) for k, ls, lang in blocks if lang == "prompt"]
     errs = []
     if unclosed:
         errs.append("닫히지 않은 ``` 블록")
-    for n, (key, lines) in enumerate(blocks, 1):
+    for n, (key, lines) in enumerate(figures, 1):
         errs += [f"그림{n}({key}) {e}" for e in check_figure(lines)]
-    out.append(("FAIL" if errs else "PASS", "7", "그림 모양: " + ("; ".join(errs) or f"규칙 3개 통과({len(blocks)}개)")))
-    where = ", ".join(f"{k} {len(v)}줄" for k, v in blocks) or "없음"
-    out.append(("INFO", "7", f"그림 {len(blocks)}개 — {where} (run 로그에 옮김)"))
+    if len(figures) < MIN_FIGURES:
+        errs.append(f"그림 {len(figures)}개 < {MIN_FIGURES}(개념도 ② · 시스템도 ③)")
+    for sec in FIGURE_SECTIONS:
+        if not any(k == sec for k, _ in figures):
+            errs.append(f"{sec} 에 그림 없음")
+    for n, (key, lines) in enumerate(prompts, 1):
+        if key != "③":
+            errs.append(f"prompt 조각이 ③ 밖({key})")
+        if len(lines) > PROMPT_MAX_LINES:
+            errs.append(f"prompt 조각 {len(lines)}줄 > {PROMPT_MAX_LINES}줄")
+        errs += [f"prompt 조각 {i}행 {w}칸 > {PROMPT_MAX_CELLS}칸" for i, w in
+                 ((i, sum(cells(c) for c in ln)) for i, ln in enumerate(lines, 1)) if w > PROMPT_MAX_CELLS]
+    if len(prompts) > 1:
+        errs.append(f"prompt 조각 {len(prompts)}개 > 1")
+    out.append(("FAIL" if errs else "PASS", "7", "그림 모양: " + ("; ".join(errs) or f"규칙 통과(그림 {len(figures)}개 · 조각 {len(prompts)}개)")))
+    missing_caps = [i for i, line in enumerate(body.splitlines()) if line.strip().startswith("```") and i > 0
+                    and _opens_figure(body.splitlines(), i) and not CAPTION_RE.match(_prev_text(body.splitlines(), i))]
+    if missing_caps:
+        out.append(("WARN", "7", f"캡션 줄(`그림 N — …`) 없는 그림 {len(missing_caps)}개"))
+    where = ", ".join(f"{k} {len(v)}줄" for k, v in figures) or "없음"
+    out.append(("INFO", "7", f"그림 {len(figures)}개 — {where} · 조각 {len(prompts)}개 (run 로그에 옮김)"))
+
+    # 7b 그림 숫자 근거: 그림의 숫자는 본문(그림 밖) 숫자이거나 ② 숫자 둘의 합 · 차(README §4 예시의 36%p = 86 - 50)
+    allowed = allowed_figure_numbers(md)
+    stray = sorted({v for _, lines in figures for v in _nums("\n".join(lines)) if v not in allowed})
+    out.append(("FAIL" if stray else "PASS", "7b", "그림 숫자 근거: " + (f"본문에 없는 숫자 {[_fmt(v) for v in stray]}" if stray else "전부 본문 · ② 합차 안")))
 
     # 8 섹션별 분량(경고만)
     for key, target in SECTION_TARGET.items():

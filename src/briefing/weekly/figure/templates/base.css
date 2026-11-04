@@ -1,0 +1,88 @@
+/* vendored 2026-11-04 from gonsoomoon-ml/claude-extensions infographic-design 0.1.0 (templates/base.css) */
+/* infographic-design base styles. Layout primitives and SVG role classes.
+   SVG presentation attributes cannot read var(), so SVG shapes take these classes. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: var(--canvas-w); height: var(--canvas-h);
+  background: var(--bg); color: var(--ink); font-family: var(--font);
+  overflow: hidden; -webkit-font-smoothing: antialiased;
+}
+svg text { font-family: var(--font); }
+
+.page {
+  width: var(--canvas-w); height: var(--canvas-h);
+  padding: var(--pad-top) var(--pad-x) var(--pad-bottom);
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+.rule { border: 0; border-top: 2px solid var(--rule); }
+
+/* text roles */
+.context { font-size: var(--fs-context); line-height: 1.45; }
+.context b { font-weight: 700; }
+.context .date { color: var(--ink-2); margin: 0 6px; }
+.headline { font-size: var(--fs-headline); font-weight: 700; line-height: 1.2; color: var(--accent); letter-spacing: -0.02em; margin-top: 6px; }
+.section-title { font-size: var(--fs-section); font-weight: 700; }
+.section-src { font-size: var(--fs-label); color: var(--ink-2); }
+.kicker { font-size: var(--fs-kicker); font-weight: 700; color: var(--ink-2); }
+.kicker.accent { color: var(--accent); }
+.notes { list-style: none; margin-top: 8px; }
+.notes li { font-size: var(--fs-body); line-height: 1.35; }
+.notes li.ex { color: var(--ink-2); }
+.notes li.ex.accent { color: var(--accent); font-weight: 700; }
+.notes li.small { font-size: var(--fs-small); color: var(--ink-3); line-height: 1.45; }
+.takeaway { font-size: var(--fs-takeaway); font-weight: 700; line-height: 1.28; color: var(--accent); letter-spacing: -0.01em; }
+.sub-takeaway { font-size: var(--fs-sub); font-weight: 700; margin-top: 6px; }
+.source { font-size: var(--fs-source); line-height: 1.4; color: var(--ink-3); margin-top: 8px; }
+.pill { display: inline-block; font-size: var(--fs-small); font-weight: 700; color: var(--ink-2); border: 1.5px solid var(--ink-2); border-radius: 999px; padding: 4px 14px; margin-top: 10px; }
+.number { font-size: var(--fs-number); font-weight: 700; color: var(--accent); line-height: 1.1; letter-spacing: -0.02em; }
+
+/* cards (scheme B) */
+.cards { display: flex; gap: 20px; }
+.card { flex: 1; border-radius: 16px; padding: 22px 24px; }
+.card.gray { background: var(--gray); }
+.card.accent { background: var(--accent-fill); border: 2px solid var(--accent); }
+.card .card-title { font-size: var(--fs-sub); font-weight: 700; }
+.card .card-sub { font-size: var(--fs-label); color: var(--ink-2); margin-top: 6px; }
+
+/* bars (scheme B) */
+.bar-row { display: flex; align-items: center; gap: 14px; font-size: var(--fs-body); }
+.bar-row .bar-label { width: 110px; }
+.bar-row .bar-track { flex: 1; height: 26px; background: var(--gray); border-radius: 13px; overflow: hidden; }
+.bar-row .bar-fill { height: 100%; background: var(--accent); border-radius: 13px; }
+.bar-row .bar-value { width: 90px; text-align: right; font-weight: 700; }
+.bar-row.flag .bar-label, .bar-row.flag .bar-value { color: var(--accent); }
+
+/* SVG roles */
+.s-box { fill: var(--surface); stroke: var(--ink); stroke-width: 2; }
+.s-box-strong { fill: var(--surface); stroke: var(--ink); stroke-width: 2.5; }
+.s-box-accent { fill: var(--accent-fill); stroke: var(--accent); stroke-width: 2; }
+.s-box-gray { fill: var(--gray); stroke: none; }
+.s-group { fill: var(--surface); stroke: var(--dash); stroke-width: 1.8; stroke-dasharray: 6 5; }
+.s-line { stroke: var(--ink); stroke-width: 2; fill: none; }
+.s-line-return { stroke: var(--dash); stroke-width: 2; fill: none; stroke-dasharray: 3 4; }
+.s-line-accent { stroke: var(--accent); stroke-width: 3; fill: none; stroke-linecap: round; }
+.s-text { fill: var(--ink); }
+.s-text-2 { fill: var(--ink-2); }
+.s-text-3 { fill: var(--ink-3); }
+.s-text-accent { fill: var(--accent); }
+.s-arrow { fill: var(--ink); }
+.s-arrow-return { fill: var(--dash); }
+.s-arrow-accent { fill: var(--accent); }
+.bold { font-weight: 700; }
+
+/* panels and flows (schemes A, B) */
+.s-panel { fill: var(--panel); stroke: var(--rule); stroke-width: 1.5; }
+.panel { background: var(--surface); border-radius: 18px; padding: 20px 24px; }
+.panel-title { font-size: var(--fs-kicker); font-weight: 700; margin-bottom: 12px; }
+.flow { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.flow .step { font-size: var(--fs-body); font-weight: 700; border: 2px solid var(--ink); border-radius: 14px; padding: 10px 22px; background: var(--surface); }
+.flow .step.accent { border-color: var(--accent); background: var(--accent-fill); color: var(--accent); }
+.flow .arrow { font-size: 30px; font-weight: 700; color: var(--ink-2); }
+.strip { text-align: center; font-size: var(--fs-body); font-weight: 700; }
+.caption { text-align: center; font-size: var(--fs-small); color: var(--ink-3); margin-top: 8px; }
+.card .big { font-size: 60px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; margin-top: 6px; }
+.card.accent .big { color: var(--accent); }
+.annotation { font-size: var(--fs-label); font-weight: 700; color: var(--accent); margin-top: 10px; }
+.cost { display: flex; align-items: center; gap: 24px; }
+.cost .rows { flex: 1; }
+.cost .delta { font-size: var(--fs-number); font-weight: 700; color: var(--accent); letter-spacing: -0.02em; }
