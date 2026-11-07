@@ -61,14 +61,14 @@ uv run python -m briefing.runtime.invoke_runtime --mode weekly_send --issue-date
 | Lambda `BRIEFING_DRY_RUN` | `0`(재배포 뒤에도) | ✅ `0` · LastModified 00:31:22Z · Active |
 | 표 `briefing-weekly-issues` | ACTIVE · PK `issue_date` | ✅ 생성(00:31Z) · ACTIVE · HASH `issue_date` · `.env` `BRIEFING_WEEKLY_ISSUES_TABLE` writeback |
 | 클라우드 `weekly_build 2026-11-07` | 표 상태 `ready`(또는 `quarantined` + 사유) · 게이트 `model` 항목 PASS(IAM) | ❌ **`failed` — `write: TimeoutExpired`**(00:31:57 accepted → 00:38:55, 418s; select 은 약 58초에 통과, 카드 113장) → §6 |
-| runtime **v70**(상한 고침 `006620e`) | READY · env `WEEKLY_AUTHOR_TIMEOUT_S=1200` · `WEEKLY_MAX_REVISIONS=1` | ✅ v70 READY(사용자 재승인 뒤 배포, 01:2xZ) · 두 키 전달 확인 |
+| runtime **v70**(상한 고침 `006620e`) | READY · env `WEEKLY_AUTHOR_TIMEOUT_S=1200` · `WEEKLY_MAX_REVISIONS=1` | ✅ v70 READY(사용자 재승인 뒤 배포 시작 00:54Z, READY 는 00:56Z 재실행 전) · 두 키 전달 확인 |
 | 클라우드 `weekly_build 2026-11-07` **재실행(v70, timeout 1200)** | `ready`/`quarantined` · `calls_json` 에 호출별 turns·ms | ✅ **`ready`** 00:56:39 → 01:06:17(9.6분) · 게이트 PASS(WARN 3: 본문 2,832자 · ③ 코드 1줄 · ③ 1,096자) · 시도 2(MAX_REVISIONS=1 안) · $2.58 · `model` 검사 PASS(IAM 효력) → 호출별 표는 §7 |
 | 클라우드 `weekly_send --dry-run` | 수신자 = 관리자 · 제목 `[현장 실험] …` · 발송 0 | ✅ 런타임 `weekly_send` task 0.13s 완료 · WARN 0 · 같은 코드의 로컬 dry-run(표=dynamo): to=관리자 · 제목 「닫힌 티켓 TODO 가 코딩 에이전트의 요청 밖 수정을 늘리는가」 · 9,585 bytes · 발송 0 |
 | 1-B 첫 자동 발송 | 11-14(토) 07:00 KST 도착 · 표 `sent` · sent-log `weekly#<admin>` `2026-11-14` | ⏳ |
 
 ## 5. 11-07 호 처리 (사용자 결정 대기)
 
-클라우드 `weekly_build 2026-11-07` 이 이번 주 호를 표에 만들었다(v70, `ready`, §7). (a) 클라우드 `weekly_send` 로 보내 로컬 1-A 를 대신하거나, (b) 계획대로 로컬 1-A(`uv run python -m briefing.weekly.run build` → `send`)를 돌리고 클라우드 호는 검증용 사본으로 둔다.
+클라우드 `weekly_build 2026-11-07` 이 이번 주 호를 표에 만들었다(v70, `ready`, §7). (a) 클라우드 `weekly_send` 로 보내 로컬 1-A 를 대신한다 — 이미 만들어진 기사 그대로, **③ 그림 없음**(`WEEKLY_FIGURE` 는 컨테이너에 전달하지 않음 → `figure_png` 없음, 본문만), 추가 비용 $0. (b) 계획대로 로컬 1-A(`uv run python -m briefing.weekly.run build` → `send`)를 돌린다 — **다른 기사**(select/write 를 새로 돌려 비결정적), **그림 포함**, 약 $2.5 · 15분. ★ 한 경로만 보낸다: 두 저장소(DDB 표 · 로컬 `.data`)는 서로를 모르고, sent-log `weekly#<admin>/2026-11-07` 의 `mark_sent` 는 덮어쓰기라 중복 발송을 막지 못한다.
 
 ## 6. 클라우드 build 실패 진단 (2026-11-07 00:39Z) — 근본 원인
 
