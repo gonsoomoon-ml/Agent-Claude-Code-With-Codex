@@ -122,11 +122,11 @@ def parse_critique(text: str) -> list[str]:
 
 
 def critique(draft: Draft, cards: list[WeekCard], texts: dict[int, str], settings, *, model_id: str = "",
-             effort: str | None = None, run_author=None, recorder=None) -> list[str]:
+             effort: str | None = None, run_author=None, recorder=None, timeout_s: int | None = None) -> list[str]:
     """README 규칙으로 초안을 점검한 고칠 목록(최대 6). 비면 통과. 같은 모델 · 같은 clean dir author."""
     run = run_author or _author._run_author
     text = run(build_critique_system_prompt(), build_critique_user_prompt(draft, cards, texts), settings,
-               model_id=model_id, effort=effort, recorder=recorder, prompt_via_stdin=True)
+               model_id=model_id, effort=effort, recorder=recorder, prompt_via_stdin=True, timeout_s=timeout_s)
     return parse_critique(text)
 
 
@@ -147,18 +147,20 @@ def feedback_from_gate(result: GateResult) -> list[str]:
 
 
 def write(seed: Seed, cards: list[WeekCard], texts: dict[int, str], issue_date: str, settings, *,
-          model_id: str = "", effort: str | None = None, run_author=None, recorder=None, today: str | None = None) -> Draft:
+          model_id: str = "", effort: str | None = None, run_author=None, recorder=None, today: str | None = None,
+          timeout_s: int | None = None) -> Draft:
+    """기사 작성(JSON md + cites). `timeout_s` = 작성자 subprocess 상한 — Opus 5.5 high 기사는 데일리 360s 를 넘긴다(2026-11-07)."""
     run = run_author or _author._run_author
     text = run(build_write_system_prompt(), build_write_user_prompt(seed, cards, texts, issue_date, today=today),
-               settings, model_id=model_id, effort=effort, recorder=recorder, prompt_via_stdin=True)
+               settings, model_id=model_id, effort=effort, recorder=recorder, prompt_via_stdin=True, timeout_s=timeout_s)
     return parse_draft(text)
 
 
 def revise(prev: Draft, feedback: list[str], settings, *, model_id: str = "", effort: str | None = None,
-           run_author=None, recorder=None) -> Draft:
+           run_author=None, recorder=None, timeout_s: int | None = None) -> Draft:
     run = run_author or _author._run_author
     text = run(build_write_system_prompt(), build_revise_user_prompt(prev, feedback), settings,
-               model_id=model_id, effort=effort, recorder=recorder, prompt_via_stdin=True)
+               model_id=model_id, effort=effort, recorder=recorder, prompt_via_stdin=True, timeout_s=timeout_s)
     return parse_draft(text)
 
 

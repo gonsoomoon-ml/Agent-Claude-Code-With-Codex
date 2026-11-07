@@ -124,9 +124,10 @@ def enforce(seed: Seed, cards: list[WeekCard]) -> Seed:
 
 
 def select(cards: list[WeekCard], issue_date: str, settings, *, model_id: str = "", effort: str | None = None,
-           run_author=None, recorder=None) -> Seed:
-    """한 주 카드 → Seed. `run_author` 주입 가능(테스트 = fake); 기본 = 데일리 `_run_author`(clean dir · Bedrock env)."""
+           run_author=None, recorder=None, timeout_s: int | None = None) -> Seed:
+    """한 주 카드 → Seed. `run_author` 주입 가능(테스트 = fake); 기본 = 데일리 `_run_author`(clean dir · Bedrock env).
+    `timeout_s` = 작성자 subprocess 상한(None = 데일리 기본 360)."""
     run = run_author or _author._run_author
     text = run(build_select_system_prompt(), build_select_user_prompt(cards, issue_date), settings,
-               model_id=model_id, effort=effort, recorder=recorder, prompt_via_stdin=True)
+               model_id=model_id, effort=effort, recorder=recorder, prompt_via_stdin=True, timeout_s=timeout_s)
     return enforce(parse_seed(text), cards)

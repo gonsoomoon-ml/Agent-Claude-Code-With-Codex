@@ -347,3 +347,35 @@ def test_run_cloud_routes_mode_and_dry_run(env, monkeypatch):
     assert r1["issue_date"] == "2026-11-14" and r2["issue_date"] == "2026-11-07" and r2["status"] == "dry-run"
     with pytest.raises(ValueError):
         run_mod.run_cloud("weekly_approve", {}, _Settings(), WS, **kw)
+
+
+# ───────────────────────── 작성자 상한(WEEKLY_AUTHOR_TIMEOUT_S) · 호출 기록(calls_json) — 2026-11-07 클라우드 build 실패 ─────────────────────────
+
+def test_load_weekly_settings_author_timeout(monkeypatch):
+    monkeypatch.setenv("WEEKLY_ADMIN_USER_ID", "u1")
+    monkeypatch.delenv("WEEKLY_AUTHOR_TIMEOUT_S", raising=False)
+    assert load_weekly_settings(_Settings()).author_timeout_s == 0          # 0 = 데일리 author 기본(360)
+    monkeypatch.setenv("WEEKLY_AUTHOR_TIMEOUT_S", "1200")
+    assert load_weekly_settings(_Settings()).author_timeout_s == 1200
+
+
+def test_build_passes_timeout_and_stores_calls(env):
+    """select · write(· critique · revise)가 timeout_s 를 넘기고, 호출 기록이 ready 와 failed 양쪽 표 항목에 남는다."""
+    from briefing.core.stores.usage import UsageRecorder
+    ws = WeeklySettings(admin_user_id=U, author_model_id="m-w", author_effort="medium", select_model_id="m-s",
+                        max_revisions=2, author_timeout_s=1200)
+    author = _author([SELECT_JSON, WRITE_JSON])
+    rec = UsageRecorder()
+    rec.add(0.1, num_turns=2, duration_ms=5)
+    r = build(D, _Settings(), ws, **_kw(env, author), recorder=rec)
+    assert r["status"] == "ready"
+    assert [c["kw"]["timeout_s"] for c in author.calls] == [1200, 1200]
+    item = env["issue_store"].get(D)
+    assert json.loads(item["calls_json"])[0] == {"cost_usd": 0.1, "num_turns": 2, "duration_ms": 5}
+    # failed 경로(write 가 터짐)에도 그때까지의 호출 기록이 남는다
+    env2 = {**env, "issue_store": LocalIssueStore(str(Path(env["issue_store"].root).parent / "issues2"))}
+    rec2 = UsageRecorder()
+    rec2.add(0.2, num_turns=1, duration_ms=50)
+    r2 = build(D, _Settings(), ws, **_kw(env2, _author([SELECT_JSON, RuntimeError("timeout")])), recorder=rec2)
+    assert r2["status"] == "failed" and r2["stage"] == "write"
+    assert json.loads(env2["issue_store"].get(D)["calls_json"])[0]["num_turns"] == 1

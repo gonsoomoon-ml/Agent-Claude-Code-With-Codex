@@ -4,6 +4,7 @@
   WEEKLY_ADMIN_USER_ID(필수 — `briefing-users` 의 user_id; 이메일은 거기서 읽는다, git 에 두지 않는다) ·
   WEEKLY_AUTHOR_MODEL_ID · WEEKLY_AUTHOR_EFFORT(기본 = 데일리 author) · WEEKLY_SELECT_MODEL_ID(기본 = 주간 author) ·
   WEEKLY_STRICT(1) · WEEKLY_REFETCH(1) · WEEKLY_MAX_REVISIONS(2) · WEEKLY_SENDER_NAME("Field Experiment") ·
+  WEEKLY_AUTHOR_TIMEOUT_S(0 = 데일리 author 기본 360 — Opus 5.5 high 기사 작성은 넘기므로 .env 에서 올린다, 2026-11-07) ·
   WEEKLY_WAIT_UNTIL("06:40" KST — 금요일 run 지연 대기 상한) · WEEKLY_ISSUES_BACKEND(local|dynamo, 기본 = BACKEND) ·
   WEEKLY_CRITIQUE(1 — 게이트 앞 자기 비평 pass) · WEEKLY_FIGURE(0 — 이미지 트랙, 호스트에서만; playwright 없으면 건너뜀).
 실행: uv run python -m briefing.weekly.run build|send|approve|pull [--date YYYY-MM-DD] [--dry-run]
@@ -53,6 +54,7 @@ class WeeklySettings:
     wait_until: str = "06:40"
     critique: bool = False      # A 설계(2026-11-04): 게이트 앞 자기 비평 → revise. env 기본은 켬(테스트 기본은 끔)
     figure: bool = False        # 이미지 트랙(scheme A PNG) — 호스트 전용. env 기본 끔
+    author_timeout_s: int = 0   # 작성자 subprocess 상한(초). 0 = 데일리 기본(360). 클라우드 build write 가 360 에 끊김(11-07)
 
 
 def load_weekly_settings(settings: Settings) -> WeeklySettings:
@@ -70,6 +72,7 @@ def load_weekly_settings(settings: Settings) -> WeeklySettings:
         wait_until=g("WEEKLY_WAIT_UNTIL", "06:40"),
         critique=g("WEEKLY_CRITIQUE", "1").strip().lower() in ("1", "true", "yes", "on"),
         figure=g("WEEKLY_FIGURE", "0").strip().lower() in ("1", "true", "yes", "on"),
+        author_timeout_s=int(g("WEEKLY_AUTHOR_TIMEOUT_S", "0") or 0),
     )
 
 
@@ -127,34 +130,33 @@ def build(issue_date: str, settings: Settings, ws: WeeklySettings, *, store, car
         return {"status": "skipped", "reason": str(e)}
     recorder = recorder or UsageRecorder()
     notes: list[str] = []
+    author_kw = dict(effort=ws.author_effort, run_author=run_author, recorder=recorder,
+                     timeout_s=ws.author_timeout_s or None)   # None = 데일리 기본 360
     stage = "collect"
     try:
         _wait_for_friday(ledger, ws.admin_user_id, issue_date, ws.wait_until, now=now, sleep=sleep, notes=notes)
         cards = collect(ledger, card_cache, store, ws.admin_user_id, issue_date)
         notes.append(f"카드 {len(cards)}장(캐시 miss {sum(1 for c in cards if not c.cached)})")
         stage = "select"
-        seed = select(cards, issue_date, settings, model_id=ws.select_model_id, effort=ws.author_effort,
-                      run_author=run_author, recorder=recorder)
+        seed = select(cards, issue_date, settings, model_id=ws.select_model_id, **author_kw)
         if seed.none:
             md = none_issue_md(seed, cards, issue_date)
             issue_store.transition(issue_date, "ready", issue_md=md, email_html=render_email(md), seed_json=seed.to_json(),
                                    gate_json=json.dumps({"status": "PASS", "note": "씨앗 없음 — 게이트 생략"}, ensure_ascii=False),
-                                   cites_json="[]", attempts="0", cost_usd=f"{recorder.total():.4f}", notes="; ".join(notes))
+                                   cites_json="[]", attempts="0", cost_usd=f"{recorder.total():.4f}", notes="; ".join(notes),
+                                   calls_json=json.dumps(recorder.calls))
             return {"status": "ready", "none": True, "cards": len(cards), "cost_usd": recorder.total()}
         stage = "source"
         by_n = {c.n: c for c in cards}
         texts = {n: source_text(store, by_n[n], refetch=refetch if ws.refetch else None) for n in seed.cards}
         stage = "write"
-        draft = write(seed, cards, texts, issue_date, settings, model_id=ws.author_model_id, effort=ws.author_effort,
-                      run_author=run_author, recorder=recorder)
+        draft = write(seed, cards, texts, issue_date, settings, model_id=ws.author_model_id, **author_kw)
         if ws.critique:
             stage = "critique"
-            issues = critique(draft, cards, texts, settings, model_id=ws.author_model_id, effort=ws.author_effort,
-                              run_author=run_author, recorder=recorder)
+            issues = critique(draft, cards, texts, settings, model_id=ws.author_model_id, **author_kw)
             notes.append(f"자기 비평 {len(issues)}건")
             if issues:
-                draft = revise(draft, issues, settings, model_id=ws.author_model_id, effort=ws.author_effort,
-                               run_author=run_author, recorder=recorder)
+                draft = revise(draft, issues, settings, model_id=ws.author_model_id, **author_kw)
         extra = [lambda md: check_repo_links(md, **({"http": repo_http} if repo_http else {})),
                  lambda md: check_models(md, **({"profiles": profiles} if profiles else {})), check_ruler]
         attempts = 1
@@ -167,8 +169,7 @@ def build(issue_date: str, settings: Settings, ws: WeeklySettings, *, store, car
                 notes.append("재작성 생략: 작성자가 고칠 수 없는 실패만(certifier 미가용)")
                 break
             stage = "revise"
-            draft = revise(draft, feedback, settings, model_id=ws.author_model_id,
-                           effort=ws.author_effort, run_author=run_author, recorder=recorder)
+            draft = revise(draft, feedback, settings, model_id=ws.author_model_id, **author_kw)
             attempts += 1
             stage = "gate"
             result = run_gate(draft.md, draft.cites, cards, texts, **gate_kw)
@@ -191,14 +192,16 @@ def build(issue_date: str, settings: Settings, ws: WeeklySettings, *, store, car
         issue_store.transition(issue_date, status, issue_md=draft.md, email_html=render_email(draft.md, banner=banner), banner=banner,
                                cites_json=json.dumps([asdict(c) for c in draft.cites], ensure_ascii=False),
                                gate_json=result.to_json(), seed_json=seed.to_json(), attempts=str(attempts),
-                               cost_usd=f"{recorder.total():.4f}", notes="; ".join(notes), **fig_fields)
+                               cost_usd=f"{recorder.total():.4f}", notes="; ".join(notes),
+                               calls_json=json.dumps(recorder.calls), **fig_fields)
         return {"status": status, "attempts": attempts, "cards": len(cards), "seed": seed.seed, "cost_usd": recorder.total(),
                 **({"figure": fig_fields.get("figure_status", "")} if ws.figure else {})}
     except Exception as e:  # noqa: BLE001 — 어느 단계든 실패를 기록(07:00 send 가 관리자에게 알린다)
         _debug.warn("weekly build", f"{stage}: {type(e).__name__}: {e}")
         try:
             issue_store.transition(issue_date, "failed", error=f"{stage}: {type(e).__name__}: {e}"[:1000],
-                                   notes="; ".join(notes))
+                                   notes="; ".join(notes), calls_json=json.dumps(recorder.calls),
+                                   cost_usd=f"{recorder.total():.4f}")
         except TransitionError as e2:
             _debug.warn("weekly build", f"failed 기록 불가: {e2}")
         return {"status": "failed", "stage": stage, "error": f"{type(e).__name__}: {e}"}

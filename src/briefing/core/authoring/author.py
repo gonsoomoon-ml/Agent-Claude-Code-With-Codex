@@ -27,7 +27,9 @@ from ..prompts import apply_prompt_template
 from ..retrieval.sources import TRUNCATED_MIN_CHARS
 from ..stores.source_store import FrozenSource
 
-_AUTHOR_TIMEOUT_S = 360  # `claude -p` 한 카드(1회 호출) 작성 타임아웃(초). 느리지만-완료되는 호출 여유.
+_AUTHOR_TIMEOUT_S = 360  # `claude -p` 한 카드(1회 호출) 작성 타임아웃(초). 느리지만-완료되는 호출 여유(데일리 기준).
+# ★ 주간 기사 작성(Opus 5.5 high · 원문 3편)은 이 값을 넘긴다(2026-11-07 클라우드 build write 단계 TimeoutExpired, Bedrock 지표상
+#   hang 아님 — 11회 호출 · 39K 출력 토큰 생성 중) → 호출자가 `timeout_s` 로 올린다. 데일리는 기본값 그대로.
 # 이력: 180→240(2026-07-01 인시던트)→360(2026-07-18, represent-v3.3 워크로드 재보정).
 # ★ 근본 수정은 값이 아니라 v3.3(claims 를 '원문 전체'→'요약 커버리지'로 좁힘, PROMPT_VERSION 참조):
 #   v3 의 "claims 원문 전체 빠짐없이"가 밀집 기사에서 24~39 claims 를 뽑아 지연이 240s+ 로 폭증했다.
@@ -301,7 +303,7 @@ def _parse_interp(text: str) -> Interpretation:
 
 def _run_author(
     system_prompt: str, user_prompt: str, settings: Settings, *, recorder=None,
-    model_id: str = "", effort: str | None = None, prompt_via_stdin: bool = False,
+    model_id: str = "", effort: str | None = None, prompt_via_stdin: bool = False, timeout_s: int | None = None,
 ) -> str:
     """headless `claude -p`(Claude Code) on Bedrock → 최종 답변 텍스트.
 
@@ -315,6 +317,8 @@ def _run_author(
     effort 가 빈 값이나 'default' 면 `--effort` 를 붙이지 않는다 = CLI 기본값(배선 전과 같은 명령).
     `prompt_via_stdin`(2026-11-03, 주간) — 긴 user 프롬프트(카드 116장 · 원문 3편 ≈ 180KB)는 argv 한 개 상한(리눅스 128KB)을
     넘으므로 stdin 으로 넘긴다. 기본 False = 종전과 같은 argv + stdin 닫음(데일리 무변경).
+    `timeout_s`(2026-11-07, 주간) — subprocess 상한(초). None = `_AUTHOR_TIMEOUT_S`(360, 데일리 무변경).
+    recorder 에는 비용과 함께 봉투 `num_turns` · 측정 벽시계 ms 를 남긴다(다턴 루프 크기 관찰).
     """
     model_id = model_id or settings.author_model_id
     effort = settings.author_effort if effort is None else effort
@@ -333,20 +337,30 @@ def _run_author(
             cwd=clean_dir,
             capture_output=True,
             text=True,
-            timeout=_AUTHOR_TIMEOUT_S,
+            timeout=timeout_s or _AUTHOR_TIMEOUT_S,
             env=bedrock_author_env(settings, model_id),
             check=False,
             **({"input": user_prompt} if prompt_via_stdin else {"stdin": subprocess.DEVNULL}),
         )
     finally:
         shutil.rmtree(clean_dir, ignore_errors=True)
-    _debug.dprint("author ⊣ claude -p",
-                  f"rc={proc.returncode} · {int((time.monotonic() - t0) * 1000)}ms · stdout={len(proc.stdout)}c", "dim")
+    elapsed_ms = int((time.monotonic() - t0) * 1000)
+    _debug.dprint("author ⊣ claude -p", f"rc={proc.returncode} · {elapsed_ms}ms · stdout={len(proc.stdout)}c", "dim")
     if proc.returncode != 0:
         raise RuntimeError(f"claude -p rc={proc.returncode}: {proc.stderr.strip()[:200]}")
     if recorder is not None:
-        recorder.add(_extract_claude_cost(proc.stdout))
+        recorder.add(_extract_claude_cost(proc.stdout), num_turns=_extract_claude_turns(proc.stdout), duration_ms=elapsed_ms)
     return _extract_claude_result(proc.stdout)
+
+
+def _extract_claude_turns(stdout: str) -> int | None:
+    """`claude -p --output-format json` 봉투의 num_turns(다턴 루프 크기). 봉투 아니면 None."""
+    try:
+        obj = json.loads(stdout)
+    except (ValueError, TypeError):
+        return None
+    v = obj.get("num_turns") if isinstance(obj, dict) else None
+    return int(v) if isinstance(v, (int, float)) else None
 
 
 def _extract_claude_result(stdout: str) -> str:

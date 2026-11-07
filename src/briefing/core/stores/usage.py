@@ -30,13 +30,24 @@ def certify_cost_usd(model: str, usage: dict) -> float | None:
 
 
 class UsageRecorder:
-    """run 1회의 비용 누적기. mutable — pure 테스트에서 미주입 시 계측 0(결정론 유지)."""
+    """run 1회의 비용 누적기. mutable — pure 테스트에서 미주입 시 계측 0(결정론 유지).
+
+    `calls`(2026-11-07, 주간 클라우드 build 실패 뒤): 호출별 {cost_usd, num_turns?, duration_ms?} — `claude -p` 다턴 루프 크기와
+    소요를 남긴다. 메타 없는 add(데일리 경로 그대로)는 비용만 적는다. total() 은 종전과 같다.
+    """
 
     def __init__(self) -> None:
         self._cost_usd = 0.0
+        self.calls: list[dict] = []
 
-    def add(self, cost_usd: float) -> None:
+    def add(self, cost_usd: float, *, num_turns: int | None = None, duration_ms: int | None = None) -> None:
         self._cost_usd += cost_usd
+        call: dict = {"cost_usd": cost_usd}
+        if num_turns is not None:
+            call["num_turns"] = num_turns
+        if duration_ms is not None:
+            call["duration_ms"] = duration_ms
+        self.calls.append(call)
 
     def total(self) -> float:
         return self._cost_usd

@@ -328,3 +328,12 @@ def test_invoke_build_payload_weekly_modes_carry_issue_date_and_dry_run():
     assert s == {"mode": "weekly_send", "window_hours": 24, "dry_run": True}
     d = build_payload(Namespace(**{**base, "mode": "scheduled", "issue_date": "2026-11-07"}))
     assert "issue_date" not in d                      # 데일리 payload 는 바뀌지 않는다
+
+
+def test_runtime_env_forwards_weekly_author_timeout(tmp_path, monkeypatch):
+    """2026-11-07 클라우드 build 실패(write 360s) — 상한은 .env 에서 컨테이너로 넘어가야 한다."""
+    from briefing.runtime.deploy_runtime import runtime_env
+
+    s = _settings(tmp_path)
+    monkeypatch.setenv("WEEKLY_AUTHOR_TIMEOUT_S", "1200")
+    assert runtime_env(s)["WEEKLY_AUTHOR_TIMEOUT_S"] == "1200"

@@ -17,3 +17,12 @@ def test_certify_cost_from_codex_usage():
              "output_tokens": 88, "reasoning_output_tokens": 39}
     assert certify_cost_usd("openai.gpt-6-luna", usage) == pytest.approx((10964 * 0.10 + 88 * 0.50) / 1e6)
     assert certify_cost_usd("openai.gpt-9", usage) is None   # 단가 미상
+
+
+def test_recorder_keeps_per_call_meta():
+    """호출별 기록(비용 · 턴 수 · 소요 ms) — total() 은 종전과 같고, 메타 없는 add 는 비용만 남긴다(데일리 호출 무변경)."""
+    r = UsageRecorder()
+    r.add(0.05, num_turns=3, duration_ms=1200)
+    r.add(0.01)
+    assert round(r.total(), 3) == 0.06
+    assert r.calls == [{"cost_usd": 0.05, "num_turns": 3, "duration_ms": 1200}, {"cost_usd": 0.01}]
