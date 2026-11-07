@@ -1,6 +1,6 @@
 # Field Experiment 1-B — 클라우드 자동 스케줄 전달 기록 (Delivery Record)
 
-> 상태: **DEPLOYED · LIVE(runtime v70 · scheduler 00:31Z) · 클라우드 build/send-dry-run 검증 완료 · 11-07 호 발송 경로 결정 대기(§5)** · 날짜: 2026-11-07 · main `9458626`(`feat/weekly-cloud-schedule` ff-merge: `255f5d8` 코드 + `9458626` invoke CLI·문서) · 계획: `field-experiment/delivery-plan.md` §4 · §7-4 · §8
+> 상태: **DEPLOYED · LIVE(runtime v70 · scheduler 00:31Z) · 클라우드 build/send-dry-run 검증 완료 · 11-07 호는 보내지 않음(§5 — (d) 전환)** · 날짜: 2026-11-07 · main `9458626`(`feat/weekly-cloud-schedule` ff-merge: `255f5d8` 코드 + `9458626` invoke CLI·문서) · 계획: `field-experiment/delivery-plan.md` §4 · §7-4 · §8
 > 승인: 11-07 "follow recommendation" — 계획과 다른 점 4개(①~④, 아래 §2)와 배포 순서까지.
 
 ## 1. 무엇을 전달했나 (Scope)
@@ -66,8 +66,11 @@ uv run python -m briefing.runtime.invoke_runtime --mode weekly_send --issue-date
 | 클라우드 `weekly_send --dry-run` | 수신자 = 관리자 · 제목 `[현장 실험] …` · 발송 0 | ✅ 런타임 `weekly_send` task 0.13s 완료 · WARN 0 · 같은 코드의 로컬 dry-run(표=dynamo): to=관리자 · 제목 「닫힌 티켓 TODO 가 코딩 에이전트의 요청 밖 수정을 늘리는가」 · 9,585 bytes · 발송 0 |
 | 1-B 첫 자동 발송 | 11-14(토) 07:00 KST 도착 · 표 `sent` · sent-log `weekly#<admin>` `2026-11-14` | ⏳ |
 
-## 5. 11-07 호 처리 (사용자 결정 대기)
+## 5. 11-07 호 처리 — 결정(11-07): 보내지 않음, (d) 로 전환
 
+**결정.** (a)·(b) 어느 쪽도 택하지 않았다. 사용자가 그림이 필요하다고 했고, 그림을 매주 자동으로 넣는 영구 해법 (d)(컨테이너에 Chromium + PNG 를 표로)를 골라 **11-07 호는 건너뛴다**. 표의 11-07 항목은 `ready` 로 남는다 — 스케줄은 `issue_date_kst` 로 그 토요일 항목만 집으므로 다시 집히지 않는다. (d) 의 범위 · 호스트 플러그인 오버헤드 조사 · 11-14 체크리스트 = `2026-11-07-weekly-figure-container-delivery.md`, 흐름도 = `field-experiment/workflow.md`.
+
+**검토했던 갈래(기록).** 
 클라우드 `weekly_build 2026-11-07` 이 이번 주 호를 표에 만들었다(v70, `ready`, §7). (a) 클라우드 `weekly_send` 로 보내 로컬 1-A 를 대신한다 — 이미 만들어진 기사 그대로, **③ 그림 없음**(`WEEKLY_FIGURE` 는 컨테이너에 전달하지 않음 → `figure_png` 없음, 본문만), 추가 비용 $0. (b) 계획대로 로컬 1-A(`uv run python -m briefing.weekly.run build` → `send`)를 돌린다 — **다른 기사**(select/write 를 새로 돌려 비결정적), **그림 포함**, 약 $2.5 · 15분. ★ 한 경로만 보낸다: 두 저장소(DDB 표 · 로컬 `.data`)는 서로를 모르고, sent-log `weekly#<admin>/2026-11-07` 의 `mark_sent` 는 덮어쓰기라 중복 발송을 막지 못한다.
 
 ## 6. 클라우드 build 실패 진단 (2026-11-07 00:39Z) — 근본 원인

@@ -275,9 +275,9 @@ def test_runtime_iam_allows_every_dynamodb_call_the_runtime_makes():
 
 # ───────────────────────── runtime_env (주간 1-B: WEEKLY_* forward) ─────────────────────────
 
-def test_runtime_env_forwards_weekly_keys_except_figure(tmp_path, monkeypatch):
+def test_runtime_env_forwards_weekly_keys_including_figure(tmp_path, monkeypatch):
     """★ 화이트리스트에 없으면 컨테이너의 WEEKLY_ADMIN_USER_ID 가 비어 매주 `failed`(LABEL_MODEL_ID 와 같은 함정).
-    FIGURE 만 제외 — 컨테이너엔 playwright 가 없어 그림 스펙 Opus 호출만 치르고 건너뛴다."""
+    FIGURE 도 전달한다(2026-11-07 (d)): 컨테이너에 playwright + Chromium + Noto CJK 를 넣어 그림 트랙이 클라우드에서 돈다."""
     from briefing.runtime.deploy_runtime import runtime_env
 
     s = _settings(tmp_path)
@@ -288,17 +288,17 @@ def test_runtime_env_forwards_weekly_keys_except_figure(tmp_path, monkeypatch):
     assert env["WEEKLY_ADMIN_USER_ID"] == "u-1" and env["WEEKLY_AUTHOR_MODEL_ID"] == "m-w"
     assert env["WEEKLY_AUTHOR_EFFORT"] == "high" and env["WEEKLY_SELECT_MODEL_ID"] == "m-s"
     assert env["WEEKLY_STRICT"] == "0"
-    assert "WEEKLY_FIGURE" not in env
+    assert env["WEEKLY_FIGURE"] == "1"
 
 
 def test_runtime_env_omits_unset_weekly_keys(tmp_path, monkeypatch):
-    """설정 안 한 WEEKLY_* 는 넘기지 않는다(컨테이너도 run.py 기본값으로 같은 해석)."""
+    """설정 안 한 WEEKLY_* 는 넘기지 않는다(컨테이너도 run.py 기본값으로 같은 해석 — FIGURE 는 기본 끔)."""
     from briefing.runtime.deploy_runtime import WEEKLY_ENV_KEYS, runtime_env
 
     s = _settings(tmp_path)
-    for k in (*WEEKLY_ENV_KEYS, "WEEKLY_FIGURE"):
+    for k in WEEKLY_ENV_KEYS:
         monkeypatch.delenv(k, raising=False)
-    assert "WEEKLY_ADMIN_USER_ID" in WEEKLY_ENV_KEYS and "WEEKLY_FIGURE" not in WEEKLY_ENV_KEYS
+    assert "WEEKLY_ADMIN_USER_ID" in WEEKLY_ENV_KEYS and "WEEKLY_FIGURE" in WEEKLY_ENV_KEYS
     assert not [k for k in runtime_env(s) if k.startswith("WEEKLY_")]
 
 

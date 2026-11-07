@@ -26,7 +26,7 @@
 | 2 | 동료 opt-in | 07:00 관리자 → 승인하면 동료 | 법적 고칠 것 3개 · 발신 주소 사내 정책 · 구독 칸 · 해지 | 동료 피드백 · 소유자 결정 |
 | 3 | 공개(웹 + 구독) | 승인 뒤 게시 | 도메인 · SES DKIM/DMARC · 프로덕션 접근 · 변호사 검토 | — |
 
-- 1-A(11-07 호): 주간 모드를 로컬 CLI 로 돌린다(`uv run python -m briefing.weekly.run build|send`). 같은 코드다.
+- 1-A(11-07 호): 주간 모드를 로컬 CLI 로 돌린다(`uv run python -m briefing.weekly.run build|send`). 같은 코드다. **11-07 결정: 11-07 호는 보내지 않는다 — 클라우드 build 는 그림 없이 `ready` 까지 됐고(선행 기록 §5~§7), 그림 트랙을 컨테이너로 옮기는 (d) 로 전환(`workflow.md` · `docs/deliveries/2026-11-07-weekly-figure-container-delivery.md`).**
 - 1-B(11-14 호부터): 클라우드 스케줄로 07:00 에 자동 발송한다.
 - 2단계 승인은 `briefing.weekly.run approve YYYY-MM-DD` 한 줄이다. 토 12:00 까지 승인이 없으면 동료에게 나가지 않는다.
 
@@ -38,6 +38,7 @@
 06:00  mode=weekly_build               주간 생성
  |       collect -> select -> write
  |       -> gate (lint + numeric + codex)
+ |       -> figure (Chromium, PNG -> 표 b64)   ★ 11-07 (d)
  |       -> briefing-weekly-issues
  |
 07:00  mode=weekly_send -> admin       1단계
@@ -45,6 +46,8 @@
  |
 ~12:00 approve -> subscribers          2단계
 ```
+
+전체 흐름도(그림 트랙 · 세션 경계 · 상태 전이 포함) = `workflow.md`(2026-11-07 (d)).
 
 ## 3. 개념 아키텍처
 
@@ -119,7 +122,7 @@ AgentCore Runtime (existing container)
   - 1단계: `load_user(<admin user_id>)` 로 `briefing-users` 의 주소를 읽는다. `.env` 에는 user_id 만 두고 이메일은 두지 않는다.
   - 2단계: `briefing-users` 에 `weekly` opt-in 칸을 넣는다. `dynamo.py`(:30 · :226) · `config.py` · `profile.py` · `Form.tsx` 를 고친다.
 - **배포:**
-  - `runtime/deploy_runtime.py`: `stage_build_context` 가 `src/briefing` 을 통째로 싣는다. ~~IAM 에 새 표 하나만 더한다~~ → 표는 기존 `table/briefing-*` 와일드카드가 덮는다(불필요). **대신 `bedrock:ListInferenceProfiles` 가 필요하다**(11-07 발견): 게이트 `check_models` 가 이 API 를 부르는데 런타임 role 에 없어, 클라우드에선 ④절에 Claude 모델이 나올 때마다 조회 실패 FAIL(fail-closed) → 매주 격리. `runtime_env` 에 `WEEKLY_*` 전달도 필수(빠지면 `WEEKLY_ADMIN_USER_ID` 가 비어 매주 failed) — `WEEKLY_FIGURE` 만 제외(컨테이너엔 playwright 가 없어 그림 스펙 Opus 호출만 치르고 건너뛴다).
+  - `runtime/deploy_runtime.py`: `stage_build_context` 가 `src/briefing` 을 통째로 싣는다. ~~IAM 에 새 표 하나만 더한다~~ → 표는 기존 `table/briefing-*` 와일드카드가 덮는다(불필요). **대신 `bedrock:ListInferenceProfiles` 가 필요하다**(11-07 발견): 게이트 `check_models` 가 이 API 를 부르는데 런타임 role 에 없어, 클라우드에선 ④절에 Claude 모델이 나올 때마다 조회 실패 FAIL(fail-closed) → 매주 격리. `runtime_env` 에 `WEEKLY_*` 전달도 필수(빠지면 `WEEKLY_ADMIN_USER_ID` 가 비어 매주 failed) — ~~`WEEKLY_FIGURE` 만 제외~~ → **11-07 (d): `WEEKLY_FIGURE` 도 전달**(컨테이너 Dockerfile 에 playwright 1.58 + Chromium + Noto CJK; 06:00 build 와 07:00 send 는 다른 microVM 이라 PNG 는 표 `figure_png_b64` 로 넘긴다 — `workflow.md`).
   - `scheduler/deploy_scheduler.py`: `SCHEDULES` 3개(시간당 무변경 + 주간 2개, `ScheduleExpressionTimezone=Asia/Seoul`)와 표 1개(`_ensure_table` 일반화).
   - ⚠ 함정: `deploy_scheduler` 를 다시 돌리면 `BRIEFING_DRY_RUN` 이 호스트 env 값(기본 1)으로 돌아간다 → 운영은 `BRIEFING_DRY_RUN=0 uv run python -m briefing.scheduler.deploy_scheduler` 로 실행하고 `get-function-configuration` 으로 확인.
 

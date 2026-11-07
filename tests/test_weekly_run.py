@@ -1,5 +1,6 @@
 """weekly.run — build(정상 · 재작성 · 격리 · 씨앗 없음 · 실패 · 중복) · 금요일 대기 · send(발송 · 중복 거부 · 격리 제목 · 실패 통지 ·
 dry-run) · pull. 로컬 backend + fake(author · certify · http · send), 네트워크 0."""
+import base64
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -267,6 +268,7 @@ def test_build_figure_track_and_inline_send(env, tmp_path, monkeypatch):
     assert r["status"] == "ready" and r["figure"] == "ready" and seen["out_dir"].endswith(f"wi/fig/{D}")
     item = env["issue_store"].get(D)
     assert item["figure_png"] == str(png) and "그림 ready" in item["notes"] and item["banner"] == ""
+    assert item["figure_png_b64"] == base64.b64encode(b"\x89PNG").decode("ascii")   # (d) PNG 는 표에 — send 는 다른 세션
     sent = []
 
     def send_fn(to, subject, html, inline=None):
@@ -274,6 +276,7 @@ def test_build_figure_track_and_inline_send(env, tmp_path, monkeypatch):
         return "mid-f"
     dry = send(D, _Settings(), ws, issue_store=env["issue_store"], send_fn=send_fn, dry_run=True, load_user_fn=lambda u, st: _User())
     assert dry["inline_png_bytes"] == 4 and sent == []
+    png.unlink()                                             # 07:00 send 세션엔 build 세션의 파일이 없다(1-B)
     r = send(D, _Settings(), ws, issue_store=env["issue_store"], send_fn=send_fn, load_user_fn=lambda u, st: _User())
     assert r["status"] == "sent" and sent[0][1] == [("fig2", b"\x89PNG", "image/png")] and "cid:fig2" in sent[0][0]
     assert "동료 -&gt; 에이전트" not in sent[0][0] and "그림 2 — 구성" in sent[0][0]      # ASCII 는 빠지고 캡션은 남는다
@@ -290,6 +293,44 @@ def test_send_without_section_three_figure_sends_no_attachment(env, tmp_path):
     r = send(D, _Settings(), ws, issue_store=env["issue_store"], send_fn=lambda to, s, h, inline=None: sent.append(inline) or "m",
              load_user_fn=lambda u, st: _User())
     assert r["status"] == "sent" and sent == [None]
+
+
+def test_send_falls_back_to_figure_path_for_old_items(env, tmp_path):
+    """b64 가 없는 옛 호 · 로컬 1-A 항목은 호스트 경로의 PNG 를 붙인다(폴백)."""
+    ws = WeeklySettings(**{**WS.__dict__, "figure": True})
+    png = tmp_path / "old.png"
+    png.write_bytes(b"\x89OLD")
+    md_fig = MD.replace("- 과제\n", "- 과제\n\n그림 2 — 구성\n```\na -> b\n```\n")
+    st = env["issue_store"]
+    st.transition(D, "building")
+    st.transition(D, "ready", issue_md=md_fig, email_html=run_mod.render_email(md_fig), figure_status="ready", figure_png=str(png))
+    sent = []
+    r = send(D, _Settings(), ws, issue_store=st, send_fn=lambda to, s, h, inline=None: sent.append(inline) or "m",
+             load_user_fn=lambda u, st: _User())
+    assert r["status"] == "sent" and sent == [[("fig2", b"\x89OLD", "image/png")]]
+
+
+def test_build_skips_b64_over_item_limit_but_keeps_article(env, tmp_path):
+    """DDB 항목 400KB 를 넘길 PNG 는 b64 를 생략한다(notes 에만) — 그림이 기사를 막지 않는다."""
+    ws = WeeklySettings(**{**WS.__dict__, "figure": True})
+    png = tmp_path / "big.png"
+    png.write_bytes(b"\x89PNG" * 100_000)                     # 400KB → b64 ≈ 533KB
+    r = build(D, _Settings(), ws, **_kw(env, _author([SELECT_JSON, WRITE_JSON])),
+              figure_fn=lambda md, settings, **kw: FigureResult("ready", png=str(png)))
+    item = env["issue_store"].get(D)
+    assert r["status"] == "ready" and "figure_png_b64" not in item and item["figure_png"] == str(png)
+    assert "그림 b64 생략" in item["notes"]
+
+
+def test_build_passes_author_timeout_to_figure(env):
+    ws = WeeklySettings(**{**WS.__dict__, "figure": True, "author_timeout_s": 1200})
+    seen = {}
+
+    def figure_fn(md, settings, **kw):
+        seen.update(kw)
+        return FigureResult("skipped", note="no browser")
+    build(D, _Settings(), ws, **_kw(env, _author([SELECT_JSON, WRITE_JSON])), figure_fn=figure_fn)
+    assert seen["timeout_s"] == 1200 and seen["effort"] == "medium"
 
 
 def test_build_figure_failure_does_not_block(env):

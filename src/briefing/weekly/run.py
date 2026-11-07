@@ -6,7 +6,8 @@
   WEEKLY_STRICT(1) · WEEKLY_REFETCH(1) · WEEKLY_MAX_REVISIONS(2) · WEEKLY_SENDER_NAME("Field Experiment") ·
   WEEKLY_AUTHOR_TIMEOUT_S(0 = 데일리 author 기본 360 — Opus 5.5 high 기사 작성은 넘기므로 .env 에서 올린다, 2026-11-07) ·
   WEEKLY_WAIT_UNTIL("06:40" KST — 금요일 run 지연 대기 상한) · WEEKLY_ISSUES_BACKEND(local|dynamo, 기본 = BACKEND) ·
-  WEEKLY_CRITIQUE(1 — 게이트 앞 자기 비평 pass) · WEEKLY_FIGURE(0 — 이미지 트랙, 호스트에서만; playwright 없으면 건너뜀).
+  WEEKLY_CRITIQUE(1 — 게이트 앞 자기 비평 pass) · WEEKLY_FIGURE(0 — 이미지 트랙; 호스트 · 컨테이너 둘 다, playwright 없으면 건너뜀.
+  PNG 는 표의 `figure_png_b64` 로 07:00 send 세션에 넘긴다 — 1-B 는 build 와 send 가 다른 microVM, 2026-11-07 (d)).
 실행: uv run python -m briefing.weekly.run build|send|approve|pull [--date YYYY-MM-DD] [--dry-run]
   (BACKEND=dynamo + WEEKLY_ISSUES_BACKEND=local = 실제 원장을 읽고 결과는 `.data/weekly_issues/` 에만 — 1-A · 시험용)
 클라우드(1-B): 런타임 분기(`runtime/agentcore_runtime.py`)가 `run_cloud(mode, payload, …)` 를 부른다 — mode=weekly_build·weekly_send,
@@ -15,6 +16,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import sys
@@ -53,7 +55,7 @@ class WeeklySettings:
     sender_name: str = "Field Experiment"
     wait_until: str = "06:40"
     critique: bool = False      # A 설계(2026-11-04): 게이트 앞 자기 비평 → revise. env 기본은 켬(테스트 기본은 끔)
-    figure: bool = False        # 이미지 트랙(scheme A PNG) — 호스트 전용. env 기본 끔
+    figure: bool = False        # 이미지 트랙(scheme A PNG) — 호스트 · 컨테이너(2026-11-07 (d)). env 기본 끔
     author_timeout_s: int = 0   # 작성자 subprocess 상한(초). 0 = 데일리 기본(360). 클라우드 build write 가 360 에 끊김(11-07)
 
 
@@ -74,6 +76,9 @@ def load_weekly_settings(settings: Settings) -> WeeklySettings:
         figure=g("WEEKLY_FIGURE", "0").strip().lower() in ("1", "true", "yes", "on"),
         author_timeout_s=int(g("WEEKLY_AUTHOR_TIMEOUT_S", "0") or 0),
     )
+
+
+FIGURE_B64_MAX_CHARS = 300_000   # 표 항목(DDB 400KB) 안에 PNG(b64)를 싣는 상한 — 넘으면 b64 생략(기사는 그대로, notes 에만)
 
 
 def figure_dir(issue_date: str) -> Path:
@@ -182,9 +187,11 @@ def build(issue_date: str, settings: Settings, ws: WeeklySettings, *, store, car
             try:
                 fn = figure_fn or _default_figure_fn()
                 fig = fn(draft.md, settings, out_dir=figure_dir(issue_date), model_id=ws.author_model_id,
-                         effort=ws.author_effort, run_author=run_author, recorder=recorder)
+                         effort=ws.author_effort, run_author=run_author, recorder=recorder,
+                         timeout_s=ws.author_timeout_s or None)
                 notes.append(f"그림 {fig.status}" + (f"({fig.note})" if fig.note else ""))
                 fig_fields = {"figure_status": fig.status, "figure_json": fig.to_json(), "figure_png": fig.png}
+                fig_fields.update(_figure_b64_field(fig, notes))
             except Exception as e:  # noqa: BLE001 — 그림은 기사를 막지 않는다
                 _debug.warn("weekly figure", f"{type(e).__name__}: {e}")
                 notes.append(f"그림 실패: {type(e).__name__}")
@@ -210,6 +217,27 @@ def build(issue_date: str, settings: Settings, ws: WeeklySettings, *, store, car
 def _default_figure_fn():
     from .figure.build import make_figure  # lazy — 이미지 트랙 켠 호만
     return make_figure
+
+
+def _figure_b64_field(fig, notes: list[str]) -> dict[str, str]:
+    """ready 인 PNG 를 표에 실을 b64 — 1-B 는 06:00 build 와 07:00 send 가 다른 세션(파일시스템 공유 없음)이라 경로로는 못 넘긴다.
+    항목 상한(DDB 400KB)을 넘길 크기면 생략하고 notes 에만 남긴다 — 그림이 기사를 막지 않는다."""
+    png = Path(fig.png or "")
+    if fig.status != "ready" or not fig.png or not png.is_file():
+        return {}
+    b64 = base64.b64encode(png.read_bytes()).decode("ascii")
+    if len(b64) > FIGURE_B64_MAX_CHARS:
+        notes.append(f"그림 b64 생략({len(b64) // 1024}KB > 상한 {FIGURE_B64_MAX_CHARS // 1024}KB)")
+        return {}
+    return {"figure_png_b64": b64}
+
+
+def _figure_bytes(item: dict) -> bytes | None:
+    """③ 그림 PNG — 표의 b64(세션을 넘는다 · 1-B) 우선, 없으면 호스트 경로(옛 호 · 로컬 1-A 폴백)."""
+    if item.get("figure_png_b64"):
+        return base64.b64decode(item["figure_png_b64"])
+    png = Path(item.get("figure_png") or "")
+    return png.read_bytes() if item.get("figure_png") and png.is_file() else None
 
 
 def build_raw_email(sender: str, to: str, subject: str, html: str, inline: list[tuple[str, bytes, str]]) -> bytes:
@@ -268,11 +296,11 @@ def send(issue_date: str, settings: Settings, ws: WeeklySettings, *, issue_store
     quarantined = item["status"] == "quarantined"
     subject = email_subject(split_title(item["issue_md"])[0]) + (" — 격리(검사 실패)" if quarantined else "")
     html, inline = item["email_html"], []
-    png = Path(item.get("figure_png") or "")
-    if item.get("figure_png") and png.is_file():   # 이미지 트랙(호스트): ③ 그림을 CID 인라인 이미지로
+    png_bytes = _figure_bytes(item)
+    if png_bytes:                                   # 이미지 트랙: ③ 그림을 CID 인라인 이미지로(b64 우선 · 경로 폴백)
         swapped = render_email(item["issue_md"], banner=item.get("banner", ""), figure_cid="fig2")
         if "cid:fig2" in swapped:                   # ③ 에 그림 블록이 있을 때만(참조 없는 첨부 금지)
-            html, inline = swapped, [("fig2", png.read_bytes(), "image/png")]
+            html, inline = swapped, [("fig2", png_bytes, "image/png")]
     if dry_run:
         return {"status": "dry-run", "to": to, "subject": subject, "bytes": len(html.encode("utf-8")),
                 **({"inline_png_bytes": len(inline[0][1])} if inline else {})}

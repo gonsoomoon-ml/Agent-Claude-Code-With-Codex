@@ -46,11 +46,13 @@ CONTAINER_STORE_PATH = "/tmp/briefing/source_store"  # noqa: S108 — 비-root w
 _G, _Y, _B, _R, _NC = "\033[0;32m", "\033[1;33m", "\033[0;34m", "\033[0;31m", "\033[0m"
 
 # 주간(1-B) 컨테이너 전달 키 — 설정한 값만 넘긴다(weekly/run.py load_weekly_settings 가 같은 기본값으로 해석).
-# ★ WEEKLY_FIGURE 는 일부러 뺀다: 컨테이너엔 playwright 가 없어 그림 스펙 작성(Opus 호출)만 치르고 건너뛴다(호스트 전용).
+# ★ WEEKLY_FIGURE 도 전달한다(2026-11-07 (d)): 컨테이너에 playwright + Chromium + Noto CJK 가 있어(Dockerfile) 그림 트랙이 클라우드에서 돈다.
+#   PNG 는 표(`figure_png_b64`)에 실어 07:00 send 세션(다른 microVM)으로 넘긴다 — weekly/run.py.
 WEEKLY_ENV_KEYS: tuple[str, ...] = (
     "WEEKLY_ADMIN_USER_ID", "WEEKLY_AUTHOR_MODEL_ID", "WEEKLY_AUTHOR_EFFORT", "WEEKLY_SELECT_MODEL_ID",
     "WEEKLY_STRICT", "WEEKLY_REFETCH", "WEEKLY_MAX_REVISIONS", "WEEKLY_SENDER_NAME", "WEEKLY_WAIT_UNTIL",
     "WEEKLY_CRITIQUE", "WEEKLY_AUTHOR_TIMEOUT_S",   # 상한(2026-11-07 클라우드 write 360s 초과)
+    "WEEKLY_FIGURE",
 )
 
 

@@ -46,6 +46,16 @@ RUN npm install -g @anthropic-ai/claude-code@2.1.301 @openai/codex@0.163.0
 COPY requirements.txt requirements.txt
 RUN uv pip install -r requirements.txt && uv pip install aws-opentelemetry-distro==0.12.2
 
+# ── 주간 그림 트랙(2026-11-07 (d)): Chromium(playwright) + 한글 글꼴 ──
+# ★ PLAYWRIGHT_BROWSERS_PATH 를 HOME 밖(/ms-playwright)에 둔다 — 설치는 root, 실행은 bedrock_agentcore(아래 USER) 라
+#   기본 경로(~/.cache/ms-playwright)면 런타임이 브라우저를 못 찾는다. `--with-deps` = Chromium 의 apt 라이브러리.
+# ★ fonts-noto-cjk 가 없으면 그림의 한글이 빈 네모로 렌더된다(lint 는 통과해도 메일은 깨짐).
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN python -m playwright install --with-deps chromium \
+ && apt-get update && apt-get install -y --no-install-recommends fonts-noto-cjk \
+ && rm -rf /var/lib/apt/lists/* \
+ && chmod -R a+rX /ms-playwright
+
 # ── 비-root 유저 + 하니스 설정 굽기(비밀 아님: 둘 다 Bedrock SigV4) ──
 RUN useradd -m -u 1000 bedrock_agentcore
 COPY codex_config.toml  /home/bedrock_agentcore/.codex/config.toml

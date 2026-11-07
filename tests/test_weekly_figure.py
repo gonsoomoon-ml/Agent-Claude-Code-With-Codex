@@ -104,3 +104,20 @@ def test_make_figure_skipped_without_browser_and_failed_after_rounds(tmp_path):
     assert r2.status == "failed" and r2.rounds == 2 and r2.items[0][1] == "spec" and "strip" in r2.items[0][2]
     r3 = fb.make_figure(MD, None, out_dir=tmp_path / "c", run_author=lambda *a, **k: "not json", renderer=boom)
     assert r3.status == "failed" and "스펙 형식" in r3.items[0][2]
+
+
+def test_make_figure_passes_timeout_s_to_author(tmp_path):
+    """(d) 2026-11-07: 그림 스펙 호출도 주간 상한(WEEKLY_AUTHOR_TIMEOUT_S)을 받는다 — 기본 None = 데일리 360."""
+    seen = []
+
+    def author(system, user, settings, **kw):
+        seen.append(kw)
+        return json.dumps(_spec())
+
+    def renderer(html, png):
+        open(png, "wb").write(b"png")
+        return _report()
+    r = fb.make_figure(MD, None, out_dir=tmp_path / "t", run_author=author, renderer=renderer, timeout_s=1200)
+    assert r.status == "ready" and seen[0]["timeout_s"] == 1200
+    fb.make_figure(MD, None, out_dir=tmp_path / "u", run_author=author, renderer=renderer)
+    assert seen[1]["timeout_s"] is None

@@ -1,7 +1,7 @@
 """그림 트랙 오케스트레이션 — 기사 md → 스펙(작성자) → 검증(한도 · 숫자 근거) → HTML → PNG → lint, 되돌리기 ≤ max_rounds.
 
-작성자 호출은 데일리 `_run_author`(clean dir · Bedrock env) 재사용. 렌더는 DI(`renderer`) — 테스트는 fake, 컨테이너는 playwright 가 없어
-`FigureUnavailable` → status "skipped"(기사 생성은 막지 않는다).
+작성자 호출은 데일리 `_run_author`(clean dir · Bedrock env) 재사용. 렌더는 DI(`renderer`) — 테스트는 fake. playwright 가 없는 환경은
+`FigureUnavailable` → status "skipped"(기사 생성은 막지 않는다). 컨테이너는 2026-11-07 (d) 부터 playwright + Chromium + Noto CJK 를 싣는다.
 """
 from __future__ import annotations
 
@@ -60,7 +60,8 @@ def check_spec(spec: Spec, md: str) -> list[str]:
 
 
 def make_figure(md: str, settings, *, out_dir: Path, model_id: str = "", effort: str | None = None, run_author=None,
-                recorder=None, renderer=render_png, max_rounds: int = 2) -> FigureResult:
+                recorder=None, renderer=render_png, max_rounds: int = 2, timeout_s: int | None = None) -> FigureResult:
+    """기사 md → 그림 PNG(≤ max_rounds 되돌리기). `timeout_s` = 작성자 subprocess 상한(None = 데일리 360) — 주간 상한을 그대로 받는다(2026-11-07)."""
     run = run_author or _author._run_author
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -72,7 +73,8 @@ def make_figure(md: str, settings, *, out_dir: Path, model_id: str = "", effort:
     result = FigureResult("failed")
     for rnd in range(1, max_rounds + 2):
         result.rounds = rnd
-        text = run(system, user, settings, model_id=model_id, effort=effort, recorder=recorder, prompt_via_stdin=True)
+        text = run(system, user, settings, model_id=model_id, effort=effort, recorder=recorder, prompt_via_stdin=True,
+                   timeout_s=timeout_s)
         try:
             obj = _author._last_json_object(text)
             spec = parse_spec(obj if obj is not None else {})

@@ -11,3 +11,4 @@ feedparser
 tzdata
 trafilatura>=2.1.0
 markdown>=3.11.2
+playwright==1.58.0   # 주간 그림 트랙(Chromium 렌더) — 호스트 검증 버전과 pin(2026-11-07 (d)); 브라우저는 Dockerfile 이 설치
