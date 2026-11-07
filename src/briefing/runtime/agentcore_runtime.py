@@ -4,6 +4,8 @@ core(진실)=로직, 이 파일=배포 어댑터. `BedrockAgentCoreApp` + `@app.
 ★ 호스트 무관 드라이버(`pipeline.run_briefing`)를 호출만 — entrypoint·로컬 스모크·테스트가 같은 함수 공유
   (오케스트레이션을 어댑터에 용접 + 스모크 중복 제거). 배달(SES)·QUARANTINE 행선지는 여기(어댑터) 책임.
 호출 경로(U2): EventBridge Scheduler → Lambda(async) → invoke_agent_runtime.
+주간(1-B, field-experiment/delivery-plan.md §4): 같은 경로로 `mode=weekly_build`(토 06:00 KST) · `weekly_send`(07:00) —
+  `weekly/run.run_cloud` 가 로컬 CLI 와 같은 build · send 를 부른다. 데일리 분기는 무변경.
 배포: starter-toolkit `Runtime.configure(entrypoint="agentcore_runtime.py", requirements_file=...).launch(env_vars=...)`.
 """
 from __future__ import annotations
@@ -99,6 +101,37 @@ async def briefing_entrypoint(payload, context):
         _debug.dprint("entrypoint", f"scheduled accepted · users={len(s_users)} · now={now.isoformat()} · dry={dry}")
         yield {"type": "accepted", "mode": "scheduled", "task_id": task_id,
                "users": len(s_users), "now_utc": now.isoformat(), "dry_run": dry}
+        return
+
+    if mode in ("weekly_build", "weekly_send"):   # 주간(1-B) — scheduled 와 같은 fire-and-forget 모양
+        import threading
+
+        from ..scheduler.sent_log import DynamoSentLog
+        from ..weekly.issues import issue_store_from_settings
+        from ..weekly.run import issue_date_kst, load_weekly_settings, run_cloud
+
+        ws = load_weekly_settings(settings)
+        dry = bool(payload.get("dry_run"))     # send 에만 뜻이 있다(build 는 표에만 쓰고 메일을 안 보낸다)
+        # ★ 발행일은 KST — 06:00 KST 토 = 21:00 UTC 금이라 위의 UTC run_date 를 쓰면 금요일 호가 된다
+        issue_date = payload.get("issue_date") or issue_date_kst(datetime.now(timezone.utc))
+        w_payload = {**payload, "issue_date": issue_date}
+        issue_store = issue_store_from_settings(settings)
+        sent = DynamoSentLog.from_settings(settings) if (mode == "weekly_send" and not dry) else None
+        task_id = app.add_async_task(mode)
+
+        def _bg():
+            try:
+                r = run_cloud(mode, w_payload, settings, ws, stores=(store, card_cache, ledger),
+                              issue_store=issue_store, sent_log=sent)
+                _debug.dprint(f"entrypoint ← {mode}", str(r), "green" if r.get("status") in ("ready", "sent", "dry-run") else "yellow")
+            except Exception as e:  # noqa: BLE001 — build 는 자기 실패를 표에 적고, send 는 07:00 에 실패 통지로 드러난다
+                _debug.warn(f"{mode} bg", f"{type(e).__name__}: {e}")
+            finally:
+                app.complete_async_task(task_id)
+
+        threading.Thread(target=_bg, daemon=True).start()
+        _debug.dprint("entrypoint", f"{mode} accepted · issue_date={issue_date} · dry={dry}")
+        yield {"type": "accepted", "mode": mode, "task_id": task_id, "issue_date": issue_date, "dry_run": dry}
         return
 
     if mode == "trial":   # v1.1a — 검증 polling → 검증 후 발행 1통(fire-and-forget)

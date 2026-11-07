@@ -282,3 +282,29 @@ def test_lambda_handler_accepted_false_when_no_accept_event(monkeypatch):
 
     out = lh.handler({}, None, client=_FakeAgentCore([b'data: {"type": "stage"}', b""]))
     assert out["accepted"] is False and out["dry_run"] is True     # 미설정 시 dry-run 기본
+
+
+def test_lambda_handler_forwards_mode_from_event(monkeypatch):
+    """주간(1-B): 스케줄 Input 에 mode 가 있으면 payload 로 그대로 — Lambda 는 mode 를 모르고 나른다."""
+    monkeypatch.setenv("BRIEFING_RUNTIME_ARN", "arn:aws:bedrock-agentcore:us-east-1:1:runtime/x")
+    monkeypatch.setenv("BRIEFING_DRY_RUN", "0")
+    from briefing.scheduler import lambda_handler as lh
+
+    import json as _json
+    fake = _FakeAgentCore([b'data: {"type": "accepted", "mode": "weekly_build"}'])
+    out = lh.handler({"source": "briefing-weekly-build", "mode": "weekly_build"}, None, client=fake)
+    assert out["accepted"] is True and out["mode"] == "weekly_build"
+    assert _json.loads(fake.calls[0]["payload"]) == {"mode": "weekly_build", "dry_run": False}
+
+
+def test_lambda_handler_hourly_input_without_mode_stays_scheduled(monkeypatch):
+    """회귀(delivery-plan §8): 기존 시간당 스케줄 Input({"source": …}) 은 바뀌기 전과 같은 payload."""
+    monkeypatch.setenv("BRIEFING_RUNTIME_ARN", "arn:aws:bedrock-agentcore:us-east-1:1:runtime/x")
+    monkeypatch.setenv("BRIEFING_DRY_RUN", "1")
+    from briefing.scheduler import lambda_handler as lh
+
+    import json as _json
+    fake = _FakeAgentCore([b'data: {"type": "accepted", "mode": "scheduled"}'])
+    out = lh.handler({"source": "briefing-hourly-tick"}, None, client=fake)
+    assert out["mode"] == "scheduled"
+    assert _json.loads(fake.calls[0]["payload"]) == {"mode": "scheduled", "dry_run": True}

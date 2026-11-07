@@ -322,3 +322,28 @@ def test_build_skips_revise_when_only_unfixable_failures(env, monkeypatch, tmp_p
     author2 = _author([SELECT_JSON, WRITE_JSON])
     r2 = build(D, _Settings(), WS, **{**_kw(env, author2), "certify_fn": wrapped, "issue_store": LocalIssueStore(str(tmp_path / "issues2"))})
     assert r2["status"] == "quarantined" and r2["attempts"] == 1 and len(author2.calls) == 2
+
+
+# ───────────────────────── 런타임 분기(1-B) — KST 발행일 · mode 라우팅 ─────────────────────────
+
+def test_issue_date_kst_crosses_utc_midnight():
+    """06:00 KST 토요일 = 21:00 UTC 금요일 — 데일리처럼 UTC 날짜를 쓰면 금요일 호가 되어 엉뚱한 주를 읽는다."""
+    from briefing.weekly.run import issue_date_kst
+    assert issue_date_kst(datetime(2026, 11, 13, 21, 0, tzinfo=timezone.utc)) == "2026-11-14"
+    assert issue_date_kst(datetime(2026, 11, 14, 14, 59, tzinfo=timezone.utc)) == "2026-11-14"
+    assert issue_date_kst(datetime(2026, 11, 14, 15, 0, tzinfo=timezone.utc)) == "2026-11-15"
+
+
+def test_run_cloud_routes_mode_and_dry_run(env, monkeypatch):
+    """weekly_build → build(dry_run 무의미 · 표에만 쓴다), weekly_send → send(dry_run 전달); 날짜 = payload 또는 KST 오늘."""
+    calls = []
+    monkeypatch.setattr(run_mod, "build", lambda d, s, ws, **kw: calls.append(("build", d)) or {"status": "ready"})
+    monkeypatch.setattr(run_mod, "send", lambda d, s, ws, **kw: calls.append(("send", d, kw.get("dry_run"))) or {"status": "dry-run"})
+    kw = dict(stores=(env["store"], env["card_cache"], env["ledger"]), issue_store=env["issue_store"], sent_log=None,
+              now=lambda: datetime(2026, 11, 13, 21, 0, tzinfo=timezone.utc))
+    r1 = run_mod.run_cloud("weekly_build", {"dry_run": True}, _Settings(), WS, **kw)
+    r2 = run_mod.run_cloud("weekly_send", {"issue_date": "2026-11-07", "dry_run": True}, _Settings(), WS, **kw)
+    assert calls == [("build", "2026-11-14"), ("send", "2026-11-07", True)]
+    assert r1["issue_date"] == "2026-11-14" and r2["issue_date"] == "2026-11-07" and r2["status"] == "dry-run"
+    with pytest.raises(ValueError):
+        run_mod.run_cloud("weekly_approve", {}, _Settings(), WS, **kw)

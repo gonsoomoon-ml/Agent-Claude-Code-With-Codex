@@ -45,6 +45,14 @@ CONTAINER_STORE_PATH = "/tmp/briefing/source_store"  # noqa: S108 — 비-root w
 
 _G, _Y, _B, _R, _NC = "\033[0;32m", "\033[1;33m", "\033[0;34m", "\033[0;31m", "\033[0m"
 
+# 주간(1-B) 컨테이너 전달 키 — 설정한 값만 넘긴다(weekly/run.py load_weekly_settings 가 같은 기본값으로 해석).
+# ★ WEEKLY_FIGURE 는 일부러 뺀다: 컨테이너엔 playwright 가 없어 그림 스펙 작성(Opus 호출)만 치르고 건너뛴다(호스트 전용).
+WEEKLY_ENV_KEYS: tuple[str, ...] = (
+    "WEEKLY_ADMIN_USER_ID", "WEEKLY_AUTHOR_MODEL_ID", "WEEKLY_AUTHOR_EFFORT", "WEEKLY_SELECT_MODEL_ID",
+    "WEEKLY_STRICT", "WEEKLY_REFETCH", "WEEKLY_MAX_REVISIONS", "WEEKLY_SENDER_NAME", "WEEKLY_WAIT_UNTIL",
+    "WEEKLY_CRITIQUE",
+)
+
 
 # ───────────────────────── 순수 헬퍼 (테스트가능 — AWS 무관) ─────────────────────────
 
@@ -66,6 +74,8 @@ def runtime_env(settings: Settings) -> dict[str, str]:
                              ("INTERP_EFFORT", settings.interp_effort),
                              # 핵심 3·분야 라벨 모델(2026-10-24) — ★ 여기 없으면 프로덕션은 조용히 RELEVANCE(Haiku)로 돈다
                              ("LABEL_MODEL_ID", settings.label_model_id)) if v},
+        # 주간(1-B): ★ 여기 없으면 컨테이너의 WEEKLY_ADMIN_USER_ID 가 비어 build 가 매주 failed(LABEL_MODEL_ID 와 같은 함정)
+        **{k: os.environ[k] for k in WEEKLY_ENV_KEYS if os.environ.get(k)},
         "SES_SENDER": settings.ses_sender,
         # ★ ③ DB: 클라우드는 dynamo backend(영속 — microVM ephemeral FS 를 넘어 source/cache/ledger 공유).
         #   테이블명 default 가 CFN(briefing-*)과 일치하므로 그 외 env 불필요. region=settings.region(us-east-1) 일치 필수.
@@ -180,18 +190,10 @@ def launch_runtime(runtime, settings: Settings):
 DYNAMO_ACTIONS = ("dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:Scan",
                   "dynamodb:UpdateItem", "dynamodb:BatchGetItem")
 
-def attach_runtime_extras(result, region: str) -> None:
-    """toolkit 자동 role 에 *우리 워크로드* 권한만 inline 부착 — Bedrock invoke(author) + SES send(⑤).
-
-    ★ 최소권한 TODO: Resource 를 실제 inference-profile/SES identity ARN 으로 좁히면 더 안전
-      (지금은 global. 프로파일이 다중 리전 → foundation-model/inference-profile 와일드카드).
-    """
-    print(f"{_Y}[4/6] IAM extras inline policy 부착(Bedrock+SES){_NC}")
-    control = boto3.client("bedrock-agentcore-control", region_name=region)
-    role_arn = control.get_agent_runtime(agentRuntimeId=result.agent_id)["roleArn"]
-    role_name = role_arn.split("/")[-1]
-    account = role_arn.split(":")[4]
-    policy = {
+def runtime_extras_policy(account: str) -> dict:
+    """런타임 role inline 정책(순수 — 테스트가능). Bedrock invoke(author) · mantle(certifier) · SES · DDB briefing-* ·
+    주간 게이트의 inference profile 조회."""
+    return {
         "Version": "2012-10-17",
         "Statement": [
             {
@@ -212,6 +214,14 @@ def attach_runtime_extras(result, region: str) -> None:
                 "Resource": f"arn:aws:bedrock-mantle:*:{account}:project/*",
             },
             {
+                # 주간(1-B) 게이트 `weekly/checks.check_models` → bedrock:ListInferenceProfiles(계정 단위 · 리소스 없음).
+                # ★ 없으면 조회 실패 = fail-closed FAIL → ④절에 Claude 모델이 나올 때마다 매주 격리.
+                "Sid": "BedrockListProfilesWeeklyGate",
+                "Effect": "Allow",
+                "Action": ["bedrock:ListInferenceProfiles"],
+                "Resource": "*",
+            },
+            {
                 "Sid": "SesTrialAndSend",        # ⑤ 전달 + v1.1a trial polling(identity 검증 상태 확인)
                 "Effect": "Allow",
                 "Action": ["ses:SendEmail", "ses:SendRawEmail", "ses:GetIdentityVerificationAttributes"],
@@ -230,8 +240,22 @@ def attach_runtime_extras(result, region: str) -> None:
             },
         ],
     }
+
+
+def attach_runtime_extras(result, region: str) -> None:
+    """toolkit 자동 role 에 *우리 워크로드* 권한만 inline 부착 — `runtime_extras_policy`.
+
+    ★ 최소권한 TODO: Resource 를 실제 inference-profile/SES identity ARN 으로 좁히면 더 안전
+      (지금은 global. 프로파일이 다중 리전 → foundation-model/inference-profile 와일드카드).
+    """
+    print(f"{_Y}[4/6] IAM extras inline policy 부착(Bedrock+SES+DDB){_NC}")
+    control = boto3.client("bedrock-agentcore-control", region_name=region)
+    role_arn = control.get_agent_runtime(agentRuntimeId=result.agent_id)["roleArn"]
+    role_name = role_arn.split("/")[-1]
+    account = role_arn.split(":")[4]
     boto3.client("iam").put_role_policy(
-        RoleName=role_name, PolicyName="BriefingRuntimeExtras", PolicyDocument=json.dumps(policy)
+        RoleName=role_name, PolicyName="BriefingRuntimeExtras",
+        PolicyDocument=json.dumps(runtime_extras_policy(account)),
     )
     print(f"{_G}✅ {role_name}/BriefingRuntimeExtras 부착{_NC}\n")
 

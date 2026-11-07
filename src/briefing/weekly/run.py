@@ -8,6 +8,8 @@
   WEEKLY_CRITIQUE(1 — 게이트 앞 자기 비평 pass) · WEEKLY_FIGURE(0 — 이미지 트랙, 호스트에서만; playwright 없으면 건너뜀).
 실행: uv run python -m briefing.weekly.run build|send|approve|pull [--date YYYY-MM-DD] [--dry-run]
   (BACKEND=dynamo + WEEKLY_ISSUES_BACKEND=local = 실제 원장을 읽고 결과는 `.data/weekly_issues/` 에만 — 1-A · 시험용)
+클라우드(1-B): 런타임 분기(`runtime/agentcore_runtime.py`)가 `run_cloud(mode, payload, …)` 를 부른다 — mode=weekly_build·weekly_send,
+  발행일 = payload `issue_date` 또는 **KST** 오늘(`issue_date_kst`; 06:00 KST 토 = 21:00 UTC 금이라 UTC 날짜는 금요일 호가 된다).
 """
 from __future__ import annotations
 
@@ -78,6 +80,25 @@ def figure_dir(issue_date: str) -> Path:
 
 def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def issue_date_kst(now: datetime) -> str:
+    """발행일 = KST 날짜(토요일 검사 없음 — 스케줄이 토요일에만 부른다; 수동 호출은 payload issue_date 로)."""
+    return now.astimezone(KST).date().isoformat()
+
+
+def run_cloud(mode: str, payload: dict, settings: Settings, ws: WeeklySettings, *, stores, issue_store, sent_log=None,
+              now=_now_utc) -> dict:
+    """런타임 분기 공용(1-B) — 로컬 CLI 와 **같은 build · send**. dry_run 은 send 에만 뜻이 있다(build 는 표에만 쓴다)."""
+    issue_date = payload.get("issue_date") or issue_date_kst(now())
+    if mode == "weekly_build":
+        store, card_cache, ledger = stores
+        r = build(issue_date, settings, ws, store=store, card_cache=card_cache, ledger=ledger, issue_store=issue_store)
+    elif mode == "weekly_send":
+        r = send(issue_date, settings, ws, issue_store=issue_store, sent_log=sent_log, dry_run=bool(payload.get("dry_run")))
+    else:
+        raise ValueError(f"알 수 없는 주간 mode: {mode}")
+    return {"issue_date": issue_date, **r}
 
 
 def _wait_for_friday(ledger, user_id: str, issue_date: str, wait_until: str, *, now=_now_utc, sleep=time.sleep,

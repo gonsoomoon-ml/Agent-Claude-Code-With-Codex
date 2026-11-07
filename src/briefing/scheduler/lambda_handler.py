@@ -2,6 +2,8 @@
 
 배포된 AgentCore Runtime 을 `mode=scheduled` 로 invoke → entrypoint 가 `add_async_task` 로 즉시 `accepted`
 응답(브리핑은 백그라운드 ≤8h) → 이 핸들러는 그 ack 만 받고 ~2초 내 반환. **Lambda 15분과 무관**(대기 안 함).
+주간(1-B, field-experiment/delivery-plan.md §4): 스케줄 Input 에 `mode`(weekly_build · weekly_send)가 있으면 그대로
+나른다 — 없으면 scheduled(데일리 시간당 Input 은 mode 가 없어 무변경). Lambda 는 mode 의 뜻을 모른다(런타임이 분기).
 
 ★ boto3-only(`..core` 미import) — Lambda zip 을 최소로. SSE 파서는 invoke_runtime 의 동형 로직을 *복제*
   (core 의존 회피). 환경변수: BRIEFING_RUNTIME_ARN(필수) · BRIEFING_DRY_RUN(기본 "1"=발송 안 함, 안전).
@@ -49,13 +51,14 @@ def handler(event: Any, context: Any, *, client: Any = None) -> dict:
     arn = os.environ["BRIEFING_RUNTIME_ARN"]
     region = os.environ.get("AWS_REGION", "us-east-1")        # Lambda 가 AWS_REGION 자동 설정
     dry = os.environ.get("BRIEFING_DRY_RUN", "1").strip().lower() in ("1", "true", "yes", "on")
+    mode = (event or {}).get("mode") or "scheduled"   # 주간 스케줄만 Input 에 mode 를 싣는다
 
     ses = client or _build_client(region)
     resp = ses.invoke_agent_runtime(
         agentRuntimeArn=arn,
         qualifier="DEFAULT",
         runtimeSessionId=uuid.uuid4().hex + uuid.uuid4().hex[:1],   # ≥33자(AgentCore 제약)
-        payload=json.dumps({"mode": "scheduled", "dry_run": dry}),
+        payload=json.dumps({"mode": mode, "dry_run": dry}),
     )
 
     accepted = False
@@ -64,4 +67,4 @@ def handler(event: Any, context: Any, *, client: Any = None) -> dict:
             ev = _parse_sse(line)
             if ev and ev.get("type") == "accepted":
                 accepted = True            # 브리핑은 백그라운드에서 계속; 우린 ack 만 확인
-    return {"ok": True, "accepted": accepted, "dry_run": dry}
+    return {"ok": True, "accepted": accepted, "dry_run": dry, "mode": mode}
