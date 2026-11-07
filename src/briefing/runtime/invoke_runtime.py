@@ -9,6 +9,8 @@ done-when(②): 실 AgentCore 에 invoke → 사용자별 결과 SSE. 기본 `--
   - user  : {user, recipient, published, quarantined, bytes}  — 사용자별 결과(per-user 팬아웃)
 
 사용법: `[DEBUG=1] uv run python -m briefing.runtime.invoke_runtime [--mode smoke|real]`
+주간(1-B) 수동 호출: `--mode weekly_build --issue-date 2026-11-07`(표에만 씀 · 메일 없음) ·
+  `--mode weekly_send --issue-date 2026-11-07 [--dry-run]`(dry-run = 수신자 · 제목만). 발행일 생략 = KST 오늘.
 사전: deploy_runtime.py 완료(루트 `.env` 에 `BRIEFING_RUNTIME_ARN`).
 """
 from __future__ import annotations
@@ -82,10 +84,32 @@ def _print_event(ev: dict) -> None:
         print(f"{_DIM}{json.dumps(ev, ensure_ascii=False)}{_NC}")
 
 
+def build_payload(args) -> dict:
+    """CLI 인자 → entrypoint payload(순수 — 테스트가능). 주간 mode 만 issue_date 를 싣는다(데일리 payload 불변)."""
+    payload = {"mode": args.mode, "window_hours": args.window_hours}
+    if args.now_utc:
+        payload["now_utc"] = args.now_utc
+    if args.users:
+        payload["users"] = args.users.split(",")
+    if args.dry_run:
+        payload["dry_run"] = True
+    # trial 전용 필드
+    if args.mode == "trial":
+        payload["email"] = args.email
+        if args.sources:
+            payload["sources"] = args.sources.split(",")
+    # 주간(1-B) 전용 — 발행일(KST 토요일). 없으면 런타임이 KST 오늘로 잡는다.
+    if args.mode in ("weekly_build", "weekly_send") and getattr(args, "issue_date", None):
+        payload["issue_date"] = args.issue_date
+    return payload
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="② Runtime 1회 invoke + SSE 출력")
-    ap.add_argument("--mode", choices=["smoke", "harness", "real", "scheduled", "trial"], default="smoke",
-                    help="smoke|harness|real | scheduled=⑤ async(즉시 accepted) | trial=체험(email polling → brief → SES)")
+    ap.add_argument("--mode", choices=["smoke", "harness", "real", "scheduled", "trial", "weekly_build", "weekly_send"],
+                    default="smoke",
+                    help="smoke|harness|real | scheduled=⑤ async(즉시 accepted) | trial=체험(email polling → brief → SES) | "
+                         "weekly_build·weekly_send=주간(1-B) async")
     ap.add_argument("--window-hours", type=int, default=24)
     ap.add_argument("--now-utc", default=None, help="scheduled: now_utc override(ISO, 예 2026-06-27T22:00 → KST 07:00)")
     ap.add_argument("--users", default=None, help="콤마구분 user id override (예 gonsoo)")
@@ -93,6 +117,8 @@ def main() -> None:
     # trial 전용 인자
     ap.add_argument("--email", default=None, help="trial: 체험 수신 이메일(SES 검증 완료 주소)")
     ap.add_argument("--sources", default=None, help="trial: 콤마구분 소스 슬러그 (예 aitimes,aws-ml)")
+    # 주간 전용 인자
+    ap.add_argument("--issue-date", default=None, help="weekly_*: 발행일 YYYY-MM-DD(KST 토요일). 생략 = KST 오늘")
     args = ap.parse_args()
 
     if args.mode == "trial" and not args.email:
@@ -110,18 +136,7 @@ def main() -> None:
 
     cfg = Config(connect_timeout=60, read_timeout=900, retries={"max_attempts": 0})
     client = boto3.client("bedrock-agentcore", region_name=region, config=cfg)
-    payload = {"mode": args.mode, "window_hours": args.window_hours}
-    if args.now_utc:
-        payload["now_utc"] = args.now_utc
-    if args.users:
-        payload["users"] = args.users.split(",")
-    if args.dry_run:
-        payload["dry_run"] = True
-    # trial 전용 필드
-    if args.mode == "trial":
-        payload["email"] = args.email
-        if args.sources:
-            payload["sources"] = args.sources.split(",")
+    payload = build_payload(args)
 
     resp = client.invoke_agent_runtime(
         agentRuntimeArn=arn,

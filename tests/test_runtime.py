@@ -311,3 +311,20 @@ def test_runtime_extras_policy_allows_list_inference_profiles():
     assert len(stmts) == 1 and stmts[0]["Effect"] == "Allow"
     ddb = [st for st in policy["Statement"] if st["Sid"] == "DynamoStores"][0]   # 주간 표는 기존 와일드카드가 덮는다
     assert "arn:aws:dynamodb:*:123456789012:table/briefing-*" in ddb["Resource"]
+
+
+# ───────────────────────── invoke_runtime.build_payload (주간 1-B 수동 호출) ─────────────────────────
+
+def test_invoke_build_payload_weekly_modes_carry_issue_date_and_dry_run():
+    """클라우드 검증(§7-4): `--mode weekly_build --issue-date 2026-11-07` · `--mode weekly_send --dry-run`."""
+    from argparse import Namespace
+
+    from briefing.runtime.invoke_runtime import build_payload
+
+    base = dict(window_hours=24, now_utc=None, users=None, dry_run=False, email=None, sources=None, issue_date=None)
+    b = build_payload(Namespace(**{**base, "mode": "weekly_build", "issue_date": "2026-11-07"}))
+    assert b == {"mode": "weekly_build", "window_hours": 24, "issue_date": "2026-11-07"}
+    s = build_payload(Namespace(**{**base, "mode": "weekly_send", "dry_run": True}))
+    assert s == {"mode": "weekly_send", "window_hours": 24, "dry_run": True}
+    d = build_payload(Namespace(**{**base, "mode": "scheduled", "issue_date": "2026-11-07"}))
+    assert "issue_date" not in d                      # 데일리 payload 는 바뀌지 않는다

@@ -1,6 +1,7 @@
 # Field Experiment 발행 계획 (delivery plan)
 
 > **상태:** 2026-11-03 계획 승인. 구현은 §7 단계마다 별도 승인(파일마다 before → after).
+> **2026-11-07:** §7-4 코드 완료(`feat/weekly-cloud-schedule` `255f5d8`, suite 912 passed) — 배포·클라우드 검증은 `docs/deliveries/2026-11-07-weekly-cloud-schedule-delivery.md`. 계획과 다른 점 3개는 §7-4 에 적었다.
 > **원칙:** 데일리 코드를 재사용하고, 데일리 동작은 바꾸지 않는다. 이 원칙에 맞춰 바꿀 줄 — `README.md` §2 · §3, 루트 `CLAUDE.md` 의 "src/briefing 무변경" — 은 따로 승인받아 고쳤다(2026-11-03 적용).
 > 브랜드 규칙의 진실은 `README.md`. 이 문서는 발송 경로와 구현 순서만 다룬다.
 
@@ -76,10 +77,10 @@
 
 ```
 EventBridge Scheduler
- +-- briefing-hourly-tick   (existing)  데일리 매시
- +-- weekly-build  SAT 06:00 Asia/Seoul  NEW
- +-- weekly-send   SAT 07:00 Asia/Seoul  NEW
- |     input = {"mode": ..., "dry_run": ...}
+ +-- briefing-hourly-tick    (existing)  데일리 매시
+ +-- briefing-weekly-build   SAT 06:00 Asia/Seoul  NEW (이름은 기존 `briefing-` 접두 따름, 11-07)
+ +-- briefing-weekly-send    SAT 07:00 Asia/Seoul  NEW
+ |     Input = {"source": <이름>, "mode": "weekly_build" | "weekly_send"}  (dry_run 은 Lambda env BRIEFING_DRY_RUN)
  v
 scheduler Lambda (existing)             mode 를 input 에서
  v
@@ -110,7 +111,7 @@ AgentCore Runtime (existing container)
   - `dynamo.py:87` `query(user_id, since_date)` 로 관리자 원장의 한 주를 읽는다.
   - scratchpad `collect_week_cards.py` 의 boto3 직접 호출은 이 함수들로 바꾼다.
 - **원문 재수집:** `core/retrieval` 의 fetch 를 쓴다. trafilatura 에 20s/180s 상한이 이미 있다.
-- **발송:** `scheduler/deliver.py:26`. SES 호출을 `send_html(settings, to, subject, html, source=)` 로 꺼낸다. 데일리 `make_ses_deliver` 는 그 함수를 부르게 하고, 동작은 같다. 주간은 표시 이름 `Field Experiment <SES_SENDER>` 를 넘긴다.
+- **발송:** ~~`scheduler/deliver.py:26` 에서 `send_html` 분리~~ → **11-07 생략.** 주간은 `weekly/run.py` 의 자기 발송 함수(`_ses_sender` — 인라인 PNG 용 SendRawEmail 포함)를 쓰므로 데일리 `deliver.py` 를 건드리지 않는 쪽이 "데일리 무변경"에 맞다. 표시 이름 `Field Experiment <SES_SENDER>` 는 그 함수가 넘긴다.
 - **중복 방지 · 관리자 화면:**
   - `scheduler/sent_log.py` `DynamoSentLog` 에 user_id `weekly#<id>` 로 기록한다(데일리 키와 충돌하지 않는다).
   - `/admin/emails` 가 sent-log 를 Scan 하므로 주간 발송이 관리자 목록에 함께 보인다. 라벨 표시는 확인할 항목이다.
@@ -118,9 +119,9 @@ AgentCore Runtime (existing container)
   - 1단계: `load_user(<admin user_id>)` 로 `briefing-users` 의 주소를 읽는다. `.env` 에는 user_id 만 두고 이메일은 두지 않는다.
   - 2단계: `briefing-users` 에 `weekly` opt-in 칸을 넣는다. `dynamo.py`(:30 · :226) · `config.py` · `profile.py` · `Form.tsx` 를 고친다.
 - **배포:**
-  - `runtime/deploy_runtime.py`: `stage_build_context` 가 `src/briefing` 을 통째로 싣는다. IAM 에 새 표 하나만 더한다.
-  - `scheduler/deploy_scheduler.py`: 스케줄 2개(`ScheduleExpressionTimezone`)와 표 1개(`_ensure_sent_log_table` 패턴)를 더한다.
-  - ⚠ 함정: `deploy_scheduler` 를 다시 돌리면 `BRIEFING_DRY_RUN=1` 로 돌아간다. 배포 뒤 복원해야 한다.
+  - `runtime/deploy_runtime.py`: `stage_build_context` 가 `src/briefing` 을 통째로 싣는다. ~~IAM 에 새 표 하나만 더한다~~ → 표는 기존 `table/briefing-*` 와일드카드가 덮는다(불필요). **대신 `bedrock:ListInferenceProfiles` 가 필요하다**(11-07 발견): 게이트 `check_models` 가 이 API 를 부르는데 런타임 role 에 없어, 클라우드에선 ④절에 Claude 모델이 나올 때마다 조회 실패 FAIL(fail-closed) → 매주 격리. `runtime_env` 에 `WEEKLY_*` 전달도 필수(빠지면 `WEEKLY_ADMIN_USER_ID` 가 비어 매주 failed) — `WEEKLY_FIGURE` 만 제외(컨테이너엔 playwright 가 없어 그림 스펙 Opus 호출만 치르고 건너뛴다).
+  - `scheduler/deploy_scheduler.py`: `SCHEDULES` 3개(시간당 무변경 + 주간 2개, `ScheduleExpressionTimezone=Asia/Seoul`)와 표 1개(`_ensure_table` 일반화).
+  - ⚠ 함정: `deploy_scheduler` 를 다시 돌리면 `BRIEFING_DRY_RUN` 이 호스트 env 값(기본 1)으로 돌아간다 → 운영은 `BRIEFING_DRY_RUN=0 uv run python -m briefing.scheduler.deploy_scheduler` 로 실행하고 `get-function-configuration` 으로 확인.
 
 ## 5. 코드 폴더 구조
 
@@ -162,22 +163,22 @@ tests/test_weekly_*.py             fake 주입(데일리 패턴)
 2. **(11-06) 로컬 dry-run.** 실제 원장 · 실제 author/codex 로 `build --dry-run` 을 돌린다. 발송은 하지 않는다.
    - ⚠ 호스트 로컬 `claude -p` 는 사용자 플러그인 훅이 실린다. 빈 HOME 으로 돌린다.
 3. **(11-07, 토) 1-A.** 05:00 run 뒤 `build` → 관리자 확인 → `send`(관리자 1명). 손으로 쓴 1호와 품질 · 시간을 비교한다.
-4. **(11-08~12) 데일리 이음매 4곳 + 배포.**
-   - lambda mode · 런타임 분기 · `send_html` · 스케줄/표.
-   - 전체 `uv run pytest` 통과 → runtime · scheduler 재배포(05:00 KST 앞뒤 회피) → `BRIEFING_DRY_RUN` 복원.
-   - 클라우드에서 `weekly_build` 를 dry-run 으로 한 번 호출한다.
+4. **(11-07 당김 — 코드 완료 `255f5d8`) 데일리 이음매 3곳 + 배포.**
+   - lambda mode · 런타임 분기 · 스케줄/표 (+ `runtime_env` WEEKLY 전달 · IAM ListInferenceProfiles). `send_html` 은 생략(§4 발송).
+   - 전체 `uv run pytest` 통과(912) → runtime(먼저 — 구 런타임은 모르는 mode 를 real 로 돌린다) · scheduler 재배포(05:00 KST 앞뒤 회피, `BRIEFING_DRY_RUN=0` 붙여서).
+   - 클라우드에서 `weekly_build` 를 한 번 호출한다(build 에는 dry-run 이 없다 — 표에만 쓰고 메일을 안 보낸다) → 표 `ready` 확인 → `weekly_send` 를 dry_run 으로 호출해 수신자 · 제목만 본다. 발행일은 payload `issue_date` 로 준다(없으면 KST 오늘).
 5. **(11-14, 토) 1-B 첫 자동 발송.** 07:00 도착과 표 상태 `sent` 를 확인한다.
 6. **(3호 연속 통과 뒤) 2단계.** 법적 고칠 것 3개 · 사내 정책 → `weekly` 구독 칸 · approve · List-Unsubscribe(SESv2).
 
 ## 8. 검증
 - **데일리 무변경:**
   - 기존 `uv run pytest` 가 전부 통과해야 한다.
-  - 새 회귀 테스트 두 가지: mode 가 없는 Lambda event 는 `{"mode":"scheduled"}` 를 그대로 보내고, `make_ses_deliver` 의 SES 인자는 바뀌기 전과 같아야 한다.
+  - 새 회귀 테스트: mode 가 없는 Lambda event(시간당 Input `{"source":…}`)는 `{"mode":"scheduled"}` 를 그대로 보낸다(`tests/test_scheduler.py`). ~~`make_ses_deliver` 인자 불변~~ 은 `send_html` 생략으로 대상이 없다(`deliver.py` 무변경).
 - **주간:**
   - `uv run pytest tests/test_weekly_*`: fake 로 collect → send 와 상태 전이 · 중복 거부 · 실패 통지를 확인한다.
   - lint 이동 뒤 `field-experiment/issues/2026-10-31.md` 결과가 이동 전과 같아야 한다(PASS 2,996자).
 - **배포 뒤:**
-  - `aws scheduler get-schedule --name weekly-build` 로 시각 · 시간대를 확인한다.
+  - `aws scheduler get-schedule --name briefing-weekly-build` 로 시각 · 시간대를 확인한다.
   - 수동 호출 dry-run 이 `ready` 를 남기는지 본다.
   - 11-14 의 실제 수신과 sent-log `weekly#` 행을 확인한다.
 
