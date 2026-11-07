@@ -1,6 +1,6 @@
 # Field Experiment 1-B (d) — 클라우드 그림 트랙 전달 기록 (Delivery Record)
 
-> 상태: **DEPLOYED · LIVE — runtime v71 READY(2026-11-07 05:15Z, 사용자 'yes') · 11-14 첫 자동 run 확인 대기(§5)** · 테스트 전부 통과(`uv run pytest`) · 날짜: 2026-11-07 · 선행: `2026-11-07-weekly-cloud-schedule-delivery.md`(v70 LIVE) · 흐름도: `field-experiment/workflow.md`
+> 상태: **DEPLOYED · LIVE — runtime v72(05:52Z, 그림 폴더 고침) · 11-07 호 강제 run 으로 그림 포함 발송 완료(06:08Z, 격리본) · 11-14 첫 자동 run 확인 대기(§5)** · 테스트 전부 통과(`uv run pytest`) · 날짜: 2026-11-07 · 선행: `2026-11-07-weekly-cloud-schedule-delivery.md`(v70 LIVE) · 흐름도: `field-experiment/workflow.md`
 > 승인: 11-07 "d." → "discard the 11-07. do the d and store the workflow to some md file".
 
 ## 1. 결정 (Decision)
@@ -58,6 +58,19 @@
 1. `uv run python -m briefing.runtime.deploy_runtime` — CodeBuild ARM64 이미지 빌드(Chromium + 글꼴로 이미지 ≈ +400MB, 빌드 시간 증가) → READY. `.env` 의 `WEEKLY_FIGURE=1` 이 이번부터 전달된다.
 2. 확인: `aws bedrock-agentcore-control get-agent-runtime --agent-runtime-id <id> --region us-east-1 --query '{v:agentRuntimeVersion,s:status}'` + 런타임 env 에 `WEEKLY_FIGURE` 가 있는지.
 3. 05:00 KST 데일리 근처는 피한다(배포 중 run 과 겹치지 않게).
+
+### 4-1. v72 강제 run — 그림 포함 첫 실측 · 발송 (11-07 05:52~06:08Z, 사용자 선택 '1' → 'approve')
+
+| 확인 | 결과 |
+|---|---|
+| `deploy_runtime`(고침 `9f1b617`) | ✅ 분류기 1차 거부 → 'approve' 뒤 통과 · CodeBuild 1m49s · **v72 READY 05:52:26Z** |
+| Lambda `{mode: weekly_build}` (quarantined → building) | ✅ accepted · 14.7분 · $3.42 · calls = select 1턴 58s · **write 15턴 369s(데일리 360 초과 — 상한 1200 덕에 통과)** · critique 1턴 50s · revise 10턴 279s · revise 2턴 31s · **figure 1턴 26s $0.10** |
+| **컨테이너 Chromium** | ✅ `그림 ready` 1라운드 · lint 7항목 전부 PASS · `figure_png=/tmp/briefing_weekly_fig/2026-11-07/figure.png`(임시 폴더 폴백 작동) · `figure_png_b64` 141,864자 · 항목 ≈157KB(< 400KB) |
+| 게이트 | **quarantined** — cite FAIL 2(카드 #40: ① Jev/Antigravity 벤치마크 대상 서술 오독(codex DEMOTED) ② '75~90%' 의 75 가 원문에 없음(숫자 BLOCKED + codex BLOCKED)) · WARN 4(본문 2,697자 · 출처 2개 · ③ 코드 1줄 · ③ 1,172자) · 모델 WARN(Gemini 3.1) |
+| Lambda `{mode: weekly_send}` | ✅ accepted → 표 **`sent`** 06:08:42Z · message_id `010001a1b49f9f62-…` · sent-log `weekly#<admin>/2026-11-07` 기록(subject 「[현장 실험] 라우터의 작업당 비용과 정답률, 새 문항에서 재기 — 격리(검사 실패)」, cost 3.4174) |
+| 메일 | 격리 배너 + ③ 그림 2 인라인(PNG, 세션 B 가 b64 에서 복원) — 수신 확인은 사용자 |
+
+오늘 클라우드 build 3회(v70 ready · v71 quarantined · v72 quarantined): 격리 원인은 모두 카드 #40(TypeSafe 라우터 글)의 ② 문장 — 씨앗이 같은 글로 고정되고 작성자가 그 원문의 한계 · 수치를 과해석하는 패턴. 재작성 상한 1 로는 못 넘는다(후속: 11-14 뒤 상한 2 복원 + 이 카드 패턴 관찰). 사본 = scratchpad `issue-2026-11-07-v72/`(md + figure.png).
 
 ## 5. 검증 체크리스트 — 11-14 첫 자동 run
 
