@@ -60,6 +60,7 @@ uv run python -m briefing.runtime.invoke_runtime --mode weekly_send --issue-date
 | Lambda `BRIEFING_DRY_RUN` | `0`(재배포 뒤에도) | ✅ `0` · LastModified 00:31:22Z · Active |
 | 표 `briefing-weekly-issues` | ACTIVE · PK `issue_date` | ✅ 생성(00:31Z) · ACTIVE · HASH `issue_date` · `.env` `BRIEFING_WEEKLY_ISSUES_TABLE` writeback |
 | 클라우드 `weekly_build 2026-11-07` | 표 상태 `ready`(또는 `quarantined` + 사유) · 게이트 `model` 항목 PASS(IAM) | ❌ **`failed` — `write: TimeoutExpired`**(00:31:57 accepted → 00:38:55, 418s; select 은 약 58초에 통과, 카드 113장) → §6 |
+| 클라우드 `weekly_build 2026-11-07` **재실행(v70, timeout 1200)** | `ready`/`quarantined` · `calls_json` 에 호출별 turns·ms | ⏳ v70 배포 대기 |
 | 클라우드 `weekly_send --dry-run` | 수신자 = 관리자 · 제목 `[현장 실험] …` · 발송 0 | ⏳ |
 | 1-B 첫 자동 발송 | 11-14(토) 07:00 KST 도착 · 표 `sent` · sent-log `weekly#<admin>` `2026-11-14` | ⏳ |
 
@@ -87,4 +88,6 @@ write 창(00:33~00:38:55) 동안 CLI 가 11회 호출 · 약 39K 출력 토큰�
 
 **영향.** 주간만. 데일리는 같은 상한으로 정상(별건 아님). 고치기 전엔 토 06:00 build 가 매주 `failed` → 07:00 "생성 실패" 통지.
 
-**고칠 방향(승인 대기).** ① `_run_author(timeout_s=None)` 인자 추가(기본 = 360 그대로 → 데일리 무변경) · 주간 호출 4곳(select · write · critique · revise)이 `.env` `WEEKLY_AUTHOR_TIMEOUT_S` 를 넘긴다(값은 사용자 결정 — 한 번은 실제 소요를 재야 하므로 넉넉히, 예 1200). ② 같은 변경에 `claude -p` 봉투의 `num_turns` · `duration_ms` 를 비용 옆에 기록해 11-14 run 이 턴 수를 남기게 한다 — 그 뒤에야 대안(턴/도구 제한 `--max-turns`·도구 비활성, 작성 품질이 바뀌는 변경)을 데이터로 판단한다. 예산 주의: 1200s × (write + critique + revise ≤ 2) 는 06:00→07:00 60분을 넘을 수 있다(§6 설계대로 07:00 send 는 실패 통지, 호는 뒤늦게 `ready`·미발송) — 첫 자동 run 은 `WEEKLY_MAX_REVISIONS=1` 로 줄이는 완화책이 있다. **고치기 전까지 11-14 06:00 build 도 같은 이유로 `failed` → 07:00 실패 통지**(조용하진 않지만 발행도 아니다).
+**고침(11-07 승인 1·2·3 → main `006620e`, v70 배포 대기).** `_run_author(timeout_s=None)`(기본 360 불변) · `UsageRecorder.calls`(호출별 cost·num_turns·duration_ms) · 주간 4곳 `timeout_s` 전달 · 표 항목 `calls_json`(ready·failed) · `.env` `WEEKLY_AUTHOR_TIMEOUT_S=1200` + `WEEKLY_MAX_REVISIONS=1`(첫 자동 run 완화) · `WEEKLY_ENV_KEYS` 에 TIMEOUT 추가. 테스트 6개 RED→GREEN, suite 919. 검증 = v70 READY 뒤 `weekly_build --issue-date 2026-11-07` 재실행(`failed → building` 허용) → `calls_json` 의 turns·ms 를 이 표에 적는다.
+
+**원래 고칠 방향(승인된 그대로).** ① `_run_author(timeout_s=None)` 인자 추가(기본 = 360 그대로 → 데일리 무변경) · 주간 호출 4곳(select · write · critique · revise)이 `.env` `WEEKLY_AUTHOR_TIMEOUT_S` 를 넘긴다(값은 사용자 결정 — 한 번은 실제 소요를 재야 하므로 넉넉히, 예 1200). ② 같은 변경에 `claude -p` 봉투의 `num_turns` · `duration_ms` 를 비용 옆에 기록해 11-14 run 이 턴 수를 남기게 한다 — 그 뒤에야 대안(턴/도구 제한 `--max-turns`·도구 비활성, 작성 품질이 바뀌는 변경)을 데이터로 판단한다. 예산 주의: 1200s × (write + critique + revise ≤ 2) 는 06:00→07:00 60분을 넘을 수 있다(§6 설계대로 07:00 send 는 실패 통지, 호는 뒤늦게 `ready`·미발송) — 첫 자동 run 은 `WEEKLY_MAX_REVISIONS=1` 로 줄이는 완화책이 있다. **고치기 전까지 11-14 06:00 build 도 같은 이유로 `failed` → 07:00 실패 통지**(조용하진 않지만 발행도 아니다).
