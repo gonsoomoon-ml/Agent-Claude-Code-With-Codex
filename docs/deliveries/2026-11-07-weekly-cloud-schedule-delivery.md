@@ -1,6 +1,6 @@
 # Field Experiment 1-B — 클라우드 자동 스케줄 전달 기록 (Delivery Record)
 
-> 상태: **DEPLOYED(runtime v69 · scheduler 2026-11-07 00:31Z) · 클라우드 검증 진행** · 날짜: 2026-11-07 · main `9458626`(`feat/weekly-cloud-schedule` ff-merge: `255f5d8` 코드 + `9458626` invoke CLI·문서) · 계획: `field-experiment/delivery-plan.md` §4 · §7-4 · §8
+> 상태: **DEPLOYED · LIVE(runtime v70 · scheduler 00:31Z) · 클라우드 build/send-dry-run 검증 완료 · 11-07 호 발송 경로 결정 대기(§5)** · 날짜: 2026-11-07 · main `9458626`(`feat/weekly-cloud-schedule` ff-merge: `255f5d8` 코드 + `9458626` invoke CLI·문서) · 계획: `field-experiment/delivery-plan.md` §4 · §7-4 · §8
 > 승인: 11-07 "follow recommendation" — 계획과 다른 점 4개(①~④, 아래 §2)와 배포 순서까지.
 
 ## 1. 무엇을 전달했나 (Scope)
@@ -55,18 +55,20 @@ uv run python -m briefing.runtime.invoke_runtime --mode weekly_send --issue-date
 |---|---|---|
 | 전체 `uv run pytest` | 데일리 무변경 — 전부 통과 | ✅ 912 passed · 5 skipped (11-07) |
 | 시간당 스케줄 Input(mode 없음) → payload | `{"mode":"scheduled", …}` 그대로 | ✅ `test_lambda_handler_hourly_input_without_mode_stays_scheduled` |
+| 새 Lambda 의 첫 프로덕션 시간당 tick(01:00Z) | Lambda 정상 종료 · 런타임이 `scheduled_briefing` async task 수락 | ✅ Lambda 7.1s 정상(REPORT, 오류 0) · 런타임 `Async task started/completed: scheduled_briefing`(0.02s — 10:00 KST 는 due 사용자 0, 정상) |
 | runtime v69 READY · env `WEEKLY_*` 전달 | `get-agent-runtime` 에 `WEEKLY_ADMIN_USER_ID` 등 | ✅ v69 READY(00:2xZ, launch 79s) · WEEKLY 키 5개(ADMIN_USER_ID·AUTHOR_EFFORT·AUTHOR_MODEL_ID·SELECT_MODEL_ID·STRICT; FIGURE 없음) · IAM `BedrockListProfilesWeeklyGate` 부착 확인 |
 | `briefing-weekly-build` / `-send` | `cron(0 6 ? * SAT *)` / `cron(0 7 ? * SAT *)` · `Asia/Seoul` · ENABLED | ✅ 둘 다 생성·ENABLED·Input 에 mode · `briefing-hourly-tick` Input `{"source":…}` 불변 |
 | Lambda `BRIEFING_DRY_RUN` | `0`(재배포 뒤에도) | ✅ `0` · LastModified 00:31:22Z · Active |
 | 표 `briefing-weekly-issues` | ACTIVE · PK `issue_date` | ✅ 생성(00:31Z) · ACTIVE · HASH `issue_date` · `.env` `BRIEFING_WEEKLY_ISSUES_TABLE` writeback |
 | 클라우드 `weekly_build 2026-11-07` | 표 상태 `ready`(또는 `quarantined` + 사유) · 게이트 `model` 항목 PASS(IAM) | ❌ **`failed` — `write: TimeoutExpired`**(00:31:57 accepted → 00:38:55, 418s; select 은 약 58초에 통과, 카드 113장) → §6 |
-| 클라우드 `weekly_build 2026-11-07` **재실행(v70, timeout 1200)** | `ready`/`quarantined` · `calls_json` 에 호출별 turns·ms | ⏳ v70 배포 대기 |
-| 클라우드 `weekly_send --dry-run` | 수신자 = 관리자 · 제목 `[현장 실험] …` · 발송 0 | ⏳ |
+| runtime **v70**(상한 고침 `006620e`) | READY · env `WEEKLY_AUTHOR_TIMEOUT_S=1200` · `WEEKLY_MAX_REVISIONS=1` | ✅ v70 READY(사용자 재승인 뒤 배포, 01:2xZ) · 두 키 전달 확인 |
+| 클라우드 `weekly_build 2026-11-07` **재실행(v70, timeout 1200)** | `ready`/`quarantined` · `calls_json` 에 호출별 turns·ms | ✅ **`ready`** 00:56:39 → 01:06:17(9.6분) · 게이트 PASS(WARN 3: 본문 2,832자 · ③ 코드 1줄 · ③ 1,096자) · 시도 2(MAX_REVISIONS=1 안) · $2.58 · `model` 검사 PASS(IAM 효력) → 호출별 표는 §7 |
+| 클라우드 `weekly_send --dry-run` | 수신자 = 관리자 · 제목 `[현장 실험] …` · 발송 0 | ✅ 런타임 `weekly_send` task 0.13s 완료 · WARN 0 · 같은 코드의 로컬 dry-run(표=dynamo): to=관리자 · 제목 「닫힌 티켓 TODO 가 코딩 에이전트의 요청 밖 수정을 늘리는가」 · 9,585 bytes · 발송 0 |
 | 1-B 첫 자동 발송 | 11-14(토) 07:00 KST 도착 · 표 `sent` · sent-log `weekly#<admin>` `2026-11-14` | ⏳ |
 
 ## 5. 11-07 호 처리 (사용자 결정 대기)
 
-클라우드 `weekly_build 2026-11-07` 이 이번 주 호를 표에 만든다. (a) 클라우드 `weekly_send` 로 보내 로컬 1-A 를 대신하거나, (b) 계획대로 로컬 1-A(`uv run python -m briefing.weekly.run build` → `send`)를 돌리고 클라우드 호는 검증용 사본으로 둔다.
+클라우드 `weekly_build 2026-11-07` 이 이번 주 호를 표에 만들었다(v70, `ready`, §7). (a) 클라우드 `weekly_send` 로 보내 로컬 1-A 를 대신하거나, (b) 계획대로 로컬 1-A(`uv run python -m briefing.weekly.run build` → `send`)를 돌리고 클라우드 호는 검증용 사본으로 둔다.
 
 ## 6. 클라우드 build 실패 진단 (2026-11-07 00:39Z) — 근본 원인
 
@@ -91,3 +93,17 @@ write 창(00:33~00:38:55) 동안 CLI 가 11회 호출 · 약 39K 출력 토큰�
 **고침(11-07 승인 1·2·3 → main `006620e`, v70 배포 대기).** `_run_author(timeout_s=None)`(기본 360 불변) · `UsageRecorder.calls`(호출별 cost·num_turns·duration_ms) · 주간 4곳 `timeout_s` 전달 · 표 항목 `calls_json`(ready·failed) · `.env` `WEEKLY_AUTHOR_TIMEOUT_S=1200` + `WEEKLY_MAX_REVISIONS=1`(첫 자동 run 완화) · `WEEKLY_ENV_KEYS` 에 TIMEOUT 추가. 테스트 6개 RED→GREEN, suite 919. 검증 = v70 READY 뒤 `weekly_build --issue-date 2026-11-07` 재실행(`failed → building` 허용) → `calls_json` 의 turns·ms 를 이 표에 적는다.
 
 **원래 고칠 방향(승인된 그대로).** ① `_run_author(timeout_s=None)` 인자 추가(기본 = 360 그대로 → 데일리 무변경) · 주간 호출 4곳(select · write · critique · revise)이 `.env` `WEEKLY_AUTHOR_TIMEOUT_S` 를 넘긴다(값은 사용자 결정 — 한 번은 실제 소요를 재야 하므로 넉넉히, 예 1200). ② 같은 변경에 `claude -p` 봉투의 `num_turns` · `duration_ms` 를 비용 옆에 기록해 11-14 run 이 턴 수를 남기게 한다 — 그 뒤에야 대안(턴/도구 제한 `--max-turns`·도구 비활성, 작성 품질이 바뀌는 변경)을 데이터로 판단한다. 예산 주의: 1200s × (write + critique + revise ≤ 2) 는 06:00→07:00 60분을 넘을 수 있다(§6 설계대로 07:00 send 는 실패 통지, 호는 뒤늦게 `ready`·미발송) — 첫 자동 run 은 `WEEKLY_MAX_REVISIONS=1` 로 줄이는 완화책이 있다. **고치기 전까지 11-14 06:00 build 도 같은 이유로 `failed` → 07:00 실패 통지**(조용하진 않지만 발행도 아니다).
+
+## 7. v70 재실행 실측 — 호출별 턴 수 · 소요 (calls_json, 2026-11-07 00:56~01:06Z)
+
+| 단계 | num_turns | 소요 | 비용 |
+|---|---|---|---|
+| select | 1 | 58.8s | $0.63 |
+| **write** | **12** | **345.8s** | $1.34 |
+| critique | 1 | 45.5s | $0.22 |
+| revise(비평 6건) | 2 | 66.3s | $0.26 |
+| revise(게이트 피드백) | 1 | 31.7s | $0.13 |
+
+- write 가 **12턴 · 346초** — 첫 실행이 360초에 끊긴 이유가 그대로 보인다(상한 바로 아래/위를 오간다 — hang 아님). 상한 1200 은 여유가 크고, 전체 build 9.6분은 06:00→07:00 예산 안.
+- 다른 단계는 1~2턴이라 **다턴 루프는 write 에만** 있다 → 턴/도구 제한(`--max-turns` · 도구 비활성) 검토는 write 한 곳에 국한하면 된다(작성 품질 영향은 별도 평가 — 재제안 전 이 수치가 근거).
+- 사소한 발견: `ready` 전이가 이전 실패의 `error` 필드를 지우지 않아 항목에 옛 `write: TimeoutExpired` 문자열이 남아 있다(`pull` 로그에 "오류:" 로 보임). `building` 전이에서 `error` 를 비우는 게 맞다 — 별건(미수정).
