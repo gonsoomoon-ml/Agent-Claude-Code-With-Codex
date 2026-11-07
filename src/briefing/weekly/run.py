@@ -20,6 +20,7 @@ import base64
 import json
 import os
 import sys
+import tempfile
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -82,8 +83,18 @@ FIGURE_B64_MAX_CHARS = 300_000   # 표 항목(DDB 400KB) 안에 PNG(b64)를 싣�
 
 
 def figure_dir(issue_date: str) -> Path:
-    """호의 그림 작업 폴더(로컬 store 옆) — `.data/weekly_issues/fig/<date>/`."""
-    return Path(os.getenv("WEEKLY_ISSUES_PATH", "./.data/weekly_issues")) / "fig" / issue_date
+    """호의 그림 작업 폴더(로컬 store 옆) — `.data/weekly_issues/fig/<date>/`.
+    그 자리를 만들 수 없으면(컨테이너 CWD `/app` 은 root 소유 — 11-07 클라우드 build 가 `PermissionError: '.data'` 로 그림을 건너뜀)
+    임시 폴더로 간다 — PNG 는 어차피 표(`figure_png_b64`)로 send 세션에 넘어가므로 폴더 위치는 중요하지 않다."""
+    base = Path(os.getenv("WEEKLY_ISSUES_PATH", "./.data/weekly_issues")) / "fig"
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        fallback = Path(tempfile.gettempdir()) / "briefing_weekly_fig"
+        _debug.warn("weekly figure", f"그림 폴더 {base} 를 만들 수 없음({type(e).__name__}) → {fallback}")
+        base = fallback
+        base.mkdir(parents=True, exist_ok=True)
+    return base / issue_date
 
 
 def _now_utc() -> datetime:

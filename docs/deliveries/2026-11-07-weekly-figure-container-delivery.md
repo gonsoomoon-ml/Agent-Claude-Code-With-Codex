@@ -49,7 +49,9 @@
 | 런타임 | ✅ **v71 READY** 05:15:17Z · env `WEEKLY_FIGURE=1` · `WEEKLY_AUTHOR_TIMEOUT_S=1200` · `WEEKLY_MAX_REVISIONS=1` |
 | 이미지 | ✅ ECR `20261107-051322-302` **811MB → 1,370MB(+558MB)** = Chromium + apt 라이브러리 + Noto CJK 가 실렸다 |
 | 컨테이너 기동 · 주간 경로 | ✅ v71 에 `weekly_send --dry-run --issue-date 2026-11-07` → async task 0.12s 완료(11-07 항목 `ready` · b64 없음 → 본문만) |
-| Chromium 실행 | ⏳ 11-14 06:00 build 가 첫 실측(§5) |
+| Chromium 실행 | ⏳ 11-14 06:00 build 가 첫 실측(§5) → **05:31Z 강제 run 에서 그 앞 단계가 막힘(아래)** |
+
+**강제 run(11-07 05:31Z, 사용자 'run the scheduler forcibly' — Lambda `{mode: weekly_build}` 직접 호출, v71).** 10.7분 · $2.63 · calls = select 1턴 52s · write **7턴 267s** · critique 1턴 64s · revise 8턴 187s · revise 1턴 37s → **`quarantined`**(cite FAIL 1: #40 문장이 '모델을 바꾸면 캐시 할인을 잃는다'고 단정 — codex DEMOTED; WARN: 본문 2,908자 · 출처 2개 · ③ 코드 1줄 · ③ 1,103자 · gemini 모델 가용성). **그림: `그림 실패: PermissionError` — `[Errno 13] Permission denied: '.data'`.** 원인 = `figure_dir()` 가 CWD 기준 `./.data/weekly_issues/fig/` 를 만드는데 컨테이너 `/app` 은 `COPY . .`(root) 뒤 `USER bedrock_agentcore` 라 쓰기 불가 — 그림 스펙 Opus 호출 전에 죽어 비용 0, 기사는 설계대로 그대로. **고침(main, v72 배포 대기):** `figure_dir()` 가 그 자리를 못 만들면 `tempfile.gettempdir()/briefing_weekly_fig/<date>` 로(PNG 는 b64 로 표에 가므로 위치 무관) + WARN 로그. 테스트 RED→GREEN(읽기 전용 폴더).
 
 원래 runbook:
 

@@ -333,6 +333,22 @@ def test_build_passes_author_timeout_to_figure(env):
     assert seen["timeout_s"] == 1200 and seen["effort"] == "medium"
 
 
+def test_figure_dir_falls_back_to_tmp_when_store_path_not_writable(tmp_path, monkeypatch):
+    """컨테이너의 CWD(/app)는 root 소유라 `.data` 를 못 만든다(11-07 클라우드 build: 그림 실패 PermissionError) → 임시 폴더로.
+    PNG 는 어차피 표(b64)로 넘어가므로 폴더는 어디든 된다."""
+    ro = tmp_path / "ro"
+    ro.mkdir()
+    ro.chmod(0o500)
+    try:
+        monkeypatch.setenv("WEEKLY_ISSUES_PATH", str(ro / "weekly_issues"))
+        d = run_mod.figure_dir(D)
+        assert not str(d).startswith(str(ro)) and d.name == D and d.parent.name != "fig" and d.parent.is_dir()
+        monkeypatch.setenv("WEEKLY_ISSUES_PATH", str(tmp_path / "wi"))
+        assert run_mod.figure_dir(D) == tmp_path / "wi" / "fig" / D       # 쓸 수 있으면 종전 자리 그대로
+    finally:
+        ro.chmod(0o700)
+
+
 def test_build_figure_failure_does_not_block(env):
     ws = WeeklySettings(**{**WS.__dict__, "figure": True})
 
