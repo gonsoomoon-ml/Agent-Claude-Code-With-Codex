@@ -1,6 +1,6 @@
 # Field Experiment 1-B (d) — 클라우드 그림 트랙 전달 기록 (Delivery Record)
 
-> 상태: **코드 완료 · 테스트 전부 통과(`uv run pytest`) · 런타임 재배포 대기(사용자 승인)** · 날짜: 2026-11-07 · 선행: `2026-11-07-weekly-cloud-schedule-delivery.md`(v70 LIVE) · 흐름도: `field-experiment/workflow.md`
+> 상태: **DEPLOYED · LIVE — runtime v71 READY(2026-11-07 05:15Z, 사용자 'yes') · 11-14 첫 자동 run 확인 대기(§5)** · 테스트 전부 통과(`uv run pytest`) · 날짜: 2026-11-07 · 선행: `2026-11-07-weekly-cloud-schedule-delivery.md`(v70 LIVE) · 흐름도: `field-experiment/workflow.md`
 > 승인: 11-07 "d." → "discard the 11-07. do the d and store the workflow to some md file".
 
 ## 1. 결정 (Decision)
@@ -41,7 +41,17 @@
 - 컨테이너에는 사용자 플러그인이 없어 빈 HOME 행과 같다 → (d) 의 그림 호출은 회당 ≈$0.15.
 - `--bare` 는 `_run_author` 가 넘기지 않아 저장소 변경이 필요(미착수). 금액은 CLI 의 Anthropic 정가 기준(앱 `cost_usd` 와 같은 계산) — Bedrock 청구와 다를 수 있다.
 
-## 4. 배포 runbook (승인 뒤)
+## 4. 배포 runbook — 실행 완료(11-07 05:13~05:15Z, main `e7af086`)
+
+| 확인 | 결과 |
+|---|---|
+| `deploy_runtime` | ✅ exit 0 · CodeBuild ARM64 1분 51초(BUILD 62s — 앞 레이어 캐시) · 분류기 거부 없음 |
+| 런타임 | ✅ **v71 READY** 05:15:17Z · env `WEEKLY_FIGURE=1` · `WEEKLY_AUTHOR_TIMEOUT_S=1200` · `WEEKLY_MAX_REVISIONS=1` |
+| 이미지 | ✅ ECR `20261107-051322-302` **811MB → 1,370MB(+558MB)** = Chromium + apt 라이브러리 + Noto CJK 가 실렸다 |
+| 컨테이너 기동 · 주간 경로 | ✅ v71 에 `weekly_send --dry-run --issue-date 2026-11-07` → async task 0.12s 완료(11-07 항목 `ready` · b64 없음 → 본문만) |
+| Chromium 실행 | ⏳ 11-14 06:00 build 가 첫 실측(§5) |
+
+원래 runbook:
 
 1. `uv run python -m briefing.runtime.deploy_runtime` — CodeBuild ARM64 이미지 빌드(Chromium + 글꼴로 이미지 ≈ +400MB, 빌드 시간 증가) → READY. `.env` 의 `WEEKLY_FIGURE=1` 이 이번부터 전달된다.
 2. 확인: `aws bedrock-agentcore-control get-agent-runtime --agent-runtime-id <id> --region us-east-1 --query '{v:agentRuntimeVersion,s:status}'` + 런타임 env 에 `WEEKLY_FIGURE` 가 있는지.
