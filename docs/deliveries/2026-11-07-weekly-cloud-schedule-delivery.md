@@ -1,6 +1,6 @@
 # Field Experiment 1-B — 클라우드 자동 스케줄 전달 기록 (Delivery Record)
 
-> 상태: **코드 완료 · 배포 대기** · 날짜: 2026-11-07 · 브랜치: `feat/weekly-cloud-schedule` `255f5d8` · 계획: `field-experiment/delivery-plan.md` §4 · §7-4 · §8
+> 상태: **코드 완료 · 배포 대기** · 날짜: 2026-11-07 · main `9458626`(`feat/weekly-cloud-schedule` ff-merge: `255f5d8` 코드 + `9458626` invoke CLI·문서) · 계획: `field-experiment/delivery-plan.md` §4 · §7-4 · §8
 > 승인: 11-07 "follow recommendation" — 계획과 다른 점 4개(①~④, 아래 §2)와 배포 순서까지.
 
 ## 1. 무엇을 전달했나 (Scope)
@@ -31,7 +31,7 @@
 순서가 중요하다: **runtime 먼저.** 구 런타임(v68)은 모르는 mode 를 `real` 로 흘려 전 사용자 브리핑을 돌린다(발송은 없지만 비용).
 
 ```bash
-# 0) 체크아웃이 feat/weekly-cloud-schedule(255f5d8) 이고 다른 세션 변경이 없는지
+# 0) 체크아웃이 main(9458626 이상) 이고 다른 세션의 미커밋 변경이 없는지 — deploy 는 작업 트리 src 를 그대로 싣는다
 git branch --show-current && git status --short
 # 1) runtime v69 — src/briefing 작업 트리를 그대로 싣는다 (05:00 KST 앞뒤 회피)
 uv run python -m briefing.runtime.deploy_runtime

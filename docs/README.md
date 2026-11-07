@@ -113,7 +113,7 @@
 | plans `2026-10-24-topic-grouping` | **실행 완료(Native, 2026-10-24)** — Task 0~8 커밋(areas 상수 → LABEL_MODEL_ID → top_picks LabelFn → render → pipeline → Bedrock 헬퍼+스모크 → 골든 평가 → 문서). Task 9 배포 = 사용자 확인 게이트 |
 | work_note `261030-improve-today-briefing` | **SHIPPED·LIVE**(main `3a3c2b1` origin 동기화 · runtime **v68** 2026-11-01 03:33Z — v66 01:36Z(#4b·#5·+a) → v67 02:37Z(+b) → v68(+d), ARN 불변) · 첫 run 검증 체크리스트 = `deliveries/2026-11-01-hub-gate-delivery.md`(11-02 05:00 KST) · 이전 = `deliveries/2026-10-30-top-picks-priority-delivery.md` — 10-30 브리핑 리뷰 문제 9건. #1 offsite 차단→경고만(`2b28b1a`, 오진 정정 포함) · #2 핵심 3 `launch` 정의 좁힘(10일 재생: 1티어 후보 58→33장·플래그십 유지·골든 89.3→87.8% 잡음; importance 하한·연구→other 기각) · #2b→#2c 우선순위 확정 ① 큰 발표 → ② AI Agents → ③ Applied AI(엄격) + Arel(큰 발표 importance 상대 비교; 10일 시뮬 5일/1일 변화) · #3·#4 수용(무변경) · #4b PTK 캡 5→4 · #5 한정어 그림자 검사 오탐 수정 · **+a Anthropic 허브 페이지 카드 발행 → 목록 관문(`exclude_paths`·`page_type`, `edbe30f`)** · #6·#7 정의 기록(md) · #8 스텁 노이즈 = +a 로 사실상 해소 · **+b anthropic-eng 0건 → `/research/` 접두 + 관문 + 0링크 경고(`a3464a4`, v67)** · **+d research 목록 부분 노출(red-team 4편 누락) → `listing_urls` 팀 페이지 5개(`3863083`, v68)** · #9·+c(Meta 날짜) 대기 |
 
-### field-experiment-1b (주간 Field Experiment 클라우드 자동 스케줄 — 토 06:00 build · 07:00 send KST) — 코드 완료 · 배포 대기 (브랜치 `feat/weekly-cloud-schedule` `255f5d8`, 2026-11-07)
+### field-experiment-1b (주간 Field Experiment 클라우드 자동 스케줄 — 토 06:00 build · 07:00 send KST) — 코드 완료 · 배포 대기 (main `9458626`, 2026-11-07)
 | 문서 | 상태 |
 |---|---|
 | `field-experiment/delivery-plan.md` §4 · §7-4 · §8 | **계획(11-03 승인) → §7-4 를 11-07 로 당겨 구현** — 데일리 이음매 3곳(Lambda mode · 런타임 분기 · 스케줄/표) + `runtime_env` WEEKLY 전달 + IAM `ListInferenceProfiles`. 계획과 다른 점 4개(send_html 생략 · 표 IAM 불필요/ListInferenceProfiles 필수 · FIGURE 미전달 · `briefing-` 접두) |
