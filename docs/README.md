@@ -121,12 +121,13 @@
 | deliveries `2026-11-07-weekly-figure-container-delivery` | **DEPLOYED · LIVE(runtime v72 · 이미지 811→1,370MB · 컨테이너 Chromium 첫 실측 ✅ 11-07 강제 run, 그림 포함 발송 06:08Z)** — (d) 컨테이너에 playwright 1.58 + Chromium + Noto CJK, `WEEKLY_FIGURE` 전달, PNG 를 표 `figure_png_b64` 로 send 세션에(상한 300K자 · 경로 폴백), `make_figure(timeout_s)`. 호스트 `claude -p` 플러그인 오버헤드 실측(도구 81 · 75K 토큰 · Opus 회당 ≈+$0.25) · 11-14 첫 run 체크리스트 |
 | `field-experiment/workflow.md` | 주간 기사 **ASCII 흐름도**(06:00 build → 그림 → 표 → 07:00 send, 세션 경계 · 상태 전이) — 사용자 요청(11-07) |
 
-### cited-rereport-dedup (이미 보낸 원문을 옮긴 재보도 빼기) — SHIPPED · LIVE (main `c074f4c` · runtime **v64** 2026-10-28 14:12Z) · 첫 run 검증 대기(10-29 05:00 KST, 체크리스트 = `deliveries/2026-10-28-cited-rereport-dedup-delivery.md`)
+### cited-rereport-dedup (이미 보낸 원문을 옮긴 재보도 빼기) — SHIPPED · LIVE (main `c074f4c` · runtime **v64** 2026-10-28 14:12Z) · 첫 run 검증 대기(10-29 05:00 KST, 체크리스트 = `deliveries/2026-10-28-cited-rereport-dedup-delivery.md`) · **2026-11-14 판정 답 순서 정정**(이유 먼저·값 나중 — 브랜치 `worktree-rereport-reason-first` · 미병합·미배포, 전달 기록 §6)
 | 문서 | 상태 |
 |---|---|
-| specs `2026-10-28-cited-rereport-dedup-design` | **SHIPPED** — ★판정자 thinking 켬(끄면 게이트 실패 36/39 — 재생 게이트에서 정정) · 본문 안·다른 사이트 인용 링크가 이미 보냈거나 오늘 보낼 기사를 가리키는 쌍만 Haiku 가 "같은 발표인가" 판정 → 재보도 제외. 7 run 실측 20만 쌍→12쌍→10 제외·2 유지. "새 정보 판정"은 0/12 로 실패(재제안 금지) |
-| plans `2026-10-28-cited-rereport-dedup` | **실행 완료(Native, 2026-10-28)** — 게이트 실제: 판정 13·제외 10·유지 3 · 최종 리뷰 Important 2 수정. 7 Task(cite_key → 본문 인용 키 → curate 전달 → Haiku 판정자 → drop_rereports+파이프라인 → 재생 게이트(7 run: 판정 12·제외 10·gitai/AAIF 유지) → 출하) |
+| specs `2026-10-28-cited-rereport-dedup-design` | **SHIPPED** — ★판정자 thinking 켬(끄면 게이트 실패 36/39 — 재생 게이트에서 정정) · ★2026-11-14: "켬"은 끄지 않는다는 뜻일 뿐(사고 블록은 호출의 ~30%)이고 응답 JSON 은 이유 먼저·값 나중으로 바뀌었다 — 스펙 §4.3 본문은 불변 역사, 현재 진실 = 전달 기록 §6 · 본문 안·다른 사이트 인용 링크가 이미 보냈거나 오늘 보낼 기사를 가리키는 쌍만 Haiku 가 "같은 발표인가" 판정 → 재보도 제외. 7 run 실측 20만 쌍→12쌍→10 제외·2 유지. "새 정보 판정"은 0/12 로 실패(재제안 금지) |
+| plans `2026-10-28-cited-rereport-dedup` | **실행 완료(Native, 2026-10-28)** — 게이트 실제: 판정 13·제외 10·유지 3 · 최종 리뷰 Important 2 수정. 7 Task(cite_key → 본문 인용 키 → curate 전달 → Haiku 판정자 → drop_rereports+파이프라인 → 재생 게이트(7 run: 판정 12·제외 10·gitai/AAIF 유지) → 출하) · ★2026-11-14 현재 게이트 = 판정 12·제외 9·유지 3(10-25 The Decoder 기사가 수정돼 1쌍 소멸 — 플랜의 `--expect-dropped 10` 은 그날 기록, 전달 기록 §6) |
 
-| deliveries `2026-10-28-cited-rereport-dedup-delivery` | **LIVE** — 배포 v64 · 원문 상한 20K(`37c6f22`, 다른 세션) 동반 배포 · 첫 run 체크리스트 |
+| deliveries `2026-10-28-cited-rereport-dedup-delivery` | **LIVE** — 배포 v64 · 원문 상한 20K(`37c6f22`, 다른 세션) 동반 배포 · 첫 run 체크리스트 · **§6 후속(2026-11-14)**: 이미 보낸 원문의 한국어 소개 글 2건을 놓침 → 판정 답 순서 정정(47쌍 실험 · 구현·검증 완료 · 미배포) |
+| work_note `Nov-2026/261114-duplicate-articles-7days` | 최근 7회 발송(11-07~11-13) 중복 점검 — 같은 기사 재발송 0 · 같은 발표를 다룬 다른 글 최소 4쌍 — 과 판정자 변형 실험의 도구·데이터. 결론은 전달 기록 §6 |
 
 > 색인 갱신 시점: 스펙/플랜/전달 기록이 생기거나 상태가 바뀔 때, 해당 커밋에서 함께.

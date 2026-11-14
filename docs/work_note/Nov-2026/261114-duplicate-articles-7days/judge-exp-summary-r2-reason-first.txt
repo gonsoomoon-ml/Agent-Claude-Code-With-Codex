@@ -1,0 +1,6 @@
+
+===== V1: 호출 151 · 오류 0 · 사고 블록 49/151 · 평균 출력 124토큰 · 평균 입력 6999 · max_tokens 잘림 0 · JSON 2개 이상 0 · JSON 없음 0
+  [first JSON] 정답 145/145 · dropped/제외 54/54 · gate/유지 9/9 · gate/제외 27/27 · sent/유지 45/45 · sent/제외 10/10 · 흔들린 쌍 0
+  [last JSON] 정답 145/145 · dropped/제외 54/54 · gate/유지 9/9 · gate/제외 27/27 · sent/유지 45/45 · sent/제외 10/10 · 흔들린 쌍 0
+     (경계) ['T', 'T', 'T'] 'Mistral Large 4 가중치 공개: 토큰을 절반 가량 적게 쓰면서 GLM-5' ← 'Welcome Le Chonk: Mistral Large 4 '
+     (경계) ['T', 'F', 'F'] 'Introducing Gemini 4 Hydrogen' ← 'Google Search gets a major upgrade'

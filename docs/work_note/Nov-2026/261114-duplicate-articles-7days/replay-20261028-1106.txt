@@ -1,0 +1,39 @@
+user=445814b8… model=global.anthropic.claude-haiku-5-5 rows=2424
+2026-10-28: 생존자 21 · 인용 키 있는 기사 20 · 판정 0 · 제외 0
+2026-10-29: 생존자 24 · 인용 키 있는 기사 23 · 판정 1 · 제외 0
+2026-10-30: 생존자 14 · 인용 키 있는 기사 12 · 판정 3 · 제외 0
+2026-10-31: 생존자 8 · 인용 키 있는 기사 8 · 판정 0 · 제외 0
+2026-11-01: 생존자 8 · 인용 키 있는 기사 8 · 판정 0 · 제외 0
+2026-11-02: 생존자 18 · 인용 키 있는 기사 18 · 판정 2 · 제외 0
+2026-11-03: 생존자 24 · 인용 키 있는 기사 24 · 판정 1 · 제외 0
+2026-11-04: 생존자 17 · 인용 키 있는 기사 16 · 판정 0 · 제외 0
+2026-11-05: 생존자 15 · 인용 키 있는 기사 14 · 판정 1 · 제외 0
+2026-11-06: 생존자 23 · 인용 키 있는 기사 20 · 판정 0 · 제외 0
+
+2026-10-29 KEEP PyTorch Korea 읽을 'OpenDuet: 내 서버와 원하는 모델로 운영하는, Claude Duet 같은 선제적 업무 에이전트'
+                ← Claude Blog 'Introducing Claude Duet'
+                  Article B is mainly about OpenDuet, an independent open-source project by CopilotKit, and only compares it with Claude Duet from Article A a
+2026-10-30 KEEP Google Cloud AI  'What’s new in AI infrastructure and orchestration in October'
+                ← Google Developer 'ML Drift: Next-Gen GPU AI/ML Inference at the Edge'
+                  B is a monthly roundup of many Google Cloud AI infrastructure updates, and ML Drift is only one brief item among many equal items, not its m
+2026-10-30 KEEP Google Cloud AI  'What’s new in AI infrastructure and orchestration in October'
+                ← Google Developer 'Scaling AI Agent Infrastructure with the MCP Stateless u'
+                  Article B is a monthly roundup of Google Cloud AI infrastructure news covering many unrelated products and updates, and it only links to Art
+2026-10-30 KEEP Google Cloud AI  'What’s new in AI infrastructure and orchestration in October'
+                ← Google Developer 'Scaling real-time AI agents with session-aware load bala'
+                  B is a monthly roundup of Google Cloud AI infrastructure launches and updates, and it mentions neither the real-time AI load-balancing artic
+2026-11-02 KEEP Google AI (The K 'The latest AI news we announced in October 2026'
+                ← Google DeepMind 'Beyond tree cover: mapping the world’s forest types'
+                  Article B is a monthly roundup of many Google AI announcements, and it mentions the forest-type map (ForTy) only in passing as one item amon
+2026-11-02 KEEP Google AI (The K 'The latest AI news we announced in October 2026'
+                ← Google DeepMind 'Genie 4: A new generation of world simulation'
+                  Article B is a monthly AI news roundup covering many separate announcements (Gemini 4 Carbon, Fitbit Edge, SynthID, quantum computing, etc.)
+2026-11-03 KEEP PyTorch Korea 읽을 'Mistral Large 4 가중치 공개: 토큰을 절반 가량 적게 쓰면서 GLM-5.3과 비슷한 코딩 성능을'
+                ← Hugging Face Blo 'Welcome Le Chonk: Mistral Large 4 on Hugging Face'
+                  B is a Korean write-up whose main subject is the later open-weight release of Mistral Large 4 on Oct 29, including the post-preview RL check
+2026-11-05 KEEP PyTorch Korea 읽을 '특정 프레임워크에서 모델이 버그없이 동작하는지를 확인하기 위한 Transformers 모델 통합 계약(MIC'
+                ← Hugging Face Blo 'Transformers Model Integration Contracts'
+                  B is a Korean write-up that uses the MIC article as its main subject, but it is a broader explainer that adds extensive outside-sourced deta
+
+판정한 쌍 8 · 제외 0
+PASS

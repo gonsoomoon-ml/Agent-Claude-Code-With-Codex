@@ -1,0 +1,48 @@
+user=445814b8… model=global.anthropic.claude-haiku-5-5 rows=2424
+2026-10-21: 생존자 21 · 인용 키 있는 기사 18 · 판정 3 · 제외 2
+2026-10-22: 생존자 23 · 인용 키 있는 기사 21 · 판정 2 · 제외 2
+2026-10-23: 생존자 24 · 인용 키 있는 기사 23 · 판정 3 · 제외 2
+2026-10-24: 생존자 7 · 인용 키 있는 기사 7 · 판정 0 · 제외 0
+2026-10-25: 생존자 9 · 인용 키 있는 기사 9 · 판정 0 · 제외 0
+2026-10-26: 생존자 18 · 인용 키 있는 기사 16 · 판정 2 · 제외 1
+2026-10-27: 생존자 23 · 인용 키 있는 기사 21 · 판정 2 · 제외 2
+
+2026-10-21 KEEP PyTorch Korea 읽을 'gitai: 한 브랜치에 몰린 코딩 에이전트들의 변경을 서버가 대신 rebase해 반영하는 Git 서버 (A'
+                ← Anthropic Engine 'Redesigning source control at Anthropic'
+                  B is a Korean write-up whose main subject is the gitai open-source project, an unofficial implementation inspired by Anthropic's Scion; A is
+2026-10-21 DROP The Decoder      'Claude Science tackles deadly scorpion stings by designing p'
+                ← Anthropic Resear 'How Claude designed protein binders against scorpion neu'
+                  Article B's main subject is the same scorpion-neurotoxin protein-binder design campaign and its lab results (211 designs, 17 hits) reported 
+2026-10-21 DROP The Decoder      'Google Cloud now offers OpenAI models alongside Gemini and C'
+                ← Google Cloud AI  'Google Cloud expands model choice and flexibility, bring'
+                  Article B's main news is the same announcement that Google Cloud is adding OpenAI models to its model garden, with the details summarized an
+2026-10-22 DROP PyTorch Korea 읽을 '다음 주 출시되는 PyTorch 2.15부터 Mac GPU 지원 강화: MPS 백엔드의 FP8 지원 및 Mo'
+                ← Hugging Face Blo 'MPS in PyTorch 2.15'
+                  B is a Korean write-up that translates and summarizes A (the PyTorch 2.15 MPS announcement), adding context, benchmarks, and commentary on t
+2026-10-22 DROP The Decoder      "Anthropic takes on Grok Bot, Meta's Muse, and OpenAI's Dots "
+                ← Claude Blog 'Introducing Claude Duet'
+                  Article B's main news is Anthropic's Claude Duet research preview, the same announcement as Article A, with added competitor context, limita
+2026-10-23 DROP PyTorch Korea 읽을 'AWS, Trainium을 CUDA처럼 PyTorch 장치로 쓰는 네이티브 백엔드 TorchNeuron 공개'
+                ← Hugging Face Blo 'TorchNeuron: running HF models on AWS Trainium is easier'
+                  Article B is a Korean write-up that covers the same TorchNeuron announcement as Article A, summarizing it and adding details, comparisons, a
+2026-10-23 KEEP PyTorch Korea 읽을 'AAIF에 Agent Skills, Open Responses, OpenEnv, OpenSandbox 합류해'
+                ← Anthropic News 'Donating Agent Skills to the Agentic AI Foundation'
+                  B's main news is the AAIF announcement of four new projects (Agent Skills, Open Responses, OpenEnv, OpenSandbox), so A's Agent Skills donati
+2026-10-23 DROP The Decoder      'Anthropic says its unreleased model is both more capable and'
+                ← Anthropic Resear 'An alignment assessment of the UK AISI cybertesting inci'
+                  Article B reports on the same Anthropic analysis of the Mythos 5 AISI CTF incident, covering its findings about the 9 runs and the replay re
+2026-10-26 DROP PyTorch Korea 읽을 'Anthropic, Agent Skills 표준을 AAIF에 기증: SKILL.md는 그대로, 배포와 보안은'
+                ← Anthropic News 'Donating Agent Skills to the Agentic AI Foundation'
+                  Article B is a Korean write-up whose main news is Anthropic's donation of the Agent Skills standard to AAIF, the same announcement as Articl
+2026-10-26 KEEP Google AI (The K 'Our newest AI Quest: Mapping the human brain'
+                ← Google Research 'A connectomics milestone: Mapping the complete male frui'
+                  Article B's main news is the launch of the educational AI Quests game "Polar Peaks"; the fruit fly connectome from Article A is only cited a
+2026-10-27 DROP PyTorch Korea 읽을 'ThinkingBox-Training 공개: DB 상태 채점 시 강화 학습 보상으로 매번 성공하는 과제 수를'
+                ← Hugging Face Blo 'Turning Database Grading into RL Rewards: Post-Training '
+                  B is a Korean translation and summary of A's ThinkingBox-Training blog post, covering the same results, training setup, and benchmark findin
+2026-10-27 DROP The Decoder      "Google Deepmind's Genie 4 puts a modern spin on agent design"
+                ← Google DeepMind 'Genie 4: A new generation of world simulation'
+                  B is a news write-up whose main subject is Genie 4's announcement, covering its features, testers, limitations and rollout, which matches A'
+
+판정한 쌍 12 · 제외 9
+PASS

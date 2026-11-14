@@ -1,0 +1,42 @@
+user=445814b8… model=global.anthropic.claude-haiku-5-5 rows=2424
+2026-11-07: 생존자 8 · 인용 키 있는 기사 8 · 판정 1 · 제외 0
+2026-11-08: 생존자 5 · 인용 키 있는 기사 5 · 판정 0 · 제외 0
+2026-11-09: 생존자 22 · 인용 키 있는 기사 20 · 판정 2 · 제외 0
+2026-11-10: 생존자 30 · 인용 키 있는 기사 26 · 판정 3 · 제외 0
+2026-11-11: 생존자 24 · 인용 키 있는 기사 23 · 판정 3 · 제외 0
+2026-11-12: 생존자 21 · 인용 키 있는 기사 18 · 판정 0 · 제외 0
+2026-11-13: 생존자 19 · 인용 키 있는 기사 18 · 판정 1 · 제외 0
+
+2026-11-07 KEEP Anthropic Engine 'The components of agent memory'
+                ← Google Research 'The sleep framework: A new way for LLMs to retain knowle'
+                  Article B is about Anthropic's approach to agent memory with Claude (including CL-Bench and Pokémon evaluations), while Article A is Google 
+2026-11-09 KEEP PyTorch Korea 읽을 'METR의 Anthropic 내부 AI R&D 가속 평가: 능력 향상 속도 약 2배, 핵심 근거는 비공개'
+                ← Anthropic News 'Anthropic update on independent evaluators'
+                  B's main subject is METR's separate report on Anthropic's AI R&D acceleration (a different evaluation with its own findings), and A's announ
+2026-11-09 KEEP PyTorch Korea 읽을 '에이전트 메모리, 많이 저장하기보다 검증하고 다시 정리하기 (feat. Anthropic)'
+                ← Anthropic Engine 'The components of agent memory'
+                  Article B is a Korean write-up of the Anthropic agent memory piece, so it does cover A's content, but it's a broad overview of the memory co
+2026-11-10 KEEP Claude Developer 'Which Claude model should you build with? Fable, Opus, Sonne'
+                ← Claude Blog 'Coding sessions are longer and use more context. Claude '
+                  Article B is a model-selection guide covering the whole Claude lineup (Haiku, Sonnet, Opus, Fable) and effort levels, using Article A's Opus
+2026-11-10 KEEP Claude Developer 'Which Claude model should you build with? Fable, Opus, Sonne'
+                ← Claude Blog 'Building agents: When to fold subagents into your main a'
+                  Article B is a guide to choosing Claude models, pricing, and effort levels, and it only briefly links back to A's subagent-folding announcem
+2026-11-10 KEEP Google Research  "Exploring the world's languages with Language Explorer"
+                ← Google AI (The K 'AI for everyone in every language'
+                  B's main news is a Berlin museum exhibition featuring the Language Explorer, which is only one of many items in A's broad multilingual AI po
+2026-11-11 KEEP PyTorch Korea 읽을 'Anthropic, Claude Fable 5.2와 Mythos 5.2 출시: 가격 인하와 최대 30% 빠른'
+                ← Anthropic Resear 'Claude can design electronic prototypes from start to fi'
+                  Article B is a Korean write-up of Anthropic's Claude Fable 5.2 and Mythos 5.2 launch (pricing, benchmarks, cybersecurity), not a report on t
+2026-11-11 KEEP PyTorch Korea 읽을 'Anthropic, Claude Fable 5.2와 Mythos 5.2 출시: 가격 인하와 최대 30% 빠른'
+                ← Claude Blog 'Claude Security now scans continuously and tracks fixes'
+                  Article B is about the Claude Fable 5.2 and Mythos 5.2 model launch, while Article A is about the Claude Security product's continuous scann
+2026-11-11 KEEP PyTorch Korea 읽을 'Anthropic, Claude Fable 5.2와 Mythos 5.2 출시: 가격 인하와 최대 30% 빠른'
+                ← Claude Developer 'Safely scaling multi-agent teams with Claude Fable 5.2'
+                  B's main subject is the Claude Fable 5.2 and Mythos 5.2 launch (pricing, benchmarks, coding, cybersecurity), and the Fermat's Last Theorem e
+2026-11-13 KEEP Claude Blog      'Building always-on agents'
+                ← Anthropic Engine 'The components of agent memory'
+                  Article B's main subject is a guide to always-on agent architecture (event inbox, timers, memory, outbox), and it mentions dreaming only in 
+
+판정한 쌍 10 · 제외 0
+PASS

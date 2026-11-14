@@ -1,0 +1,53 @@
+== 1) sent-log ==
+2026-11-07: 8건 status={'sent': 7, None: 1} published=[0, 8, 8, 8, 8, 8, 8, 8]
+2026-11-08: 7건 status={'sent': 7} published=[5, 5, 5, 5, 5, 5, 5]
+2026-11-09: 7건 status={'sent': 7} published=[22, 22, 22, 22, 22, 22, 22]
+2026-11-10: 7건 status={'sent': 7} published=[30, 30, 30, 30, 30, 30, 30]
+2026-11-11: 7건 status={'sent': 7} published=[24, 24, 24, 24, 24, 24, 24]
+2026-11-12: 7건 status={'sent': 7} published=[21, 21, 21, 21, 21, 21, 21]
+2026-11-13: 7건 status={'sent': 7} published=[19, 19, 19, 19, 19, 19, 19]
+
+원장 발송 행(PUBLISH+QUARANTINE, 전 기간): 8019
+
+== 2) 신원 중복(같은 사용자·같은 기사 두 번, 90일 안) ==
+중복 0장
+
+== 2b) 같은 run 안 같은 기사(사용자별) ==
+같은 run 중복 키 0
+
+== 3) CloudWatch ==
+-- "pipeline rereport": 168줄
+  11-07 x7  재보도 제외 — NVIDIA, 행동과 제어 입력에 반응해 다음 장면을 생성하는 Cosmos 3 월드 시뮬레 ← New NVIDIA Cosmos 3 Open Models for Interactive Wo (B is a Korean write-up that covers the same NVIDIA Cosmos 3 Nano open checkpoint)
+  11-07 x7  재보도 제외 — NVIDIA, 행동과 제어 입력에 반응해 다음 장면을 생성하는 Cosmos 3 월드 시뮬레 ← New NVIDIA Cosmos 3 Open Models for Interactive Wo (B is a Korean write-up that covers the same NVIDIA Cosmos 3 Nano open checkpoint)","attributes":{"otelSpanID":"9e7d6
+  11-08 x7  재보도 제외 — NVIDIA, 행동과 제어 입력에 반응해 다음 장면을 생성하는 Cosmos 3 월드 시뮬레 ← New NVIDIA Cosmos 3 Open Models for Interactive Wo (Article B is a Korean write-up whose main subject is the same NVIDIA Cosmos3-Nan)
+  11-08 x7  재보도 제외 — NVIDIA, 행동과 제어 입력에 반응해 다음 장면을 생성하는 Cosmos 3 월드 시뮬레 ← New NVIDIA Cosmos 3 Open Models for Interactive Wo (Article B is a Korean write-up whose main subject is the same NVIDIA Cosmos3-Nan)","attributes":{"otelSpanID":"89ec5
+  11-09 x7  재보도 제외 — Anthropic, 과학 연구 세션 20만건 분석 보고서: AI를 통한 과학 연구가 가속  ← How scientists use Claude (Article B is a Korean write-up that summarizes and translates the same Anthropic)
+  11-09 x7  재보도 제외 — Anthropic, 과학 연구 세션 20만건 분석 보고서: AI를 통한 과학 연구가 가속  ← How scientists use Claude (Article B is a Korean write-up that summarizes and translates the same Anthropic)","attributes":{"otelSpanID":"17183051f38cc048","otelTraceID
+  11-09 x7  재보도 제외 — Meta launches Muse Ember, a small AI model built f ← Introducing Our Smallest, Most Efficient Model: Mu (Article B's main subject is the launch of Muse Ember, the same model announced i)
+  11-09 x7  재보도 제외 — Meta launches Muse Ember, a small AI model built f ← Introducing Our Smallest, Most Efficient Model: Mu (Article B's main subject is the launch of Muse Ember, the same model announced i)","attributes":{"otelSpanID":"17183
+  11-10 x7  재보도 제외 — Google Cloud launches Gemini for healthcare. ← Introducing Gemini for healthcare (Article B is a summary of the same Gemini for healthcare announcement covered in)
+  11-10 x7  재보도 제외 — Google Cloud launches Gemini for healthcare. ← Introducing Gemini for healthcare (Article B is a summary of the same Gemini for healthcare announcement covered in)","attributes":{"otelSpanID":"3acbc218edf7c826","otelTrace
+  11-10 x7  재보도 제외 — ToyBlocks: AllenAI가 공개한, 블록 조작으로 로봇 학습의 실패 원인을 분석하 ← ToyBlocks: A controlled world for robot learning a (B is a Korean write-up whose main subject is the ToyBlocks/FoundationWorlds anno)
+  11-10 x7  재보도 제외 — ToyBlocks: AllenAI가 공개한, 블록 조작으로 로봇 학습의 실패 원인을 분석하 ← ToyBlocks: A controlled world for robot learning a (B is a Korean write-up whose main subject is the ToyBlocks/FoundationWorlds anno)","attributes":{"otelSpanID":"3acbc
+  11-11 x7  재보도 제외 — Google Deepmind's AlphaProof Code verified Signal' ← Introducing AlphaProof Code: a breakthrough in ver (Article B's main subject is the same AlphaProof Code verification of Signal's cr)
+  11-11 x7  재보도 제외 — Google Deepmind's AlphaProof Code verified Signal' ← Introducing AlphaProof Code: a breakthrough in ver (Article B's main subject is the same AlphaProof Code verification of Signal's cr)","attributes":{"otelSpanID":"201cd
+  11-12 x7  재보도 제외 — BotPsy: 2B 모델보다 도구 사용 성능이 뛰어난, Qwen3.5-0.8B 기반 On- ← BotPsy: On-Device Personal Assistant with a Sub-Bi (B is a Korean write-up whose main subject is the BotPsy announcement described i)
+  11-12 x7  재보도 제외 — BotPsy: 2B 모델보다 도구 사용 성능이 뛰어난, Qwen3.5-0.8B 기반 On- ← BotPsy: On-Device Personal Assistant with a Sub-Bi (B is a Korean write-up whose main subject is the BotPsy announcement described i)","attributes":{"otelSpanID":"cc8cb
+  11-12 x7  재보도 제외 — Google Deepmind shifts genomics AI from bulk tissu ← AlphaGenome 2: Deciphering how cells read DNA to b (Article B's main subject is the AlphaGenome 2 announcement itself, summarizing a)
+  11-12 x7  재보도 제외 — Google Deepmind shifts genomics AI from bulk tissu ← AlphaGenome 2: Deciphering how cells read DNA to b (Article B's main subject is the AlphaGenome 2 announcement itself, summarizing a)","attributes":{"otelSpanID":"cc8cb
+  11-12 x7  재보도 제외 — Google joins the decision-model wave with Gemini D ← Gemini Decisions API: Fast, calibrated multimodal  (B's main subject is the Gemini Decisions API and Gemini Decision 1 announcement )
+  11-12 x7  재보도 제외 — Google joins the decision-model wave with Gemini D ← Gemini Decisions API: Fast, calibrated multimodal  (B's main subject is the Gemini Decisions API and Gemini Decision 1 announcement )","attributes":{"otelSpanID":"cc8cb
+  11-12 x7  재보도 제외 — Introducing Gemini 4 Hydrogen ← Google Search gets a major upgrade with Gemini 4 H (Both articles cover the same Gemini 4 Hydrogen launch, and B's main news is that)
+  11-12 x7  재보도 제외 — Introducing Gemini 4 Hydrogen ← Google Search gets a major upgrade with Gemini 4 H (Both articles cover the same Gemini 4 Hydrogen launch, and B's main news is that)","attributes":{"otelSpanID":"cc8cb02b37040054","otelTra
+  11-13 x7  재보도 제외 — Google, 에이전트가 텍스트 대신 네이티브 화면으로 답하게 하는 생성형 UI 프로토콜  ← A2UI 1.0: Build delightful, fast, reliable, agenti (Article B's main subject is the A2UI 1.0 release that Article A announces, which)
+  11-13 x7  재보도 제외 — Google, 에이전트가 텍스트 대신 네이티브 화면으로 답하게 하는 생성형 UI 프로토콜  ← A2UI 1.0: Build delightful, fast, reliable, agenti (Article B's main subject is the A2UI 1.0 release that Article A announces, which)","attributes":{"otelSpanID":"4d4f5
+-- "pipeline dedup": 42줄
+  11-10 x7  url 키 일치 — 이전 발행 기사 제외: Introducing Our Smallest, Most Efficient Model: Mu
+  11-10 x7  url 키 일치 — 이전 발행 기사 제외: Introducing Our Smallest, Most Efficient Model: Mu","attributes":{"otelSpanID":"3acbc218edf7c826","otelTraceID":"6af377f27185957217ae2a71012d6095","otelTraceSampled":false,"otelServiceName":"briefing_agent"
+  11-11 x7  url 키 일치 — 이전 발행 기사 제외: Claude Whiteboards, Claude Sheets, and Claude Data
+  11-11 x7  url 키 일치 — 이전 발행 기사 제외: Claude Whiteboards, Claude Sheets, and Claude Data","attributes":{"otelSpanID":"201cd996c7c10e95","otelTraceID":"6af4c9725132d0295a047d945847872a","otelTraceSampled":false,"otelServiceName":"briefing_agent"
+  11-11 x7  url 키 일치 — 이전 발행 기사 제외: Decision Models in Hugging Face
+  11-11 x7  url 키 일치 — 이전 발행 기사 제외: Decision Models in Hugging Face","attributes":{"otelSpanID":"201cd996c7c10e95","otelTraceID":"6af4c9725132d0295a047d945847872a","otelTraceSampled":false,"otelServiceName":"briefing_agent","code.file.path":"
+
+== 4) 관리자 카드 덤프 ==
+관리자 카드 129장 → <출력 폴더>/cards.tsv | 날짜별 {'2026-11-07': 8, '2026-11-08': 5, '2026-11-09': 22, '2026-11-10': 30, '2026-11-11': 24, '2026-11-12': 21, '2026-11-13': 19}
