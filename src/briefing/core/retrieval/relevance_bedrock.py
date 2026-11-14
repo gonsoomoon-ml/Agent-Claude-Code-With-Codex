@@ -106,15 +106,17 @@ def make_bedrock_select(settings: Settings) -> SelectFn:
     return lambda articles, k: llm_select(articles, k, invoke=_invoke)
 
 
-REREPORT_MAX_TOKENS = 1500   # 재보도 판정 상한 — thinking(기본 켬) 사고분 + JSON 한 줄. 실측 출력 평균 ~120 토큰
+REREPORT_MAX_TOKENS = 1500   # 재보도 판정 상한 — 사고분(모델이 필요할 때만 쓴다) + JSON 한 줄. 실측 출력 평균 ~120 토큰
 
 
 def make_bedrock_rereport(settings: Settings) -> RereportFn:
     """settings → (a_text, b_text)->재보도 판정(2026-10-28). 모델 = RELEVANCE_MODEL_ID(Haiku 5.5).
 
-    ★ `_converse_text`(thinking disabled)를 쓰지 않는다 — 재생 게이트 실측: thinking 을 끄면 경계 쌍(AAIF 기증 한국어
-      심층 글)을 3/3 놓치고 run 간 제외 수가 흔들렸다(9→8). thinking 기본(켬)·1500 토큰은 13쌍×3회 39/39·흔들림 0.
+    ★ `_converse_text`(thinking disabled)를 쓰지 않는다 — 재생 게이트 실측(2026-10-28): thinking 을 끄면 경계 쌍(AAIF 기증
+      한국어 심층 글)을 3/3 놓치고 run 간 제외 수가 흔들렸다(9→8). 끄지 않은 설정·1500 토큰은 그 13쌍×3회 39/39.
       관련성·선별 판정자는 그대로 thinking 을 끈다(2026-10-17 함정) — 판정 난이도가 다르다.
+    ★ "끄지 않는다" ≠ "항상 사고한다"(2026-11-14 실측): Haiku 5.5 는 필요할 때만 사고해 104회 호출 중 사고 블록은 31회였다.
+      그래서 답 형식이 중요하다 — 이유 먼저·값 나중(`rereport.REREPORT_SYSTEM` 주석). effort=high 는 흔들려서 기각.
     텍스트 블록이 없으면(사고에 토큰 소진) "" → llm_rereport 가 same=None(fail-open). 호출은 인용 쌍만(하루 ~2회).
     """
     client = _client(settings.region)

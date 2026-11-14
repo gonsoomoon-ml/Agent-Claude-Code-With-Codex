@@ -24,7 +24,11 @@ SAME (answer true): B covers A's announcement/finding/release as its main news �
 DIFFERENT (answer false): B's main subject is something else — a different product, project, release or event —
 and A is only cited as background, inspiration, or one item among several equal items.
 
-Answer only JSON: {"same": true|false, "reason": "<one short sentence>"}"""
+Answer only JSON: {"reason": "<one short sentence>", "same": true|false}"""
+# ★ 답 형식은 이유 먼저·값 나중(2026-11-14). 값을 먼저 쓰게 하면 판정자가 따져 보기 전에 `false` 를 쓰고 이유 문장에서
+#   반대 결론("A 의 한국어 소개")에 닿는다 — 사고 블록은 호출의 ~30% 에서만 나온다(effort 기본). 실측(정답 붙인 47쌍):
+#   same 먼저 = 이미 보낸 원문의 한국어 소개 2쌍 0/10, reason 먼저 = 20/20 · 나머지 45쌍 225/225 · 흔들림 0.
+#   버린 대안: effort=high(8/10, 흔들림) · 본문 20K(기존 제외 1건 깨짐) · 마지막 JSON 읽기(4/10).
 
 
 class RereportVerdict(NamedTuple):

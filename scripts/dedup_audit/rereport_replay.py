@@ -6,9 +6,12 @@ run_date 마다: 그 사용자가 실제로 받은 기사(PUBLISH·QUARANTINE)�
 drop_rereports(파이프라인과 같은 코드)를 돌려 판정한 쌍·제외 목록을 출력한다. 기대값과 다르면 종료코드 1.
 
     uv run python scripts/dedup_audit/rereport_replay.py --user-prefix 445814b8 \\
-        --since 2026-10-21 --until 2026-10-27 --expect-dropped 10 \\
+        --since 2026-10-21 --until 2026-10-27 --expect-dropped 9 \\
         --expect-kept-title gitai --expect-kept-title "AAIF에 Agent Skills"
 
+★ 기대값은 페이지가 바뀌면 달라진다 — 기사 페이지를 매번 다시 받기 때문이다. 2026-10-28 에는 판정 13·제외 10 이었고,
+  2026-11-14 부터는 판정 12·제외 9 다(10-25 The Decoder 기사가 수정돼 본문에 원문 링크가 없어졌다 — 코드와 무관).
+  수가 어긋나면 날짜별 "판정 N" 줄에서 어느 날 쌍이 사라졌는지부터 본다.
 판정자는 temperature 를 고정할 수 없다(Haiku 5.5 거부) — 1건 차이는 1회 재실행, 같은 쌍이 또 갈리면 프롬프트를 의심.
 설계: docs/superpowers/specs/2026-10-28-cited-rereport-dedup-design.md §7
 """
