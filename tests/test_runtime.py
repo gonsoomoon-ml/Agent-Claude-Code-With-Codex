@@ -460,11 +460,16 @@ def test_images_to_delete_returns_none_when_the_in_use_image_cannot_be_identifie
     assert images_to_delete(images, "") is None
 
 
-def test_prune_does_nothing_when_disabled():
-    """꺼져 있으면 AWS 를 부르지 않는다(client 가 없어도 통과)."""
+def test_prune_does_nothing_when_disabled(capsys):
+    """꺼져 있으면 조회도 삭제도 출력도 없다 — 이 가드가 옛 이미지가 쌓인 계정을 지킨다.
+    (오류는 prune 안에서 삼켜지므로 '예외가 안 났다' 로는 못 잡는다 → fake 의 호출 기록으로 확인)"""
     from briefing.runtime.deploy_runtime import prune_old_images
 
-    prune_old_images(_result(), "us-east-1", {}, control=None, ecr=None)
+    for env in ({}, {"BRIEFING_ECR_KEEP_LATEST": "0"}, {"BRIEFING_ECR_KEEP_LATEST": ""}):
+        ecr = _FakeEcr([_img("a", "t1"), _img("b", "t2"), _img("c", "t3")])
+        prune_old_images(_result(), "us-east-1", env, control=_FakeControl(), ecr=ecr)
+        assert ecr.deletes == [] and ecr.describe_kw is None
+    assert capsys.readouterr().out == ""
 
 
 def test_prune_deletes_everything_but_the_in_use_image(capsys):
