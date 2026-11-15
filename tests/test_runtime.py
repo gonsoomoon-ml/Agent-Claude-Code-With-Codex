@@ -368,3 +368,169 @@ def test_configure_kwargs_disable_otel_follows_the_observability_setting():
     assert on["disable_otel"] is False and off["disable_otel"] is True
     assert on["agent_name"] == off["agent_name"] == AGENT_NAME and off["region"] == "us-east-1"
     assert off["auto_create_execution_role"] is True and off["auto_create_ecr"] is True
+
+
+# ───────────────────────── ECR 이미지 1개만 유지 — `.env` BRIEFING_ECR_KEEP_LATEST (2026-11-14 결정 3) ─────────────────────────
+
+_REG = "111122223333"
+_REPO = "bedrock-agentcore-briefing_agent"
+_URI = f"{_REG}.dkr.ecr.us-east-1.amazonaws.com/{_REPO}"
+
+
+def _img(digest: str, *tags: str, size: int = 1_000) -> dict:
+    d = {"imageDigest": f"sha256:{digest}", "imageSizeInBytes": size}
+    if tags:
+        d["imageTags"] = list(tags)
+    return d
+
+
+class _FakeControl:
+    def __init__(self, *, uri=f"{_URI}:t2", version="2", live="2", ep_status="READY"):
+        self.rt = {"status": "READY", "agentRuntimeVersion": version,
+                   "agentRuntimeArtifact": {"containerConfiguration": {"containerUri": uri}}}
+        self.ep = {"status": ep_status, "liveVersion": live}
+
+    def get_agent_runtime(self, **kw):
+        return self.rt
+
+    def get_agent_runtime_endpoint(self, **kw):
+        assert kw["endpointName"] == "DEFAULT"
+        return self.ep
+
+
+class _FakeEcr:
+    def __init__(self, images, *, failures=(), describe_error=None):
+        self.images, self.failures, self.describe_error = list(images), list(failures), describe_error
+        self.describe_kw, self.deletes = None, []
+
+    def get_paginator(self, name):
+        assert name == "describe_images"
+        return self
+
+    def paginate(self, **kw):
+        if self.describe_error:
+            raise self.describe_error
+        self.describe_kw = kw
+        half = len(self.images) // 2          # 두 페이지로 나눠 준다 — 첫 페이지만 보는 구현을 잡는다
+        return [{"imageDetails": self.images[:half]}, {"imageDetails": self.images[half:]}]
+
+    def batch_delete_image(self, **kw):
+        self.deletes.append(kw)
+        failed = {f["imageId"]["imageDigest"] for f in self.failures}
+        return {"imageIds": [i for i in kw["imageIds"] if i["imageDigest"] not in failed],
+                "failures": [f for f in self.failures if f["imageId"] in kw["imageIds"]]}
+
+
+def _result():
+    import types
+    return types.SimpleNamespace(agent_id="briefing_agent-abc")
+
+
+def test_ecr_keep_latest_is_off_by_default():
+    """설정이 없으면 아무것도 지우지 않는다 — 옛 이미지가 쌓인 계정에서 실수로 지우지 않게 opt-in."""
+    from briefing.runtime.deploy_runtime import ecr_keep_latest_enabled
+
+    assert ecr_keep_latest_enabled({}) is False and ecr_keep_latest_enabled({"BRIEFING_ECR_KEEP_LATEST": "0"}) is False
+    assert all(ecr_keep_latest_enabled({"BRIEFING_ECR_KEEP_LATEST": v}) for v in ("1", "true", " ON "))
+
+
+def test_images_to_delete_keeps_the_image_the_runtime_uses_not_the_newest_push():
+    """남기는 기준 = 런타임이 쓰는 이미지. 배포가 실패하면 가장 최근 push(t3)는 안 쓰는 이미지다."""
+    from briefing.runtime.deploy_runtime import images_to_delete
+
+    images = [_img("a", "t1"), _img("b", "t2", "extra"), _img("c", "t3"), _img("d")]   # d = tag 없는 이미지
+    assert images_to_delete(images, f"{_URI}:t2") == [
+        {"imageDigest": "sha256:a"}, {"imageDigest": "sha256:c"}, {"imageDigest": "sha256:d"}]
+
+
+def test_images_to_delete_is_empty_when_only_the_in_use_image_exists():
+    from briefing.runtime.deploy_runtime import images_to_delete
+
+    assert images_to_delete([_img("b", "t2")], f"{_URI}:t2") == []
+
+
+def test_images_to_delete_returns_none_when_the_in_use_image_cannot_be_identified():
+    """쓰는 이미지를 정확히 짚지 못하면 None — 호출자는 아무것도 지우지 않는다(빈 목록과 구분)."""
+    from briefing.runtime.deploy_runtime import images_to_delete
+
+    images = [_img("a", "t1"), _img("b", "t2")]
+    assert images_to_delete(images, f"{_URI}:gone") is None          # 그 tag 가 저장소에 없다
+    assert images_to_delete(images, f"{_URI}@sha256:b") is None      # digest 형식 URI 는 해석하지 않는다
+    assert images_to_delete(images, _URI) is None                    # tag 가 없다
+    assert images_to_delete(images, "") is None
+
+
+def test_prune_does_nothing_when_disabled():
+    """꺼져 있으면 AWS 를 부르지 않는다(client 가 없어도 통과)."""
+    from briefing.runtime.deploy_runtime import prune_old_images
+
+    prune_old_images(_result(), "us-east-1", {}, control=None, ecr=None)
+
+
+def test_prune_deletes_everything_but_the_in_use_image(capsys):
+    from briefing.runtime.deploy_runtime import prune_old_images
+
+    ecr = _FakeEcr([_img("a", "t1", size=10), _img("b", "t2", size=20), _img("c", "t3", size=30), _img("d", size=40)])
+    prune_old_images(_result(), "us-east-1", {"BRIEFING_ECR_KEEP_LATEST": "1"}, control=_FakeControl(), ecr=ecr)
+
+    assert ecr.describe_kw == {"repositoryName": _REPO, "registryId": _REG}
+    assert [d["imageIds"] for d in ecr.deletes] == [
+        [{"imageDigest": "sha256:a"}, {"imageDigest": "sha256:c"}, {"imageDigest": "sha256:d"}]]
+    assert ecr.deletes[0]["repositoryName"] == _REPO and ecr.deletes[0]["registryId"] == _REG
+    out = capsys.readouterr().out
+    assert "삭제 3개" in out and "실패 0개" in out and "t2" in out
+
+
+def test_prune_reports_failures_from_the_response_not_the_request(capsys):
+    """batch_delete_image 는 이미지별 실패를 예외가 아니라 응답의 failures 로 준다 — 요청 건수를 성공으로 세면 안 된다."""
+    from briefing.runtime.deploy_runtime import prune_old_images
+
+    failure = {"imageId": {"imageDigest": "sha256:c"}, "failureCode": "ImageReferencedByManifestList",
+               "failureReason": "referenced"}
+    ecr = _FakeEcr([_img("a", "t1"), _img("b", "t2"), _img("c", "t3")], failures=[failure])
+    prune_old_images(_result(), "us-east-1", {"BRIEFING_ECR_KEEP_LATEST": "1"}, control=_FakeControl(), ecr=ecr)
+
+    out = capsys.readouterr().out
+    assert "삭제 1개" in out and "실패 1개" in out and "ImageReferencedByManifestList" in out
+
+
+def test_prune_batches_deletes_by_100():
+    from briefing.runtime.deploy_runtime import prune_old_images
+
+    ecr = _FakeEcr([_img("keep", "t2")] + [_img(f"x{i}", f"old{i}") for i in range(250)])
+    prune_old_images(_result(), "us-east-1", {"BRIEFING_ECR_KEEP_LATEST": "1"}, control=_FakeControl(), ecr=ecr)
+
+    assert [len(d["imageIds"]) for d in ecr.deletes] == [100, 100, 50]
+    assert all(i["imageDigest"] != "sha256:keep" for d in ecr.deletes for i in d["imageIds"])
+
+
+def test_prune_skips_when_the_endpoint_has_not_moved_to_the_new_version(capsys):
+    """endpoint 가 아직 옛 버전을 쓰면 그 이미지를 지울 수 있다 → 건너뛴다(다음 배포 때 정리)."""
+    from briefing.runtime.deploy_runtime import prune_old_images
+
+    env = {"BRIEFING_ECR_KEEP_LATEST": "1"}
+    for control in (_FakeControl(live="1"), _FakeControl(ep_status="UPDATING")):
+        ecr = _FakeEcr([_img("a", "t1"), _img("b", "t2")])
+        prune_old_images(_result(), "us-east-1", env, control=control, ecr=ecr)
+        assert ecr.deletes == [] and ecr.describe_kw is None
+    assert "건너뜀" in capsys.readouterr().out
+
+
+def test_prune_skips_when_the_in_use_image_is_not_in_the_repository(capsys):
+    from briefing.runtime.deploy_runtime import prune_old_images
+
+    ecr = _FakeEcr([_img("a", "t1"), _img("c", "t3")])
+    prune_old_images(_result(), "us-east-1", {"BRIEFING_ECR_KEEP_LATEST": "1"}, control=_FakeControl(), ecr=ecr)
+
+    assert ecr.deletes == [] and "건너뜀" in capsys.readouterr().out
+
+
+def test_prune_error_is_a_warning_not_a_failed_deploy(capsys):
+    """정리는 배포가 끝난 뒤의 청소다 — 오류가 나도 배포 결과(exit 0)를 바꾸지 않는다."""
+    from briefing.runtime.deploy_runtime import prune_old_images
+
+    ecr = _FakeEcr([], describe_error=RuntimeError("AccessDenied"))
+    prune_old_images(_result(), "us-east-1", {"BRIEFING_ECR_KEEP_LATEST": "1"}, control=_FakeControl(), ecr=ecr)
+
+    out = capsys.readouterr().out
+    assert ecr.deletes == [] and "정리 실패" in out and "AccessDenied" in out

@@ -12,6 +12,7 @@
                 ★ aiops 의 OAuth2/Cognito 는 ① Gateway(v2)용 — v1 공개 RSS 엔 없음(더 단순).
   [5] wait    — bedrock-agentcore-control 로 READY polling.
   [6] save    — 루트 `.env` 에 `BRIEFING_RUNTIME_{NAME,ARN,ID}` writeback(invoke/teardown 이 읽는 seam).
+  [+] prune   — (옵션 · `.env` BRIEFING_ECR_KEEP_LATEST=1) 런타임이 쓰는 이미지만 남기고 ECR 의 옛 이미지를 지운다.
 
 DEBUG: 호스트 `DEBUG` 를 컨테이너로 forward(on→is_debug() on, trace=stderr→CloudWatch; off→zero overhead).
 
@@ -327,6 +328,90 @@ def save_runtime_metadata(result) -> None:
     print(f"{_G}✅ {ENV_FILE.name} 갱신{_NC}\n")
 
 
+# ───────────────────────── [7] ECR 옛 이미지 정리 (옵션 · 기본 꺼짐) ─────────────────────────
+
+def ecr_keep_latest_enabled(env) -> bool:
+    """`.env` 의 `BRIEFING_ECR_KEEP_LATEST`(기본 꺼짐, 1/true/yes/on 이면 켬) — 배포 뒤 쓰는 이미지 1개만 남긴다.
+
+    기본이 꺼짐인 이유 = 삭제는 되돌릴 수 없다. 옛 이미지가 쌓인 계정에서 이 스크립트를 돌려도 설정 없이는 지우지 않는다.
+    """
+    return (env.get("BRIEFING_ECR_KEEP_LATEST") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _split_image_uri(uri: str) -> tuple[str, str, str] | None:
+    """`<registry>.dkr.ecr.<region>.amazonaws.com/<repo>:<tag>` → (registry_id, repo, tag)(순수).
+    tag 형식이 아니면(digest `@sha256:` · tag 없음 · 빈 값) None — 해석하지 못하는 URI 로는 지우지 않는다."""
+    host, sep, path = (uri or "").partition("/")
+    repo, colon, tag = path.rpartition(":")
+    if not (sep and colon and repo and tag) or "@" in path:
+        return None
+    return host.split(".")[0], repo, tag
+
+
+def images_to_delete(image_details: list[dict], keep_uri: str) -> list[dict] | None:
+    """지울 이미지(순수). 남기는 것 = 런타임이 쓰는 이미지(`keep_uri` 의 tag) — '가장 최근 push' 가 아니다
+    (배포가 실패하면 최근 push 는 안 쓰는 이미지다). tag 없는 이미지도 지운다.
+    쓰는 이미지를 정확히 1개로 짚지 못하면 None — 호출자는 아무것도 지우지 않는다(지울 것 없음 `[]` 과 구분)."""
+    parts = _split_image_uri(keep_uri)
+    if parts is None:
+        return None
+    tag = parts[2]
+    keep = {d["imageDigest"] for d in image_details if tag in (d.get("imageTags") or [])}
+    if len(keep) != 1:
+        return None
+    return [{"imageDigest": d["imageDigest"]} for d in image_details if d["imageDigest"] not in keep]
+
+
+def prune_old_images(result, region: str, env, *, control=None, ecr=None) -> None:
+    """배포가 끝난 뒤 런타임이 쓰는 이미지만 남기고 ECR 의 나머지를 지운다(`BRIEFING_ECR_KEEP_LATEST=1` 일 때만).
+
+    ★ 지운 이미지를 쓰던 이전 런타임 버전으로는 되돌릴 수 없다(다시 빌드해야 한다).
+    안전장치: endpoint 가 새 버전으로 넘어오지 않았거나 쓰는 이미지를 못 짚으면 건너뛴다.
+    정리는 청소일 뿐이다 — 오류가 나도 경고만 하고 배포 결과를 바꾸지 않는다.
+    """
+    if not ecr_keep_latest_enabled(env):
+        return
+    print(f"{_Y}[+] ECR 옛 이미지 정리(BRIEFING_ECR_KEEP_LATEST=1){_NC}")
+    try:
+        control = control or boto3.client("bedrock-agentcore-control", region_name=region)
+        rt = control.get_agent_runtime(agentRuntimeId=result.agent_id)
+        ep = control.get_agent_runtime_endpoint(agentRuntimeId=result.agent_id, endpointName="DEFAULT")
+        if not (rt.get("status") == ep.get("status") == "READY"
+                and ep.get("liveVersion") == rt.get("agentRuntimeVersion")):
+            print(f"   건너뜀 — endpoint 가 아직 새 버전을 쓰지 않는다(runtime v{rt.get('agentRuntimeVersion')} · "
+                  f"endpoint v{ep.get('liveVersion')} {ep.get('status')}) → 다음 배포 때 정리")
+            return
+        uri = rt["agentRuntimeArtifact"]["containerConfiguration"]["containerUri"]
+        parts = _split_image_uri(uri)
+        if parts is None:
+            print(f"   건너뜀 — 이미지 URI 를 해석하지 못함: {uri.rpartition('/')[2]}")
+            return
+        registry_id, repo, tag = parts
+        where = {"repositoryName": repo, "registryId": registry_id}
+        ecr = ecr or boto3.client("ecr", region_name=region)
+        details = [d for page in ecr.get_paginator("describe_images").paginate(**where) for d in page["imageDetails"]]
+        doomed = images_to_delete(details, uri)
+        if doomed is None:
+            print(f"   건너뜀 — 런타임이 쓰는 이미지({tag})를 저장소에서 못 찾음(전체 {len(details)}개)")
+            return
+        if not doomed:
+            print(f"{_G}✅ 지울 이미지 없음 — 남김 {tag}{_NC}\n")
+            return
+        deleted: set[str] = set()
+        failures: list[dict] = []
+        for i in range(0, len(doomed), 100):                       # batch_delete_image 상한 = 100개
+            resp = ecr.batch_delete_image(imageIds=doomed[i:i + 100], **where)
+            deleted |= {x["imageDigest"] for x in resp.get("imageIds", [])}     # ★ 요청이 아니라 응답으로 센다
+            failures += resp.get("failures", [])
+        freed = sum(d.get("imageSizeInBytes", 0) for d in details if d["imageDigest"] in deleted)
+        print(f"{_G}✅ 삭제 {len(deleted)}개({freed / 1e9:.2f} GB) · 실패 {len(failures)}개 · 남김 {tag}{_NC}")
+        for code in sorted({f.get("failureCode", "?") for f in failures}):
+            print(f"   ⚠️ 실패 사유: {code}")
+        print()
+    except Exception as e:  # noqa: BLE001 — 청소 실패가 성공한 배포를 실패로 바꾸면 안 된다
+        print(f"{_Y}   ⚠️ 이미지 정리 실패(배포는 성공): {type(e).__name__}: {e}{_NC}\n")
+
+
 def main() -> None:
     settings = load_settings()
     region = settings.region
@@ -344,6 +429,7 @@ def main() -> None:
     attach_runtime_extras(result, region)
     wait_until_ready(result, region)
     save_runtime_metadata(result)
+    prune_old_images(result, region, os.environ)   # 옵션 — `.env` BRIEFING_ECR_KEEP_LATEST=1 일 때만(기본 꺼짐)
 
     print(f"{_B}{'=' * 60}{_NC}\n{_G}  배포 완료{_NC}")
     print(f"   ARN: {result.agent_arn}")
