@@ -1,22 +1,36 @@
-"""rereport_dedup — 재보도 제외: 이미 보냈거나 오늘 함께 보낼 원문(A)을 본문에서 링크한 기사(B) 중
+"""rereport_dedup — 재보도 제외: 이미 보냈거나 오늘 함께 보낼 원문(A)이나 그 사이트를 본문에서 링크한 기사(B) 중
 주로 같은 발표를 옮긴 글(재보도·한국어 소개)을 뺀다(2026-10-28 사용자 결정).
 
 ★ 비교 대상은 "링크로 걸린 쌍"뿐이다 — 오늘 후보 × 지난 90일 발송을 전부 비교하면 run당 수십만 쌍이지만,
   인용 키로 걸리는 쌍은 run당 ~2건(2026-10-28 실측 7 run: 약 20만 쌍 → 12쌍). 링크가 없으면 판정하지 않는다
   (같은 사건 추측 묶기 = 2026-10-18 기각 목록과의 경계).
+★ 링크가 걸리는 방식은 둘이다(2026-11-14 넓힘):
+  (a)(b) B 가 A 의 주소를 정확히 링크 — 지난 90일 발송(a) · 오늘 함께 보낼 기사(b).
+  (c)    B 가 A 와 같은 사이트의 다른 페이지를 링크 — 재보도는 발표 글 대신 제품 페이지·프로그램 페이지·기술
+         보고서·모델 모음을 링크하는 일이 잦다(실측 17회 발송: 놓친 중복 7쌍). A 는 최근 7일 안에 보냈거나 오늘
+         함께 보낼 기사, B 는 News & Media·Community 매체 글일 때만(SAME_SITE_B_CATEGORIES). 판정 호출은 run당 평균
+         약 23쌍·최대 50쌍(재생 24회, 2026-10-21~11-13: (a)(b) 포함 545쌍).
+  어느 쪽이든 링크는 후보를 고를 뿐이고, 빼는 결정은 쌍마다 판정자가 한다.
 원칙: A 는 언제나 유지 · 판정 실패·애매함은 B 유지(fail-open) · 판정은 run 메모로 사용자 간 공유.
 순수 함수 — 파이프라인과 재생 게이트(scripts/dedup_audit/rereport_replay.py)가 같은 코드를 쓴다.
 설계: docs/superpowers/specs/2026-10-28-cited-rereport-dedup-design.md
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import datetime, timezone
 
-from .article_identity import cite_key
+from .article_identity import cite_host, cite_key
 from .retrieval.rereport import RereportFn, RereportVerdict
 from .stores.source_store import FrozenSource
 from .top_picks import big_org
+
+# (c) 같은 사이트 다른 페이지 판정은 통과한 글(B)이 이 분야 매체일 때만 한다(사용자 결정 2026-11-14, A2).
+# 실측(관리자 발송 17회, 2026-10-28~11-13): 같은 사이트 후보 627쌍 중 "같은 발표" 10쌍은 전부 B 가 이 두 분야
+# (The Decoder·PyTorch Korea)였고, B 가 1차 매체(Anthropic·Google·AWS 등)인 256쌍에서는 0쌍 — 잡을 것은 없고
+# 원 발표 글이 형제 글의 재보도로 빠질 길만 생긴다. ★ 매체 분야로 글을 빼는 것이 아니다(2026-10-18 기각한
+# "2차 소스 일괄 제외"와 다름) — 판정자에게 물을 범위만 정하고, 빼는 결정은 쌍마다 판정자가 한다.
+SAME_SITE_B_CATEGORIES = frozenset({"News & Media", "Community"})
 
 
 def _published(fetched_at: str) -> tuple[datetime, bool] | None:
@@ -61,12 +75,15 @@ def drop_rereports(
     get_source: Callable[[str], FrozenSource],
     judge: RereportFn,
     memo: dict[tuple[str, str], RereportVerdict],
+    recent_hosts: Mapping[str, Sequence[str]] | None = None,
 ) -> dict[str, tuple[FrozenSource, RereportVerdict]]:
     """한 사용자의 오늘 생존자(기존 dedup 통과, (동결본, category)) → `{빠질 B source_id: (A, 판정)}`.
 
     cited = {source_id: 인용 키}(curate 의 cited_out) · sent_index = {cite_key(보낸 URL): source_id}
     (published_keys 의 url_index) · memo = run 공유 `{(A_sid, B_sid): 판정}` — 실패(None)도 메모해 재호출하지 않는다.
     한 B 가 여러 A 에 걸리면 하나라도 same=True 면 뺀다.
+    recent_hosts = {호스트: 최근 7일 안에 보낸 기사 source_id}(published_keys 의 recent_hosts) — 주면 (c) 같은 사이트
+    다른 페이지 쌍도 판정한다(빈 dict 면 같은 날 쌍만). None(기본)이면 (c) 는 꺼진다.
     """
     drops: dict[str, tuple[FrozenSource, RereportVerdict]] = {}
 
@@ -111,5 +128,47 @@ def drop_rereports(
             v = judged(a, b)
             if v.same is True:
                 drops[b.source_id] = (a, v)
+                break
+
+    # (c) 같은 사이트 다른 페이지: B 가 원문 기사 대신 그 사이트의 제품 페이지·기술 보고서·모델 모음을 링크(2026-11-14)
+    #     — 정확히 걸린 링크는 (a)(b) 가 맡았으므로 호스트를 내지 않고, B 가 정확히 인용한 기사는 A 후보에서도 뺀다
+    #     (서로 인용해 일부러 판정하지 않은 쌍을 다시 묶지 않게).
+    if recent_hosts is None:
+        return drops
+    on_host: dict[str, list[FrozenSource]] = {}
+    for fs, _cat in survivors:
+        if k := cite_key(fs.url):
+            on_host.setdefault(cite_host(k), []).append(fs)
+
+    def candidates(host: str, skip: set[str]) -> Iterator[FrozenSource]:
+        """그 호스트의 A 후보 — 오늘 생존자 먼저, 다음에 최근 7일 안에 보낸 기사(최근 순). 원본 없는 기사는 건너뛴다."""
+        for a in on_host.get(host, ()):
+            if a.source_id not in skip:
+                yield a
+        for sid in recent_hosts.get(host, ()):
+            if sid in skip:
+                continue
+            try:
+                a = get_source(sid)
+            except Exception:  # noqa: BLE001 — 원본 없음은 그 후보만 건너뛴다
+                continue
+            yield a
+
+    for b, b_cat in survivors:
+        if b.source_id in drops or b_cat not in SAME_SITE_B_CATEGORIES:
+            continue
+        keys = cited.get(b.source_id, ())
+        skip = {b.source_id} | {sent_index[k] for k in keys if k in sent_index} \
+            | {by_url[k][0].source_id for k in keys if k in by_url}
+        for host in dict.fromkeys(cite_host(k) for k in keys if k not in sent_index and k not in by_url):
+            for a in candidates(host, skip):
+                skip.add(a.source_id)
+                if a.source_id in drops or a.media == b.media:
+                    continue
+                v = judged(a, b)
+                if v.same is True:
+                    drops[b.source_id] = (a, v)
+                    break
+            if b.source_id in drops:
                 break
     return drops
