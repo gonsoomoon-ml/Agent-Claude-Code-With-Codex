@@ -1,0 +1,103 @@
+user=445814b8… model=global.anthropic.claude-haiku-5-5 rows=2424
+2026-10-28: 생존자 21 · 인용 키 있는 기사 20 · 판정 17(같은 사이트 17) · 제외 2
+2026-10-29: 생존자 24 · 인용 키 있는 기사 23 · 판정 15(같은 사이트 14) · 제외 0
+2026-10-30: 생존자 14 · 인용 키 있는 기사 12 · 판정 20(같은 사이트 17) · 제외 0
+2026-10-31: 생존자 8 · 인용 키 있는 기사 8 · 판정 8(같은 사이트 8) · 제외 0
+2026-11-01: 생존자 8 · 인용 키 있는 기사 8 · 판정 26(같은 사이트 26) · 제외 1
+2026-11-02: 생존자 18 · 인용 키 있는 기사 18 · 판정 24(같은 사이트 22) · 제외 0
+2026-11-03: 생존자 24 · 인용 키 있는 기사 24 · 판정 1(같은 사이트 0) · 제외 1
+2026-11-04: 생존자 17 · 인용 키 있는 기사 16 · 판정 24(같은 사이트 24) · 제외 1
+2026-11-05: 생존자 15 · 인용 키 있는 기사 14 · 판정 2(같은 사이트 1) · 제외 1
+2026-11-06: 생존자 23 · 인용 키 있는 기사 20 · 판정 40(같은 사이트 40) · 제외 0
+2026-11-07: 생존자 8 · 인용 키 있는 기사 8 · 판정 19(같은 사이트 18) · 제외 0
+2026-11-08: 생존자 5 · 인용 키 있는 기사 5 · 판정 6(같은 사이트 6) · 제외 0
+2026-11-09: 생존자 22 · 인용 키 있는 기사 20 · 판정 28(같은 사이트 26) · 제외 1
+2026-11-10: 생존자 30 · 인용 키 있는 기사 26 · 판정 49(같은 사이트 46) · 제외 1
+2026-11-11: 생존자 24 · 인용 키 있는 기사 23 · 판정 17(같은 사이트 14) · 제외 0
+2026-11-12: 생존자 21 · 인용 키 있는 기사 18 · 판정 1(같은 사이트 1) · 제외 1
+2026-11-13: 생존자 19 · 인용 키 있는 기사 18 · 판정 26(같은 사이트 25) · 제외 1
+
+2026-10-28 DROP SITE The Decoder      "Nvidia's open Nemotron 3.5 Transcribe combines transcription"
+                ← Hugging Face Blo 'NVIDIA Nemotron 3.5 Transcribe and Granary v2: Intellige'
+                  Article B's main subject is the same Nemotron 3.5 Transcribe and Granary v2 release that Article A announces, with added details, benchmark 
+2026-10-28 DROP SITE The Decoder      'Google Deepmind releases Gemini 4 Carbon just two weeks afte'
+                ← Google DeepMind 'Gemini 4 Carbon: Our next frontier model'
+                  B's main subject is the Gemini 4 Carbon release and its announced findings (benchmarks, rollout, pricing), which is the same announcement A 
+2026-10-29 KEEP LINK PyTorch Korea 읽을 'OpenDuet: 내 서버와 원하는 모델로 운영하는, Claude Duet 같은 선제적 업무 에이전트'
+                ← Claude Blog 'Introducing Claude Duet'
+                  B's main subject is OpenDuet, an open-source CopilotKit project that is compared against Claude Duet and only uses A's announcement as backg
+2026-10-29 FAIL SITE The Decoder      'Paris-based Mistral releases "Le Chonk," a strong coding mod'
+                ← Hugging Face Blo 'Welcome Le Chonk: Mistral Large 4 on Hugging Face'
+                  판정 JSON 없음: '{"reason": "Both articles centre on the same Mistral Large 4 ("Le Chonk") open-w'
+2026-10-30 KEEP LINK Google Cloud AI  'What’s new in AI infrastructure and orchestration in October'
+                ← Google Developer 'ML Drift: Next-Gen GPU AI/ML Inference at the Edge'
+                  B is a monthly roundup of many Google Cloud AI infrastructure updates, and the ML Drift open-source release is just one bullet among many eq
+2026-10-30 KEEP LINK Google Cloud AI  'What’s new in AI infrastructure and orchestration in October'
+                ← Google Developer 'Scaling AI Agent Infrastructure with the MCP Stateless u'
+                  B is a monthly roundup of Google Cloud AI infrastructure news whose main subject is many different launches, not the MCP 2026-07-28 spec ann
+2026-10-30 KEEP LINK Google Cloud AI  'What’s new in AI infrastructure and orchestration in October'
+                ← Google Developer 'Scaling real-time AI agents with session-aware load bala'
+                  Article B is a monthly roundup of Google Cloud AI infrastructure news and only mentions A's topic (session-aware load balancing for real-tim
+2026-11-01 DROP SITE PyTorch Korea 읽을 'Google, Gemini 4 Carbon 출시: Argon과 같은 가격에 AA 지수 1위, 사이버 방어 기'
+                ← Google DeepMind 'Gemini 4 Carbon: Our next frontier model'
+                  B is a Korean write-up whose main news is the Gemini 4 Carbon announcement that A describes, adding benchmark analysis, pricing, and context
+2026-11-02 KEEP LINK Google AI (The K 'The latest AI news we announced in October 2026'
+                ← Google DeepMind 'Beyond tree cover: mapping the world’s forest types'
+                  Article B is a monthly roundup of many unrelated Google AI announcements; the forest map (ForTy) is only one brief item among several equal 
+2026-11-02 KEEP LINK Google AI (The K 'The latest AI news we announced in October 2026'
+                ← Google DeepMind 'Genie 4: A new generation of world simulation'
+                  Article B is a monthly roundup covering many separate AI announcements, with Genie 4 as just one of several equal items rather than its main
+2026-11-03 DROP LINK PyTorch Korea 읽을 'Mistral Large 4 가중치 공개: 토큰을 절반 가량 적게 쓰면서 GLM-5.3과 비슷한 코딩 성능을'
+                ← Hugging Face Blo 'Welcome Le Chonk: Mistral Large 4 on Hugging Face'
+                  B is a Korean write-up covering the same Mistral Large 4 (Le Chonk) release and its benchmarks/architecture described in A, adding weight-re
+2026-11-04 DROP SITE The Decoder      "Anthropic's new prototype proves which model wrote an AI res"
+                ← Anthropic Resear 'Progress on provable inference for large language models'
+                  Article B reports on the same FlashProve release from A (the zkSNARK provable-inference prototype), summarizing its performance, use cases, 
+2026-11-05 DROP LINK PyTorch Korea 읽을 '특정 프레임워크에서 모델이 버그없이 동작하는지를 확인하기 위한 Transformers 모델 통합 계약(MIC'
+                ← Hugging Face Blo 'Transformers Model Integration Contracts'
+                  B is a Korean write-up whose main subject is the same MIC announcement/post as A (the UMT5 SDPA bug, the MIC proposal, fixture recipe), tran
+2026-11-07 KEEP LINK Anthropic Engine 'The components of agent memory'
+                ← Google Research 'The sleep framework: A new way for LLMs to retain knowle'
+                  B is an Anthropic-style post about Claude agent memory and dreaming, citing A (Google's sleep-phase continual learning paper) only as backgr
+2026-11-09 KEEP LINK PyTorch Korea 읽을 'METR의 Anthropic 내부 AI R&D 가속 평가: 능력 향상 속도 약 2배, 핵심 근거는 비공개'
+                ← Anthropic News 'Anthropic update on independent evaluators'
+                  Article B's main subject is METR's separate acceleration assessment report and its findings, and it explicitly describes the employee-access
+2026-11-09 DROP LINK PyTorch Korea 읽을 '에이전트 메모리, 많이 저장하기보다 검증하고 다시 정리하기 (feat. Anthropic)'
+                ← Anthropic Engine 'The components of agent memory'
+                  Article B is a Korean write-up of the same Anthropic 'components of agent memory' post (Article A), covering its dreaming, memory notes, CL-
+2026-11-10 KEEP LINK Claude Developer 'Which Claude model should you build with? Fable, Opus, Sonne'
+                ← Claude Blog 'Coding sessions are longer and use more context. Claude '
+                  Article B is a model-selection guide covering the whole Claude lineup (Haiku, Sonnet, Opus, Fable, Mythos) and their trade-offs; Opus 5.5's 
+2026-11-10 KEEP LINK Claude Developer 'Which Claude model should you build with? Fable, Opus, Sonne'
+                ← Claude Blog 'Building agents: When to fold subagents into your main a'
+                  B is a separate article about choosing Claude models and effort levels, and only mentions the subagent-folding announcement from A not at al
+2026-11-10 KEEP LINK Google Research  "Exploring the world's languages with Language Explorer"
+                ← Google AI (The K 'AI for everyone in every language'
+                  B's main news is the Language Explorer's museum exhibition in Berlin, while A covers the broader 300-language milestone and lists Language E
+2026-11-10 DROP SITE The Decoder      "Gemini 4 Carbon arrives just in time to feel like yesterday'"
+                ← Google DeepMind 'Gemini 4 Carbon is now available'
+                  Article B's main news is the general availability of Gemini 4 Carbon, the same release announced in Article A, with added comparisons, comme
+2026-11-11 KEEP LINK PyTorch Korea 읽을 'Anthropic, Claude Fable 5.2와 Mythos 5.2 출시: 가격 인하와 최대 30% 빠른'
+                ← Anthropic Resear 'Claude can design electronic prototypes from start to fi'
+                  B's main subject is the Claude Fable 5.2 and Mythos 5.2 model launch (pricing, benchmarks, coding, cybersecurity), while A's hardware-design
+2026-11-11 KEEP LINK PyTorch Korea 읽을 'Anthropic, Claude Fable 5.2와 Mythos 5.2 출시: 가격 인하와 최대 30% 빠른'
+                ← Claude Blog 'Claude Security now scans continuously and tracks fixes'
+                  B's main subject is the Claude Fable 5.2 and Mythos 5.2 model release with pricing and benchmarks, while A announces the Claude Security con
+2026-11-11 KEEP LINK PyTorch Korea 읽을 'Anthropic, Claude Fable 5.2와 Mythos 5.2 출시: 가격 인하와 최대 30% 빠른'
+                ← Claude Developer 'Safely scaling multi-agent teams with Claude Fable 5.2'
+                  B's main subject is the Claude Fable 5.2 and Mythos 5.2 launch (pricing, benchmarks, cybersecurity), and the Fermat's Last Theorem experimen
+2026-11-12 DROP SITE The Decoder      "Google's Gemini 4 Hydrogen outscores the bigger Argon just f"
+                ← Google AI (The K 'Google Search gets a major upgrade with Gemini 4 Hydroge'
+                  Article B's main subject is the Gemini 4 Hydrogen release, which includes the Search rollout that Article A announces, with added benchmarks
+2026-11-13 KEEP LINK Claude Blog      'Building always-on agents'
+                ← Anthropic Engine 'The components of agent memory'
+                  Article B's main subject is the architecture of always-on agents (event inbox, timers, memory, outbox), not the Claude memory and dreaming f
+2026-11-13 DROP SITE The Decoder      "Anthropic's Claude for Manufacturing plugs AI directly into "
+                ← Claude Blog 'Claude for Manufacturing: AI plugin for plant teams'
+                  B is a news write-up covering the same Claude for Manufacturing plugin launch as A, summarizing its skills, connectors, and approval model, 
+
+판정한 쌍 323(정확히 링크 18 · 같은 사이트 305) · 제외 10(정확히 링크 3 · 같은 사이트 7)
+FAIL: 'gitai' 를 포함한 B 가 판정 쌍에 없다(유지 확인 불가)
+FAIL: 'AAIF에 Agent Skills' 를 포함한 B 가 판정 쌍에 없다(유지 확인 불가)
+FAIL
+exit=1

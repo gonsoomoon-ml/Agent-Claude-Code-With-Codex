@@ -1,0 +1,15 @@
+== 1) 저장된 판정 결과
+same-site-measure.json: 쌍 627 · 호출 1254 · 판정 실패 호출 2(쌍 1)
+   2026-10-29 실패 2회 [The Decoder] Paris-based Mistral releases "Le Chonk," a strong coding mod
+              ← [Hugging Face B] Welcome Le Chonk: Mistral Large 4 on Hugging Face
+              이유: 판정 JSON 없음: '{"reason": "Both articles center on the same Mistral Large 4 ("Le Chonk") open-w'
+same-site-replay-20261021-1027.json: 쌍 222 · 호출 222 · 판정 실패 호출 0(쌍 0)
+same-site-replay-20261028-1113.json: 쌍 323 · 호출 323 · 판정 실패 호출 1(쌍 1)
+   2026-10-29 실패 1회 [The Decoder] Paris-based Mistral releases "Le Chonk," a strong coding mod
+              ← [Hugging Face B] Welcome Le Chonk: Mistral Large 4 on Hugging Face
+              이유: 판정 JSON 없음: '{"reason": "Both articles centre on the same Mistral Large 4 ("Le Chonk") open-w'
+합계: 호출 1799 · 판정 실패 3
+
+== 2) 운영 로그(2026-10-28 14:12Z 이후)
+로그 이벤트 296 · 줄이 있던 날 13일(2026-10-28 ~ 2026-11-14)
+줄 종류(날짜·본문 기준 중복 제거): {'재보도 제외': 22}

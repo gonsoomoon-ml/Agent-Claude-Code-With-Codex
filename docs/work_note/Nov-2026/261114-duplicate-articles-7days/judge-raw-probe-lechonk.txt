@@ -1,0 +1,14 @@
+B: Paris-based Mistral releases "Le Chonk," a strong coding model that still trails China overall
+A: Welcome Le Chonk: Mistral Large 4 on Hugging Face
+--- 1회 · 블록 ['reasoningContent', 'text'] · stop=end_turn · 파서 못 읽음
+{"reason": "Article B's main subject is the same Mistral Large 4 ("Le Chonk") model and its weights release that Article A announces, adding updated benchmarks, pricing, and licensing details.", "same": true}
+--- 2회 · 블록 ['reasoningContent', 'text'] · stop=end_turn · 파서 못 읽음
+{"reason": "Both articles center on the same Mistral Large 4 ("Le Chonk") open-weight release, and B covers that release as its main news, adding details like final-version benchmarks, pricing, and licensing.", "same": true}
+--- 3회 · 블록 ['reasoningContent', 'text'] · stop=end_turn · 파서 못 읽음
+{"reason": "Article B's main news is the release of the same Mistral Large 4 ("Le Chonk") weights that Article A announces, with added benchmarks, pricing, and license details.", "same": true}
+--- 4회 · 블록 ['reasoningContent', 'text'] · stop=end_turn · 파서 못 읽음
+{"reason": "Both articles center on Mistral Large 4 ("Le Chonk") and its release of open weights, so B covers the same announcement that A describes, even though B adds independent benchmarks, pricing, and reactions.", "same": true}
+--- 5회 · 블록 ['reasoningContent', 'text'] · stop=end_turn · 파서 못 읽음
+{"reason": "Both articles are about the same Mistral Large 4 ("Le Chonk") open-weight release, and B covers that model's release and benchmarks, adding reactions, pricing, and independent evaluations.", "same": true}
+--- 6회 · 블록 ['reasoningContent', 'text'] · stop=end_turn · 파서 못 읽음
+{"reason": "Article B's main subject is the same Mistral Large 4 ("Le Chonk") release that Article A announces, adding independent benchmarks, pricing, and reactions.", "same": true}

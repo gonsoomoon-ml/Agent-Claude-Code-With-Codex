@@ -1,0 +1,75 @@
+후보 627 · 같은 발표 10 · 판정 실패 포함 1
+   실패 10-29 [None, None] [The Decoder] Paris-based Mistral releases "Le Chonk," a strong coding ← [Hugging Face B] Welcome Le Chonk: Mistral Large 4 on Hugging Fac
+
+-- B 매체 분야
+   Community                                      후보  199 · 같은 발표 4
+   News & Media                                   후보  172 · 같은 발표 6
+   Anthropic                                      후보  115 · 같은 발표 0
+   Google                                         후보   89 · 같은 발표 0
+   Amazon (AWS)                                   후보   33 · 같은 발표 0
+   Independent Voices                             후보   12 · 같은 발표 0
+   AI Labs                                        후보    7 · 같은 발표 0
+
+-- B 매체
+   PyTorch Korea 읽을거리                             후보  199 · 같은 발표 4
+   The Decoder                                    후보  172 · 같은 발표 6
+   Claude Blog                                    후보   44 · 같은 발표 0
+   Google Developers Blog                         후보   42 · 같은 발표 0
+   AWS Korea Tech Blog                            후보   27 · 같은 발표 0
+   Claude Developer Blog                          후보   27 · 같은 발표 0
+   Anthropic News                                 후보   23 · 같은 발표 0
+   Anthropic Research                             후보   21 · 같은 발표 0
+   Google DeepMind                                후보   14 · 같은 발표 0
+   Google Research                                후보   13 · 같은 발표 0
+   Google AI (The Keyword)                        후보   12 · 같은 발표 0
+   Simon Willison                                 후보   12 · 같은 발표 0
+   Google Cloud AI & ML                           후보    8 · 같은 발표 0
+   Meta Research                                  후보    7 · 같은 발표 0
+   AWS ML Blog                                    후보    6 · 같은 발표 0
+
+-- A 와의 날짜 차(일)
+   0                                              후보   96 · 같은 발표 4
+   7                                              후보   93 · 같은 발표 0
+   1                                              후보   85 · 같은 발표 2
+   6                                              후보   78 · 같은 발표 0
+   3                                              후보   78 · 같은 발표 0
+   4                                              후보   70 · 같은 발표 1
+   5                                              후보   68 · 같은 발표 1
+   2                                              후보   59 · 같은 발표 2
+
+-- 링크한 호스트
+   huggingface.co                                 후보  302 · 같은 발표 3
+   anthropic.com                                  후보  126 · 같은 발표 2
+   claude.com                                     후보   96 · 같은 발표 1
+   cloud.google.com                               후보   53 · 같은 발표 0
+   blog.google                                    후보   18 · 같은 발표 1
+   deepmind.google                                후보   18 · 같은 발표 3
+   developers.googleblog.com                      후보   14 · 같은 발표 0
+
+-- A 매체 분야
+   Engineering Blogs                              후보  302 · 같은 발표 3
+   Anthropic                                      후보  222 · 같은 발표 3
+   Google                                         후보  103 · 같은 발표 4
+
+날짜별 후보: {'2026-10-28': 46, '2026-10-29': 24, '2026-10-30': 24, '2026-10-31': 8, '2026-11-01': 27, '2026-11-02': 31, '2026-11-03': 36, '2026-11-04': 50, '2026-11-05': 18, '2026-11-06': 40, '2026-11-07': 18, '2026-11-08': 6, '2026-11-09': 66, '2026-11-10': 115, '2026-11-11': 26, '2026-11-12': 47, '2026-11-13': 45}
+하루 최대 115 · 평균 36.9
+
+-- B 당 후보 수(상위)
+    17  10-30 [PyTorch Korea ] Claude Code 팀의 코드 리뷰 방식: 병합 PR이 2배로 늘 때 되돌림 비율은 40
+    16  11-10 [Claude Develop] Which Claude model should you build with? Fable, O
+    16  11-10 [The Decoder] Google DeepMind's Gemini Robotics 2.5 scores 96 pe
+    15  11-11 [PyTorch Korea ] Anthropic, Claude Fable 5.2와 Mythos 5.2 출시: 가격 인하와
+    14  10-29 [The Decoder] Paris-based Mistral releases "Le Chonk," a strong 
+    14  11-02 [PyTorch Korea ] AI 현황 보고서(State of AI) 2026: 프런티어 모델의 3강 구도, 에이전트 
+    13  10-28 [Anthropic News] Expanding our partnership with GSA to bring Claude
+    13  10-28 [The Decoder] Nvidia's open Nemotron 3.5 Transcribe combines tra
+
+B 가 News & Media·Community 만: 후보 371 · 같은 발표 10/10 · 하루 최대 48 · 평균 21.8
+
+B 가 The Decoder·PyTorch Korea 만: 후보 371 · 같은 발표 10/10 · 하루 최대 48 · 평균 21.8
+
+A 와 3일 이내: 후보 318 · 같은 발표 8/10 · 하루 최대 48 · 평균 18.7
+
+A 와 4일 이내: 후보 388 · 같은 발표 9/10 · 하루 최대 68 · 평균 22.8
+
+B News&Media·Community + 4일 이내: 후보 242 · 같은 발표 9/10 · 하루 최대 36 · 평균 14.2

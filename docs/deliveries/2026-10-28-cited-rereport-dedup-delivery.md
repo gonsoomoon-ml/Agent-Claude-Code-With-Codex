@@ -73,3 +73,53 @@ CloudWatch `/aws/bedrock-agentcore/runtimes/briefing_agent-b9uh7rDAqL-DEFAULT`:
 - **도구·데이터:** `docs/work_note/Nov-2026/261114-duplicate-articles-7days/`(7회 발송 점검 · 47쌍 목록 · 변형별 판정 결과 · 게이트 출력).
 - **테스트:** `tests/test_rereport.py::test_rereport_prompt_asks_reason_before_same`(RED → GREEN) + 이유 먼저 형식 파싱 확인. `uv run pytest` 전체 통과 · ruff clean.
 - **배포 뒤 볼 것:** `pipeline rereport` 줄에 한국어 소개 글 제외가 늘어나는지, 월간 모음·다른 제품 글이 빠지지 않는지(1주).
+
+## 7. 후속 (2026-11-14) — 같은 사이트의 다른 페이지를 링크한 재보도도 판정
+
+> **상태: 구현·검증 완료 · 미병합 · 미배포** — §6 과 같은 브랜치 `worktree-rereport-reason-first`, 커밋 `9fbf572`
+
+- **관찰(관리자 발송 17회, run_date 10-28~11-13):** 재보도가 원문 기사 주소 대신 그 사이트의 다른 페이지를 링크하면 쌍 찾기에 걸리지 않아 판정 없이 통과했다. 놓친 중복 7쌍. 예: The Decoder "Claude for Manufacturing"(11-13)은 전날 보낸 Claude Blog 글이 아니라 제품 페이지 `claude.com/solutions/manufacturing` 을 링크했다. 링크 대상은 제품 페이지 · 프로그램 페이지(`deepmind.google/fairwind-program`) · 기술 보고서 · 모델 모음(`huggingface.co/collections/…`)이다.
+- **사용자 결정(2026-11-14):** 이런 글은 중복이다. 범위는 통과한 글(B)이 **News & Media·Community 매체 글일 때만** — 그때만 같은 사이트 쌍을 판정자에게 묻는다.
+- **측정**(`same_site_measure.py`, 쌍마다 판정 2회): 같은 사이트 후보 627쌍 중 2회 모두 "같은 발표"는 10쌍(위 7쌍 + §6 에서 고친 한국어 소개 글 3쌍 — 이 3쌍은 원문 주소도 정확히 링크한다).
+
+  | B 매체 분야 | 후보 쌍 | 같은 발표 |
+  |---|---|---|
+  | Community (PyTorch Korea) | 199 | 4 |
+  | News & Media (The Decoder) | 172 | 6 |
+  | 그 밖 — Anthropic 115 · Google 89 · AWS 33 · Independent Voices 12 · AI Labs 7 | 256 | 0 |
+
+  10쌍의 A 와의 날짜 차는 0~5일이다(3일 이내 8쌍 · 4일 이내 9쌍) → 후보 기간은 7일.
+- **고친 것**(`9fbf572`):
+  - `rereport_dedup.drop_rereports` 에 (c) 단계를 더했다. B 가 News & Media·Community 매체 글이고(`SAME_SITE_B_CATEGORIES`), B 가 링크한 호스트가 최근 7일 안에 보냈거나 오늘 함께 보낼 기사(A)의 호스트와 같으면 판정한다.
+  - 호스트는 정확히 같아야 한다 — `anthropic.com` 과 `claude.com` 은 다른 사이트로 본다.
+  - 정확히 걸린 링크는 기존 (a)(b) 가 맡는다. B 가 정확히 인용한 기사는 (c) 후보에서 뺀다(서로 인용해 일부러 판정하지 않은 쌍을 다시 묶지 않게).
+  - 같은 매체끼리는 묻지 않는다. 후보는 오늘 기사 먼저, 다음에 최근에 보낸 순서이고 첫 "같음"에서 멈춘다.
+  - `article_identity`: `cite_host` · `SAME_SITE_WINDOW_DAYS = 7` · `published_keys(recent_hosts=)`. `pipeline`: 사용자별 `recent_hosts` 연결.
+  - 판정자 · 프롬프트 · 파서(`retrieval/rereport.py`)는 그대로다.
+- **매체 분야는 물을 범위만 정한다.** 빼는 결정은 쌍마다 판정자가 한다 — 2026-10-18 에 기각한 "2차 소스 일괄 제외"가 아니다. 그 밖 매체를 범위에 넣지 않은 이유: 256쌍 중 같은 발표가 0쌍이라 잡을 것이 없고, 원 발표 글이 형제 글의 재보도로 빠질 길만 생긴다.
+- **관측(새 로그 줄):** `[WARN pipeline rereport] <user>: 재보도 제외(같은 사이트) — <B> ← <A> (<reason>)` · `<user>: 새 판정 N쌍 · 제외 M건`. 판정 메모를 사용자 간에 공유하므로 `새 판정` 줄은 그 쌍을 처음 만난 사용자에게만 찍힌다.
+- **재생**(`rereport_replay.py`, 관리자 발송분, 2026-11-14):
+
+  | 범위 | 판정한 쌍 | 제외 | 확인 |
+  |---|---|---|---|
+  | 10-28~11-13 (17회) | 323 (정확히 링크 18 · 같은 사이트 305) | 10 (정확히 링크 3 · 같은 사이트 7) | 측정의 10건과 일치 · 측정 후보 밖 판정 0 · 측정과 다른 판정 0 (`same_site_diff.py`) |
+  | 10-21~10-27 (게이트 주간) | 222 (정확히 링크 12 · 같은 사이트 210) | 10 (정확히 링크 9 · 같은 사이트 1) | gitai · AAIF 묶음 유지 |
+
+  - 같은 사이트로 새로 빠지는 7건: 10-28 The Decoder Nemotron 3.5 Transcribe ← Hugging Face · 10-28 The Decoder Gemini 4 Carbon ← DeepMind · 11-01 PyTorch Korea Gemini 4 Carbon ← DeepMind · 11-04 The Decoder provable inference ← Anthropic Research · 11-10 The Decoder Gemini 4 Carbon 정식 출시 ← DeepMind · 11-12 The Decoder Gemini 4 Hydrogen ← Google AI(Search 글) · 11-13 The Decoder Claude for Manufacturing ← Claude Blog.
+  - 정확히 링크 3건은 §6 의 한국어 소개 글이다(Mistral Large 4 11-03 · MIC 11-05 · agent memory 11-09).
+  - 게이트 주간의 같은 사이트 1건 = 10-25 The Decoder "one AI agent beats many subagents" ← Claude Blog. 이 기능의 발단이 된 기사이고, §6 에서 원문 링크가 사라져 놓치게 됐던 쌍이다.
+- ★ **게이트 기대값이 다시 바뀌었다(§6 의 "9"를 대체한다):** 기본 실행은 **제외 10**, `--exact-only`(정확히 링크한 쌍만)는 제외 9 다. `run_gate.sh` 기본값과 `rereport_replay.py` docstring 예시도 10 이다. 2026-11-15 에 `run_gate.sh` 로 다시 돌려 둘 다 **PASS** — 기본 실행 판정 222 · 제외 10, `--exact-only` 판정 12 · 제외 9.
+- **판정 호출 수:** run 당 약 2쌍 → 평균 약 23쌍 · 최대 50쌍(재생 24회 합계 545쌍). 호출은 순차이고 판정 메모를 공유하므로 대부분 run 의 첫 사용자 차례에 몰린다 — 호출 수뿐 아니라 그 사용자의 처리 시간도 는다.
+- **정정(측정 집계):** 저장된 `same-site-measure.txt` 끝줄의 "2회 모두 다름 617"은 **다름 616 + 2회 모두 판정 실패 1** 이다. 집계가 판정 실패를 "다름"에 섞어 셌다(도구는 고쳤고, `same-site-analyze.txt` 가 실패를 따로 센다).
+  - 실패한 쌍 = 10-29 The Decoder "Paris-based Mistral releases "Le Chonk,"…" ← Hugging Face "Welcome Le Chonk". 판정자는 "같은 발표"(`"same": true`)라고 답하지만, 이유 문장 안의 큰따옴표(`("Le Chonk")`)를 이스케이프하지 않아 응답 JSON 이 깨진다 → 판정 실패 → B 유지.
+  - 이 쌍은 12회 호출 중 11회 깨졌다(`judge-raw-probe-lechonk.txt`). 저장된 판정 1,799회 중 실패는 이 쌍의 3회뿐이고, 운영 로그(10-28~11-14)에 `판정 실패` 줄은 0건이다(`judge-fail-scan-20261115.txt`).
+  - 이 절의 변경이나 §6 의 답 순서 때문에 생긴 것이 아니다 — 이유 문장에 큰따옴표가 들어가면 어느 순서에서도 같은 방식으로 깨진다. **고치지 않았다(별도 문제 ⑥, 사용자 결정 대기).**
+- **남은 문제(사용자 결정 대기):** ④ 원문이 발송된 적 없고 재보도 둘만 나감(Claude Fable 5.2 출시) · ⑤ 원 발표 글이 형제 글의 재보도로 빠짐(Gemini 4 Hydrogen, 11-12) — 이 절의 변경 뒤에는 그날 The Decoder 기사도 Search 글의 재보도로 빠져 Search 글만 남는다 · ⑥ 위 판정 응답 JSON 깨짐.
+- **스펙·플랜은 고치지 않았다**(규칙 ②): 스펙의 "링크가 가리키는 쌍만"·"run 당 ~2건"은 2026-10-28 시점 기록이다. 현재 진실 = 이 절 + `rereport_dedup.py` 머리말 + `docs/README.md` 색인.
+- **도구·데이터:** `docs/work_note/Nov-2026/261114-duplicate-articles-7days/` 의 `tools/same_site_*` · `same-site-*`(측정 627쌍 · 분석 · 재생 2회 · 대조).
+- **테스트:** `tests/test_rereport_dedup.py` · `tests/test_article_identity.py` · `tests/test_pipeline.py` 에 같은 사이트 규칙 테스트(RED → GREEN). 가드 7개는 한 줄씩 지워 테스트가 잡는지 확인했다(`same_site_mutate.py`). `uv run pytest` 전체 통과 · ruff clean.
+- **배포 뒤 볼 것(첫 run):**
+  - [ ] `재보도 제외(같은 사이트)` 줄마다 B 가 정말 A 의 재보도인지. B 가 News & Media·Community 가 아닌 매체인 줄이 있으면 버그다.
+  - [ ] `새 판정 N쌍` 이 50 을 크게 넘지 않는지.
+  - [ ] run 소요 시간(첫 사용자) — 판정 호출이 순차로 약 20회 는다.
+  - [ ] `판정 실패 — 통과(fail-open)` 줄 수 — 호출이 늘어난 만큼 드러날 수 있다(문제 ⑥).
