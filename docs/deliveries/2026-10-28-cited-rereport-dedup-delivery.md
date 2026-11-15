@@ -114,8 +114,8 @@ CloudWatch `/aws/bedrock-agentcore/runtimes/briefing_agent-b9uh7rDAqL-DEFAULT`:
   - 실패한 쌍 = 10-29 The Decoder "Paris-based Mistral releases "Le Chonk,"…" ← Hugging Face "Welcome Le Chonk". 판정자는 "같은 발표"(`"same": true`)라고 답하지만, 이유 문장 안의 큰따옴표(`("Le Chonk")`)를 이스케이프하지 않아 응답 JSON 이 깨진다 → 판정 실패 → B 유지.
   - 이 쌍은 현재 답 순서로 12회 호출 중 11회 깨졌다. 저장된 것은 9회 전부 실패(측정 2 · 재생 1 · `judge-raw-probe-lechonk.txt` 6)이고, 저장하지 않은 첫 확인 3회 중 2회가 실패였다.
   - 다른 쌍에서는 나오지 않았다 — 저장된 같은 사이트 판정 1,799회 중 실패는 이 쌍의 3회뿐이고(`judge-fail-scan-20261115.txt`), §6 의 47쌍 실험 671회에는 0회다. 운영 로그(10-28~11-14)에 `판정 실패` 줄은 0건인데, 운영은 run 당 약 2쌍만 묻고 호출 수를 기록하지 않아 비율로 읽을 수는 없다.
-  - 이 절의 변경이나 §6 의 답 순서 때문에 생긴 것이 아니다 — 옛 답 순서(값 먼저)로 물어도 같은 쌍이 6회 중 5회 깨진다(`judge-raw-probe-lechonk-same-first.txt`). **고치지 않았다(별도 문제 ⑥, 사용자 결정 대기).**
-- **남은 문제(사용자 결정 대기):** ④ 원문이 발송된 적 없고 재보도 둘만 나감(Claude Fable 5.2 출시) · ⑤ 원 발표 글이 형제 글의 재보도로 빠짐(Gemini 4 Hydrogen, 11-12) — 이 절의 변경 뒤에는 그날 The Decoder 기사도 Search 글의 재보도로 빠져 Search 글만 남는다 · ⑥ 위 판정 응답 JSON 깨짐.
+  - 이 절의 변경이나 §6 의 답 순서 때문에 생긴 것이 아니다 — 옛 답 순서(값 먼저)로 물어도 같은 쌍이 6회 중 5회 깨진다(`judge-raw-probe-lechonk-same-first.txt`). **고치지 않았다 — 별도 문제 ⑥. 2026-11-15 사용자 결정으로 건너뛰었다(지금은 다루지 않는다, 파서는 그대로).**
+- **남은 문제(2026-11-15 갱신):** ④ 원문이 발송된 적 없고 재보도 둘만 나감(Claude Fable 5.2 출시) → **§8 에서 고쳤다** · ⑤ 원 발표 글이 형제 글의 재보도로 빠짐(Gemini 4 Hydrogen, 11-12) — 이 절의 변경 뒤에는 그날 The Decoder 기사도 Search 글의 재보도로 빠져 Search 글만 남는다. **사용자 결정 대기** · ⑥ 위 판정 응답 JSON 깨짐 → **건너뜀**.
 - **스펙·플랜은 고치지 않았다**(규칙 ②): 스펙의 "링크가 가리키는 쌍만"·"run 당 ~2건"은 2026-10-28 시점 기록이다. 현재 진실 = 이 절 + `rereport_dedup.py` 머리말 + `docs/README.md` 색인.
 - **도구·데이터:** `docs/work_note/Nov-2026/261114-duplicate-articles-7days/` 의 `tools/same_site_*` · `same-site-*`(측정 627쌍 · 분석 · 재생 2회 · 대조).
 - **테스트:** `tests/test_rereport_dedup.py` · `tests/test_article_identity.py` · `tests/test_pipeline.py` 에 같은 사이트 규칙 테스트(RED → GREEN). 가드 7개는 한 줄씩 지워 테스트가 잡는지 확인했다(`same_site_mutate.py`). `uv run pytest` 전체 통과 · ruff clean.
@@ -124,3 +124,33 @@ CloudWatch `/aws/bedrock-agentcore/runtimes/briefing_agent-b9uh7rDAqL-DEFAULT`:
   - [ ] `새 판정 N쌍` 이 50 을 크게 넘지 않는지.
   - [ ] run 소요 시간(첫 사용자) — 판정 호출이 순차로 약 20회 는다.
   - [ ] `판정 실패 — 통과(fail-open)` 줄 수 — 호출이 늘어난 만큼 드러날 수 있다(문제 ⑥).
+
+## 8. 후속 (2026-11-15) — Anthropic 모델 출시 글 수집: 원문 없이 재보도 둘만 나간 사례
+
+> **상태: 구현·검증 완료 · 미병합 · 미배포** — §6·§7 과 같은 브랜치 `worktree-rereport-reason-first`, 커밋 `c452f05`
+
+- **관찰(§7 의 남은 문제 ④):** Claude Fable 5.2·Mythos 5.2 출시를 다룬 두 글이 하루 차이로 나갔다 — 11-10 The Decoder "Claude Fable 5.2 and Mythos 5.2 cement Anthropic's AI lead just before its IPO" · 11-11 PyTorch Korea "Anthropic, Claude Fable 5.2와 Mythos 5.2 출시: 가격 인하와 최대 30% 빠른 출력". 최근 7회 발송(129장) 중 이 1쌍.
+- **사용자 판단(2026-11-15):** 두 글은 중복이다.
+- **원인 — 재보도 판정이 아니라 수집:** 두 글 모두 Anthropic 발표 글 `anthropic.com/claude-fable-and-mythos-5-2` 를 링크한다. 그 글이 수집된 적이 없어서 비교할 "이미 보낸 원문"이 없었다.
+  - Anthropic News 수집(`_article_links`)은 목록 경로 바로 아래 `/news/<slug>` 링크만 고른다. 모델 출시 글("Introducing Claude …")은 사이트 최상위 `/claude-<model>` 에 있다(`/news` 목록이 링크는 한다).
+  - 그 페이지는 og:type 을 `website` 로 선언한다. Anthropic News 는 `page_type: article` 관문(2026-11-01, 허브 차단)을 켠 소스라, 링크를 골랐더라도 여기서 빠진다.
+  - 같은 이유로 Opus 5.5(08-31) · Sonnet 5.5(09-27) · Haiku 5.5(10-07) · Fable 5.2(11-09) 출시 글 4건이 수집 0회다.
+- **무엇이 바뀌었나:**
+  - `Source.extra_article_prefixes`(카탈로그, 소스별 opt-in) — 이 접두로 시작하는 **한 단계** 페이지는 목록 경로 밖이어도 기사 후보로 받고(`_is_extra_article`), `page_type` 관문을 면제한다.
+  - `catalog.yaml` 의 Anthropic News 에 `/claude-`. 다른 소스는 그대로다.
+  - 그대로인 것: 날짜 창(48h) · `exclude_paths` · 스텁 검사 · 신원 dedup(같은 주소는 한 번). 재보도 판정 코드는 손대지 않았다.
+- **원문이 있었다면(운영 판정자, 각 3회):** (원문, The Decoder) 3/3 · (원문, PyTorch Korea) 3/3 "같은 발표". 두 글 모두 원문 주소를 정확히 링크하므로 2026-10-28 의 인용 링크 판정이 거른다 → 원문 1장만 남는다.
+  - 외부 순위(Artificial Analysis)를 덧붙인 The Decoder 글도 빠진다 — "세부를 더한 재보도도 중복"(2026-10-28 결정)과 같은 처리다.
+- **수정 뒤 실제 사이트 확인(2026-11-15, 저장 없음):** 목록에서 고른 링크 23개 중 `/news/` 밖은 출시 글 4개뿐이다(`/science` · `/press-kit` · `/search` 는 고르지 않는다). 창을 240h 로 넓히면 Fable 5.2 글(11-09, 19,994자)이 들어오고 옛 출시 글 3개는 날짜 창에서 빠진다. 운영 창 48h 로는 0건 · 경고 0줄.
+- **고르지 않은 대안:** 원문이 없어도 "같은 원문을 링크한 재보도끼리" 판정하기. 이 쌍은 3/3 "같은 발표"로 잡히지만 ① 독자는 여전히 원문을 못 받고(The Decoder 글이 남는다) ② 2026-10-18 에 기각한 "같은 사건 묶기"와 가깝고 ③ 빈도·오탐을 재지 않았다. 사용자가 기각한 것은 아니다.
+- **한계:**
+  - Anthropic 만 고쳤다. 다른 회사의 원문이 수집되지 않으면 재보도 둘이 함께 나가는 일은 다시 생길 수 있다.
+  - 소급되지 않는다 — 11-09 글은 이미 48h 창 밖이라 다음 출시부터 적용된다.
+  - `/claude-` 로 시작하는 최상위 페이지가 출시 글이 아닌데 최근 날짜를 달고 목록에 걸리면 카드가 될 수 있다(한 번만 — 신원 dedup). 그런 페이지가 보이면 `exclude_paths` 에 넣는다.
+- **도구·데이터:** `docs/work_note/Nov-2026/261114-duplicate-articles-7days/` 의 `tools/case4_*.py` · `case4-*.txt`.
+- **테스트:** `tests/test_sources.py` — 링크 고르기(한 단계만 · 목록 순서 · exclude 우선) · 관문 면제 · 날짜 창은 그대로 · 보조 목록에도 적용 · 카탈로그 검증(`/` 하나뿐인 접두 거부) · 카탈로그 값(RED → GREEN). `uv run pytest` 전체 통과 · ruff clean.
+- **배포:** 카탈로그와 수집 코드는 런타임 컨테이너에 실린다 — 런타임 재배포가 필요하다(§6·§7 과 함께).
+- **배포 뒤 볼 것:**
+  - [ ] 다음 Anthropic 모델 출시 때 원문 카드가 실리는지, 뒤따르는 재보도가 `재보도 제외` 줄로 빠지는지.
+  - [ ] 옛 출시 글(목록에 걸린 Opus 5.5 · Sonnet 5.5 · Haiku 5.5)이 카드가 되지 않는지, `/claude-` 경로의 `fetch stub` 경고가 없는지.
+  - [ ] Anthropic News 수집 시간 — run 마다 페이지 요청이 4건 는다.

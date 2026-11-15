@@ -1,0 +1,10 @@
+extra_article_prefixes = ('/claude-',) · window_hours = 48 · max_items = 기본
+목록에서 고른 링크 23개 · 그중 `/news/` 밖 4개: ['claude-fable-and-mythos-5-2', 'claude-haiku-5-5', 'claude-opus-5-5', 'claude-sonnet-5-5']
+
+== 창 240h(11-09 글 포함): 2건
+ ★ 2026-11-09 Introducing Claude Fable 5.2 and Claude Mythos 5.2 · 19994자 · cite_key=anthropic.com/claude-fable-and-mythos-5-2
+   2026-11-10 Anthropic launches roadshow for proposed initial public offering · 1815자 · cite_key=anthropic.com/news/roadshow-launch
+   경고 0줄
+
+== 운영 창 48h: 0건
+   경고 0줄

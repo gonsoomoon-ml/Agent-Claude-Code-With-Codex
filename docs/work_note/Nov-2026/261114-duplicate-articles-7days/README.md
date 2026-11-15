@@ -1,6 +1,6 @@
 # 최근 7회 발송 중복 점검 + 재보도 판정자 실험 + 같은 사이트 쌍 측정 (2026-11-14)
 
-> 결론과 수정 내용은 `docs/deliveries/2026-10-28-cited-rereport-dedup-delivery.md` §6(판정 답 순서) · §7(같은 사이트의 다른 페이지를 링크한 재보도)에 있다. 이 폴더는 그 근거가 된 도구와 데이터다.
+> 결론과 수정 내용은 `docs/deliveries/2026-10-28-cited-rereport-dedup-delivery.md` §6(판정 답 순서) · §7(같은 사이트의 다른 페이지를 링크한 재보도) · §8(원문이 수집되지 않은 Anthropic 출시 글)에 있다. 이 폴더는 그 근거가 된 도구와 데이터다.
 > 모든 도구는 프로덕션 **읽기 전용**(DynamoDB 조회 · CloudWatch 조회 · 기사 페이지 재수집 · Bedrock 판정 호출)이다.
 
 ## 무엇을 봤나
@@ -14,11 +14,23 @@
   | 1 | Anthropic Engineering "The components of agent memory"(11-07) + PyTorch Korea 한국어 소개(11-09) | 판정까지 갔는데 "다름" | **수정함**(전달 기록 §6) |
   | 2 | Claude Blog "Claude for Manufacturing"(11-12) + The Decoder(11-13) | The Decoder 가 기사 대신 제품 페이지를 링크 | **수정함**(전달 기록 §7) |
   | 3 | DeepMind "Gemini 4 Carbon is now available" + The Decoder(11-10) | 원문 주소 대신 같은 사이트의 프로그램 페이지를 링크 — 2번과 같은 문제 | **수정함**(전달 기록 §7) |
-  | 4 | Claude Fable 5.2·Mythos 5.2 출시: The Decoder(11-10) + PyTorch Korea(11-11) | 원문이 발송된 적 없음 | 미착수 |
+  | 4 | Claude Fable 5.2·Mythos 5.2 출시: The Decoder(11-10) + PyTorch Korea(11-11) | 원문이 수집·발송된 적 없음 — Anthropic 출시 글은 `/news/` 밖(사이트 최상위)에 있다 | **수정함**(전달 기록 §8) — 원문을 수집한다 |
   | 5 | Gemini 4 Hydrogen(11-12): Search 글 + The Decoder — DeepMind 원 발표는 재보도로 빠짐 | 원 발표가 Search 글을 링크 · 판정이 갈림 | 미착수 — §7 뒤에는 The Decoder 기사도 Search 글의 재보도로 빠져 Search 글만 남는다 |
-  | 6 | The Decoder "Mistral releases "Le Chonk""(10-29) ← Hugging Face "Welcome Le Chonk" | 판정자는 "같은 발표"라고 답하지만 이유 문장의 큰따옴표로 응답 JSON 이 깨져 판정 실패 → 통과 | 미착수 — 2번을 측정하다 발견(7회 점검 범위 밖) |
+  | 6 | The Decoder "Mistral releases "Le Chonk""(10-29) ← Hugging Face "Welcome Le Chonk" | 판정자는 "같은 발표"라고 답하지만 이유 문장의 큰따옴표로 응답 JSON 이 깨져 판정 실패 → 통과 | **건너뜀**(사용자 결정 2026-11-15 — 지금은 다루지 않는다. 파서는 그대로) — 2번을 측정하다 발견(7회 점검 범위 밖) |
 
-  2·3 은 범위를 17회 발송(10-28~11-13)으로 넓혀 다시 쟀다: 놓친 중복 7쌍(아래 「같은 사이트 쌍 측정」). 4~6 은 사용자 결정 대기다.
+  2·3 은 범위를 17회 발송(10-28~11-13)으로 넓혀 다시 쟀다: 놓친 중복 7쌍(아래 「같은 사이트 쌍 측정」). 4 는 원문 수집으로 고쳤다(아래 「원문이 수집되지 않은 사례」). 5 는 사용자 결정 대기, 6 은 건너뛰었다.
+
+## 원문이 수집되지 않은 사례 (문제 4)
+
+- **사용자 판단(2026-11-15):** 11-10 The Decoder 글과 11-11 PyTorch Korea 글은 중복이다.
+- **두 글의 관계:** 둘 다 Anthropic 발표 글 `anthropic.com/claude-fable-and-mythos-5-2` 를 링크한다(`case4-cites.txt` — 함께 인용한 페이지 1개). 겹치는 내용은 가격·출력 속도·Fable 과 Mythos 의 차이·Opus 5.5 권장이고, The Decoder 는 외부 순위(Artificial Analysis)와 IPO 맥락을, PyTorch Korea 는 발표 글의 한국어 정리를 더했다(`case4-cards.txt`).
+- **원인:** 그 발표 글이 수집된 적이 없다(`case4-all-fable52.txt`). Anthropic News 수집은 `/news/<slug>` 링크만 고르는데 모델 출시 글은 사이트 최상위 `/claude-<model>` 에 있고, 페이지가 og:type 을 `website` 로 선언해 허브 관문(`page_type: article`)에도 걸린다(`case4-whatif.txt` 1·2).
+  - 같은 이유로 Opus 5.5(08-31) · Sonnet 5.5(09-27) · Haiku 5.5(10-07) 출시 글도 수집 0회다(`case4-root-pages.txt`).
+- **원문이 있었다면:** 운영 판정자가 (원문, The Decoder) 3/3 · (원문, PyTorch Korea) 3/3 "같은 발표"(`case4-whatif.txt` 3) — 두 글 모두 원문 주소를 정확히 링크하므로 기존 인용 링크 판정이 거른다.
+- **수정(커밋 `c452f05`):** 카탈로그 `extra_article_prefixes: ["/claude-"]`(Anthropic News) — 이 접두의 한 단계 페이지는 목록 경로 밖이어도 받고 `page_type` 관문을 면제한다. 날짜 창 48h · `exclude_paths` · 신원 dedup 은 그대로.
+- **수정 뒤 실제 사이트 확인(`case4-live-fetch-20261115.txt`):** 목록에서 고른 링크 23개 중 `/news/` 밖은 출시 글 4개뿐(`/science` · `/press-kit` · `/search` 는 안 고른다). 창을 240h 로 넓히면 Fable 5.2 글(11-09)이 들어오고 옛 출시 글 3개는 날짜 창에서 빠진다. 운영 창 48h 로는 0건 · 경고 0줄.
+- **고르지 않은 대안:** 원문이 없어도 같은 원문을 링크한 재보도끼리 판정하기 — 이 쌍은 3/3 "같은 발표"로 잡히지만 독자는 여전히 원문을 못 받고, 2026-10-18 에 기각한 "같은 사건 묶기"와 가까우며 빈도·오탐을 재지 않았다.
+- **한계:** Anthropic 만 고쳤다. 다른 회사 원문이 수집되지 않으면 같은 일이 생긴다. 소급되지 않는다(11-09 글은 48h 창 밖).
 
 ## 같은 사이트 쌍 측정 (문제 2·3)
 
@@ -54,6 +66,12 @@
 | `same_site_mutate.py <저장소 루트>` | 같은 사이트 규칙의 가드 7개를 하나씩 지워 테스트가 잡는지 확인(소스를 잠깐 고치고 되돌린다) | (화면) |
 | `judge_raw_probe.py <replay.json> <B 제목 조각> [N] [same-first]` | 판정이 실패한 쌍을 N 회 다시 물어 응답 원문과 파서가 읽는지. `same-first` = 옛 답 순서로 | `judge-raw-probe-lechonk*.txt` |
 | `judge_fail_scan.py <이 폴더>` | 판정 실패 빈도 — 저장된 판정 결과 + 운영 로그(10-28 이후) | `judge-fail-scan-20261115.txt` |
+| `case4_cards.py` | 문제 4 의 두 카드: 원장 행 + 원문 앞부분(시각 비교용) | `case4-cards.txt` |
+| `case4_all_fable52.py` | 제목에 Fable 5.2·Mythos 5.2 가 든 글 전부 — 발송된 것 · 수집된 것 | `case4-all-fable52.txt` |
+| `case4_cites.py` | 두 글이 본문에서 인용한 링크와 교집합 | `case4-cites.txt` |
+| `case4_whatif.py [N]` | **수정 전** 링크 규칙이 원 발표 글을 고르는지 · 그 글이 기사로 추출되는지 · 세 쌍 판정 N 회 | `case4-whatif.txt` |
+| `case4_root_pages.py` | `/news` 목록이 링크하는 최상위 페이지들의 종류 · 날짜 · 수집 횟수 | `case4-root-pages.txt` |
+| `case4_live_fetch.py` | **수정 뒤** 수집 코드로 실제 Anthropic News 받기(저장 없음) — 넓힌 창과 운영 창 | `case4-live-fetch-20261115.txt` |
 
 ## 데이터
 
@@ -68,6 +86,8 @@
   - ★ `same-site-replay-20261028-1113.txt` 끝의 `FAIL` · `exit=1` 은 판정 결과와 무관하다. 그때 스크립트가 그 기간에 없는 두 제목(게이트 주간의 유지 확인용)을 기간과 상관없이 걸어서 "유지 확인 불가"가 찍혔다(스크립트는 고쳤다).
 - `judge-raw-probe-lechonk.txt`(판정이 실패하는 쌍의 응답 원문 6회 — 전부 `"same": true` 인데 파서가 못 읽음) · `judge-raw-probe-lechonk-same-first.txt`(같은 쌍을 옛 답 순서로 6회 — 5회 못 읽음) · `judge-fail-scan-20261115.txt`(저장된 판정 1,799회 중 실패 3회 = 그 한 쌍 · 운영 로그의 `판정 실패` 줄 0건).
   - 47쌍 실험 결과(`judge-exp-results-*.jsonl`, 671회)에는 첫 JSON 을 못 읽은 호출이 없다 — 전달 기록 §6 의 표는 그대로다.
+- `case4-*.txt` 6개 — 문제 4 의 근거(위 「원문이 수집되지 않은 사례」가 파일마다 무엇을 보여 주는지 적었다). `case4-cards.txt` 의 원문 발췌는 글마다 앞 900자뿐이다.
+  - ★ `case4-whatif.txt` 의 1) 은 수정 전 규칙의 결과다(원 발표 글을 고르나: False). 수정 뒤 동작은 `case4-live-fetch-20261115.txt`.
 
 ## 다시 돌릴 때 주의
 

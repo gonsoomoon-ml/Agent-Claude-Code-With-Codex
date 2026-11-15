@@ -1,0 +1,34 @@
+====================================================================================================
+card_key: dadb5230b178c17ee5f65cb6e2a333843c7076cdec6645c2b3c9dc1a6246326e
+decision: PUBLISH
+headline: Claude Fable 5.2 and Mythos 5.2 cement Anthropic's AI lead just before its IPO
+run_date: 2026-11-10
+sk: 2026-11-10#83b0ce2ba9123db817a05948478dac89b71840c08e396ffac3a6e89048e6da76
+source_id: 83b0ce2ba9123db817a05948478dac89b71840c08e396ffac3a6e89048e6da76
+--- 원문 제목: Claude Fable 5.2 and Mythos 5.2 cement Anthropic's AI lead just before its IPO
+--- 원문 길이: 8810자
+--- 원문 앞 900자:
+Claude Fable 5.2 and Mythos 5.2 cement Anthropic's AI lead just before its IPO
+Key Points
+- Anthropic is releasing Claude Fable 5.2 and Mythos 5.2, two new flagship models built for the most demanding technical tasks. Anthropic says it deliberately prevented the models from gaining capabilities during training that could directly accelerate AI development.
+- Fable 5.2 ranks first with 65 points on the Artificial Analysis Intelligence Index v5, five points ahead of Gemini 4 Carbon and 15 ahead of its predecessor, Fable 5.1. Peak quality averages $26.50 per task, about 2.6 times as much as Opus 5.5.
+- At lower compute tiers, Fable 5.2 still outperforms every other model at every tier with 62 points while consuming far fewer tokens.
+Anthropic's Claude Fable 5.2 and Mythos 5.2 reclaim the AI performance lead shortly before the company's IPO, in some cases by a wide margin. Opus 5.5 remains A
+====================================================================================================
+card_key: e1662286d338f7d9b2eecce5431cb1b66be2f5ad6958b4c84f5cd0c98e3eed08
+decision: PUBLISH
+headline: Anthropic, Claude Fable 5.2와 Mythos 5.2 출시: 가격 인하와 최대 30% 빠른 출력 (feat. Opus 5.5)
+run_date: 2026-11-11
+sk: 2026-11-11#dd2635aa37e535eb4eaa437b74a50f74e40e437bd8022a707448ca5a5680ff92
+source_id: dd2635aa37e535eb4eaa437b74a50f74e40e437bd8022a707448ca5a5680ff92
+--- 원문 제목: Anthropic, Claude Fable 5.2와 Mythos 5.2 출시: 가격 인하와 최대 30% 빠른 출력 (feat. Opus 5.5)
+--- 원문 길이: 18886자
+--- 원문 앞 900자:
+핵심 요약
+- Anthropic은 Claude Fable 5.2와 Mythos 5.2 발표 글에서 두 모델이 같은 기반 모델이라고 밝혔습니다. Fable은 사이버보안과 생물학 안전장치를 붙여 모든 사용자에게, Mythos는 Cyber 또는 Life Sciences Verification Program에 신청해 승인된 기관에게 제공합니다.
+- API 가격은 입력 100만 토큰당 $8, 출력 $40입니다. 원문은 Fable 5.1과 Mythos 5.1보다 가격이 낮고 출력이 최대 30% 빠르다고 설명하며, 선택 기능인 fast mode는 최대 2.5배 빠른 대신 입력 $16, 출력 $80입니다.
+- Anthropic이 직접 측정한 FrontierCode 2.0에서 Fable 5.2는 Xhigh 추론 강도로 49.1%를 기록해 Opus 5.5(45.5%), GPT-6 Astra(42.8%)보다 높습니다. 다만 AutomationBench는 Gemini 4 Carbon(53.9%)이, AA-Briefcase의 Elo는 Opus 5.5(1800)가 더 높습니다.
+- 에이전트 약 1,000개가 페르마의 마지막 정리를 30시간 만에 Lean으로 형식화했고, 같은 설정의 Opus 5.5는 18시간 시점에 26%였습니다. 이 사례와 물리, 단백질, 전자 설계 사례는 모두 Anthropic과 협력 기관이 전한 결과입니다.
+- 가속기 커널 최적화와 LLM 아키텍처 개선 영역은 학습 단계에서 능력 향상을 제한해 Opus 5.5 수준으로 맞췄다고 합니다. 안전장치의 차단은 Fable 5.1 대비 약 55% 줄었습니다.
+Claude Fable 5.2와 Mythos 5.2 소개
+Anthropic은 이번 발표에서 Claude Fable과 Claude Mythos를 "가장 까다로운 기술 과제를 풀도록 설계한 모델"
