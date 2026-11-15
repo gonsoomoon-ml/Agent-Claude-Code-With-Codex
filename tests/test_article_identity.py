@@ -121,7 +121,7 @@ def _sent(store, led, run_date, url, media="Claude Blog"):
 
 
 def test_published_keys_recent_hosts_keeps_only_the_last_seven_days(tmp_path):
-    """11-13 run: 7일 전(11-06)에 보낸 기사는 후보, 8일 전(11-05)은 아니다 — 실측한 중복의 날짜 차는 0~4일."""
+    """11-13 run: 7일 전(11-06)에 보낸 기사는 후보, 8일 전(11-05)은 아니다 — 실측한 중복의 날짜 차는 0~5일."""
     from briefing.core.article_identity import published_keys
     from briefing.core.stores.ledger import LocalLedger
     from briefing.core.stores.source_store import SourceStore
