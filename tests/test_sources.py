@@ -801,3 +801,91 @@ def test_catalog_anthropic_research_team_listings():
     teams = ("alignment", "economics", "frontier-red-team", "interpretability", "societal-impacts")
     assert by["anthropic-research"].listing_urls == tuple(f"https://www.anthropic.com/research/team/{t}" for t in teams)
     assert all(s.listing_urls == () for k, s in by.items() if k != "anthropic-research")
+
+
+# ── 목록 경로 밖 기사(extra_article_prefixes) (2026-11-15, work_note 261114 사례 4) ──
+# 배경: Anthropic 은 모델 출시 글("Introducing Claude …")을 `/news/<slug>` 가 아니라 사이트 최상위(`/claude-fable-and-mythos-5-2`)에
+# 올리고 og:type 을 website 로 선언한다. `/news` 목록이 링크해도 경로 모양 검사와 page_type 관문 둘 다에 막혀 Opus 5.5(08-31)·
+# Sonnet 5.5(09-27)·Haiku 5.5(10-07)·Fable 5.2(11-09) 출시 글이 한 번도 수집되지 않았다 → 원문 없이 재보도 두 건만 발송(11-10·11-11).
+# 소스별 opt-in: 이 접두로 시작하는 **한 단계** 페이지는 목록 경로 밖이어도 기사 후보로 받고 page_type 관문을 면제한다.
+# 날짜 창(`_is_stale`)·exclude_paths·신원 dedup 은 그대로 — 옛 출시 글과 허브(`/science`)는 들어오지 않는다.
+
+def test_article_links_extra_prefixes_pick_single_level_pages_outside_listing_path():
+    listing = ('<a href="/claude-fable-and-mythos-5-2">M</a><a href="/news/foo">F</a><a href="/science">S</a>'
+               '<a href="/claude-code/docs">D</a><a href="/claude-opus-5-5?x=1#y">O</a><a href="/claude-">bare</a>'
+               '<a href="/claude-haiku-5-5">H</a><a href="/claude-fable-and-mythos-5-2/">dup</a>')
+    url = "https://www.anthropic.com/news"
+    links = _article_links(listing, url, exclude_paths=("/claude-haiku-5-5",), extra_prefixes=("/claude-",))
+    assert links == ["https://www.anthropic.com/claude-fable-and-mythos-5-2",   # 목록 순서 유지 · dup 제거
+                     "https://www.anthropic.com/news/foo",
+                     "https://www.anthropic.com/claude-opus-5-5"]              # /science·하위 트리·접두뿐인 경로·exclude 는 제외
+    assert _article_links(listing, url) == ["https://www.anthropic.com/news/foo"]   # 기본값 = 현행(목록 경로 아래만)
+
+
+def _launch_pages():
+    """목록 + 최상위 출시 글(og website) + 기사(og article) + 허브(og website)."""
+    return {
+        "/news": '<a href="/claude-fable-and-mythos-5-2">M</a><a href="/news/opus">O</a><a href="/news/partnerships">P</a>',
+        "/claude-fable-and-mythos-5-2": _with_head(_ARTICLE_HTML, '<meta property="og:type" content="website">'),
+        "/news/opus": _with_head(_ARTICLE_HTML, '<meta property="og:type" content="article">'),
+        "/news/partnerships": _with_head(_ARTICLE_HTML, '<meta property="og:type" content="website">'),
+    }
+
+
+def _launch_src():
+    return Source("anthropic", "Anthropic", "https://www.anthropic.com/news", "html", "en", page_type="article",
+                  extra_article_prefixes=("/claude-",))
+
+
+def test_fetch_generic_html_takes_extra_prefix_page_despite_declared_website(monkeypatch, capsys):
+    from briefing.core.retrieval import sources as s
+    pages = _launch_pages()
+    monkeypatch.setattr(s, "discover_feed", lambda _u: "")
+    monkeypatch.setattr(s, "_http_get", lambda u: pages[u.replace("https://www.anthropic.com", "")])
+    arts = s.fetch_generic_html(_launch_src(), window_hours=0, max_items=5)
+    assert [a.url for a in arts] == ["https://www.anthropic.com/claude-fable-and-mythos-5-2",
+                                     "https://www.anthropic.com/news/opus"]
+    err = capsys.readouterr().err
+    assert "non-article" in err and "partnerships" in err        # 허브 관문은 `/news/…` 에 그대로 — 비무음
+    assert "claude-fable-and-mythos-5-2" not in err              # 출시 글은 관문 면제 — 경고 없음
+
+
+def test_fetch_generic_html_extra_prefix_page_still_obeys_window(monkeypatch):
+    """옛 출시 글(목록에 계속 걸려 있는 Opus 5.5 등)은 날짜 창에서 빠진다 — 면제는 page_type 관문뿐."""
+    from briefing.core.retrieval import sources as s
+    pages = _launch_pages()   # _ARTICLE_HTML 의 날짜 = 2026-05-28
+    monkeypatch.setattr(s, "discover_feed", lambda _u: "")
+    monkeypatch.setattr(s, "_http_get", lambda u: pages[u.replace("https://www.anthropic.com", "")])
+    assert s.fetch_generic_html(_launch_src(), window_hours=48, max_items=5) == []
+
+
+def test_fetch_generic_html_extra_prefixes_apply_to_extra_listings(monkeypatch):
+    from briefing.core.retrieval import sources as s
+    pages = {
+        "/news": '<a href="/news/opus">O</a>',
+        "/news/more": '<a href="/claude-fable-and-mythos-5-2">M</a>',
+        "/news/opus": _ARTICLE_HTML, "/claude-fable-and-mythos-5-2": _ARTICLE_HTML,
+    }
+    monkeypatch.setattr(s, "discover_feed", lambda _u: "")
+    monkeypatch.setattr(s, "_http_get", lambda u: pages[u.replace("https://www.anthropic.com", "")])
+    src = Source("anthropic", "Anthropic", "https://www.anthropic.com/news", "html", "en",
+                 extra_article_prefixes=("/claude-",), listing_urls=("https://www.anthropic.com/news/more",))
+    arts = s.fetch_generic_html(src, window_hours=0, max_items=5)
+    assert [a.url for a in arts] == ["https://www.anthropic.com/news/opus",
+                                     "https://www.anthropic.com/claude-fable-and-mythos-5-2"]
+
+
+@pytest.mark.parametrize("bad", [
+    "- {key: x, name: X, url: u, kind: html, lang: en, category: C, extra_article_prefixes: /claude-}",   # 목록이 아님
+    "- {key: x, name: X, url: u, kind: html, lang: en, category: C, extra_article_prefixes: [claude-]}",  # '/' 로 시작 안 함
+    "- {key: x, name: X, url: u, kind: html, lang: en, category: C, extra_article_prefixes: [/]}",        # 접두가 비면 최상위 전부
+])
+def test_catalog_rejects_bad_extra_article_prefixes(bad):
+    with pytest.raises(ValueError, match="extra_article_prefixes"):
+        _load_catalog(_yaml(bad))
+
+
+def test_catalog_anthropic_takes_root_level_launch_posts():
+    by = {s.key: s for s in CATALOG}
+    assert by["anthropic"].extra_article_prefixes == ("/claude-",)
+    assert all(s.extra_article_prefixes == () for k, s in by.items() if k != "anthropic")   # opt-in 은 Anthropic News 뿐

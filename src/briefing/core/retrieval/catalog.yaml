@@ -65,6 +65,12 @@
     - /news/features
     - /news/policy
     - /news/safeguards
+  extra_article_prefixes:   # 2026-11-15(work_note 261114 사례 4): 모델 출시 글("Introducing Claude …")은 `/news/<slug>` 가 아니라
+                            #   사이트 최상위 `/claude-<model>` 에 og:type=website 로 올라온다(/news 목록이 링크). 경로 검사와 page_type
+                            #   관문에 막혀 Opus 5.5(08-31)·Sonnet 5.5(09-27)·Haiku 5.5(10-07)·Fable 5.2(11-09) 출시 글이 수집 0회 →
+                            #   원문 없이 재보도 두 건만 발송(11-10 The Decoder·11-11 PyTorch Korea). 이 접두의 한 단계 페이지만 받고
+                            #   관문을 면제한다. 옛 출시 글(목록에 계속 걸려 있다)은 날짜 창 48h 가, 반복은 신원 dedup 이 막는다
+    - /claude-
   # /news + 기사 본문 평문 200(robots Allow:/) → fetch_generic_html(trafilatura), fragile 아님
 
 - key: anthropic-eng
