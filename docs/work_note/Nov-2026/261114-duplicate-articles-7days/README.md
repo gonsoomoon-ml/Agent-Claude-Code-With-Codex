@@ -15,10 +15,11 @@
   | 2 | Claude Blog "Claude for Manufacturing"(11-12) + The Decoder(11-13) | The Decoder 가 기사 대신 제품 페이지를 링크 | **수정함**(전달 기록 §7) |
   | 3 | DeepMind "Gemini 4 Carbon is now available" + The Decoder(11-10) | 원문 주소 대신 같은 사이트의 프로그램 페이지를 링크 — 2번과 같은 문제 | **수정함**(전달 기록 §7) |
   | 4 | Claude Fable 5.2·Mythos 5.2 출시: The Decoder(11-10) + PyTorch Korea(11-11) | 원문이 수집·발송된 적 없음 — Anthropic 출시 글은 `/news/` 밖(사이트 최상위)에 있다 | **수정함**(전달 기록 §8) — 원문을 수집한다 |
-  | 5 | Gemini 4 Hydrogen(11-12): Search 글 + The Decoder — DeepMind 원 발표는 재보도로 빠짐 | 원 발표가 Search 글을 링크 · 판정이 갈림 | 미착수 — §7 뒤에는 The Decoder 기사도 Search 글의 재보도로 빠져 Search 글만 남는다 |
+  | 5 | Gemini 4 Hydrogen(11-12): Search 글 + The Decoder — DeepMind 원 발표는 재보도로 빠짐 | 원 발표가 Search 글을 링크 · 판정이 갈림(이 브랜치 프롬프트로 8회 중 "같은 발표" 2회) | **건너뜀**(사용자 결정 2026-11-15 — 지금은 다루지 않는다) — §7 뒤에는 The Decoder 기사도 Search 글의 재보도로 빠져 Search 글만 남는다 |
   | 6 | The Decoder "Mistral releases "Le Chonk""(10-29) ← Hugging Face "Welcome Le Chonk" | 판정자는 "같은 발표"라고 답하지만 이유 문장의 큰따옴표로 응답 JSON 이 깨져 판정 실패 → 통과 | **건너뜀**(사용자 결정 2026-11-15 — 지금은 다루지 않는다. 파서는 그대로) — 2번을 측정하다 발견(7회 점검 범위 밖) |
 
-  2·3 은 범위를 17회 발송(10-28~11-13)으로 넓혀 다시 쟀다: 놓친 중복 7쌍(아래 「같은 사이트 쌍 측정」). 4 는 원문 수집으로 고쳤다(아래 「원문이 수집되지 않은 사례」). 5 는 사용자 결정 대기, 6 은 건너뛰었다.
+  2·3 은 범위를 17회 발송(10-28~11-13)으로 넓혀 다시 쟀다: 놓친 중복 7쌍(아래 「같은 사이트 쌍 측정」). 4 는 원문 수집으로 고쳤다(아래 「원문이 수집되지 않은 사례」). 5 와 6 은 건너뛰었다(사용자 결정 2026-11-15).
+  - 5 의 빈도: 10-28 이후 운영이 뺀 21건 중 같은 회사가 같은 날 낸 공식 글끼리 걸린 것은 3건이고, 본 발표 글(더 긴 글)이 빠진 것은 11-12 의 1건이다(`case5-firstparty-drops.txt` · 제외 목록은 `scope_1028.py`).
 
 ## 원문이 수집되지 않은 사례 (문제 4)
 
@@ -72,6 +73,7 @@
 | `case4_whatif.py [N]` | **수정 전** 링크 규칙이 원 발표 글을 고르는지 · 그 글이 기사로 추출되는지 · 세 쌍 판정 N 회 | `case4-whatif.txt` |
 | `case4_root_pages.py` | `/news` 목록이 링크하는 최상위 페이지들의 종류 · 날짜 · 수집 횟수 | `case4-root-pages.txt` |
 | `case4_live_fetch.py` | **수정 뒤** 수집 코드로 실제 Anthropic News 받기(저장 없음) — 넓힌 창과 운영 창 | `case4-live-fetch-20261115.txt` |
+| `case5_firstparty_drops.py` | 문제 5: 운영이 뺀 쌍 중 같은 회사 공식 글끼리 걸린 3쌍의 매체 · 길이 · 주소 | `case5-firstparty-drops.txt` |
 
 ## 데이터
 
