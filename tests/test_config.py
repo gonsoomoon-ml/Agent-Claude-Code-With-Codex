@@ -27,7 +27,8 @@ def test_load_gonsoo_user():
     s = load_settings()
     assert "gonsoo" in list_users(s)
     u = load_user("gonsoo", s)
-    assert u.id == "gonsoo" and u.recipient
+    assert u.id == "gonsoo"
+    assert u.recipient == ""   # 저장소 공개 — 추적 파일에 수신 주소를 쓰지 않는다(`.env` SEED_RECIPIENTS → seed_users)
     assert u.lens == "engineer" and u.depth == "full"
     assert len(u.sources) >= 1 and u.skill_md.strip()
 

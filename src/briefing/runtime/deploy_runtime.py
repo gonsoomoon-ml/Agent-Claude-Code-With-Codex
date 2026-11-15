@@ -58,6 +58,37 @@ WEEKLY_ENV_KEYS: tuple[str, ...] = (
 
 # ───────────────────────── 순수 헬퍼 (테스트가능 — AWS 무관) ─────────────────────────
 
+def observability_enabled(env) -> bool:
+    """관측(OTEL 추적·지표) 켜짐 여부 — `.env` 의 `BRIEFING_OBSERVABILITY`(기본 켜짐, 0/false/no/off 면 끔).
+
+    끄는 이유 = 비용(추적·지표 수집). 런타임 stdout 로그는 관측과 별개로 CloudWatch 에 남는다.
+    """
+    return (env.get("BRIEFING_OBSERVABILITY") or "").strip().lower() not in ("0", "false", "no", "off")
+
+
+def _observability_env(on: bool) -> dict[str, str]:
+    """컨테이너 OTEL env. Dockerfile CMD(`opentelemetry-instrument …`)는 그대로 두고 env 로만 끈다."""
+    if on:
+        return {"AGENT_OBSERVABILITY_ENABLED": "true"}
+    return {"AGENT_OBSERVABILITY_ENABLED": "false", "OTEL_SDK_DISABLED": "true",
+            "OTEL_TRACES_EXPORTER": "none", "OTEL_METRICS_EXPORTER": "none", "OTEL_LOGS_EXPORTER": "none"}
+
+
+def configure_kwargs(region: str, env) -> dict:
+    """toolkit `Runtime.configure()` 인자(순수). 관측을 끄면 disable_otel=True →
+    launch 가 계정의 Transaction Search·trace delivery 를 켜지 않는다."""
+    return dict(
+        agent_name=AGENT_NAME,
+        entrypoint=ENTRYPOINT_REL,
+        requirements_file="requirements.txt",
+        auto_create_execution_role=True,
+        auto_create_ecr=True,
+        region=region,
+        disable_otel=not observability_enabled(env),
+        non_interactive=True,
+    )
+
+
 def runtime_env(settings: Settings) -> dict[str, str]:
     """컨테이너에 주입할 env (컨테이너는 `.env` 미독). ★ 호스트 `DEBUG` 를 그대로 forward(on/off).
 
@@ -90,7 +121,7 @@ def runtime_env(settings: Settings) -> dict[str, str]:
         "ENABLE_TOOL_SEARCH": "false",    # Bedrock 가 tool def 선로드(Gateway MCP 사용 시 필수)
         "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",  # 컨테이너: 텔레메트리/업데이트 등 비필수 네트워크 차단
         "OTEL_RESOURCE_ATTRIBUTES": f"service.name={AGENT_NAME}",
-        "AGENT_OBSERVABILITY_ENABLED": "true",
+        **_observability_env(observability_enabled(os.environ)),   # `.env` BRIEFING_OBSERVABILITY=0 이면 끔
         # ★ 호스트 DEBUG forward — 미설정/빈값이면 컨테이너 is_debug()==False(zero overhead)
         "DEBUG": os.environ.get("DEBUG", ""),
     }
@@ -157,15 +188,9 @@ def configure_runtime(region: str):
     except ImportError:
         sys.exit(f"{_R}❌ bedrock-agentcore-starter-toolkit 미설치 — `uv sync`(dev dep){_NC}")
     runtime = Runtime()
-    resp = runtime.configure(
-        agent_name=AGENT_NAME,
-        entrypoint=ENTRYPOINT_REL,
-        requirements_file="requirements.txt",
-        auto_create_execution_role=True,
-        auto_create_ecr=True,
-        region=region,
-        non_interactive=True,
-    )
+    kwargs = configure_kwargs(region, os.environ)
+    print(f"   관측(OTEL) = {'꺼짐' if kwargs['disable_otel'] else '켜짐'}")
+    resp = runtime.configure(**kwargs)
     print(f"{_G}✅ configure 완료 — Dockerfile={getattr(resp, 'dockerfile_path', '?')}{_NC}\n")
     return runtime
 

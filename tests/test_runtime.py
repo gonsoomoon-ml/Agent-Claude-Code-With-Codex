@@ -337,3 +337,34 @@ def test_runtime_env_forwards_weekly_author_timeout(tmp_path, monkeypatch):
     s = _settings(tmp_path)
     monkeypatch.setenv("WEEKLY_AUTHOR_TIMEOUT_S", "1200")
     assert runtime_env(s)["WEEKLY_AUTHOR_TIMEOUT_S"] == "1200"
+
+
+# ───────────────────────── 관측(OTEL) 끄기 — `.env` BRIEFING_OBSERVABILITY (2026-11-14 결정 9) ─────────────────────────
+
+def test_runtime_env_observability_is_on_by_default(tmp_path, monkeypatch):
+    """설정이 없으면 지금 그대로 켜짐 — 기본 동작을 코드에 남긴다."""
+    from briefing.runtime.deploy_runtime import runtime_env
+
+    monkeypatch.delenv("BRIEFING_OBSERVABILITY", raising=False)
+    env = runtime_env(_settings(tmp_path))
+    assert env["AGENT_OBSERVABILITY_ENABLED"] == "true" and "OTEL_SDK_DISABLED" not in env
+
+
+def test_runtime_env_observability_off_disables_the_otel_sdk_and_exporters(tmp_path, monkeypatch):
+    """끄면 컨테이너의 `opentelemetry-instrument` 가 아무것도 내보내지 않게 한다(Dockerfile CMD 는 그대로)."""
+    from briefing.runtime.deploy_runtime import runtime_env
+
+    monkeypatch.setenv("BRIEFING_OBSERVABILITY", "0")
+    env = runtime_env(_settings(tmp_path))
+    assert env["AGENT_OBSERVABILITY_ENABLED"] == "false" and env["OTEL_SDK_DISABLED"] == "true"
+    assert env["OTEL_TRACES_EXPORTER"] == env["OTEL_METRICS_EXPORTER"] == env["OTEL_LOGS_EXPORTER"] == "none"
+
+
+def test_configure_kwargs_disable_otel_follows_the_observability_setting():
+    """toolkit 의 disable_otel 이 꺼져 있어야 launch 가 계정의 Transaction Search 를 켜지 않는다."""
+    from briefing.runtime.deploy_runtime import AGENT_NAME, configure_kwargs
+
+    on, off = configure_kwargs("us-east-1", {}), configure_kwargs("us-east-1", {"BRIEFING_OBSERVABILITY": "off"})
+    assert on["disable_otel"] is False and off["disable_otel"] is True
+    assert on["agent_name"] == off["agent_name"] == AGENT_NAME and off["region"] == "us-east-1"
+    assert off["auto_create_execution_role"] is True and off["auto_create_ecr"] is True

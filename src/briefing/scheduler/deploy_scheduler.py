@@ -46,6 +46,22 @@ SCHEDULES: tuple[dict, ...] = (
      "input": {"source": "briefing-weekly-send", "mode": "weekly_send"}},
 )
 ENV_SECTION = "# ⑤ Briefing Scheduler (deploy_scheduler.py)"
+_OFF = ("0", "false", "no", "off")
+
+
+def schedules_from_env(env) -> tuple[dict, ...]:
+    """`.env` 설정을 반영한 스케줄 명세(순수 — 테스트가능). 설정이 없으면 SCHEDULES 그대로(매시간 + 주간 2개).
+
+    - `BRIEFING_DAILY_CRON` · `BRIEFING_DAILY_TZ`: 데일리 스케줄의 식과 시간대. 수신자가 한 명이면 발송 시각에만
+      깨우면 된다(매시간 tick 이 런타임 비용의 대부분 — 2026-10 비용 리포트).
+      ★ 식의 시각은 사용자 행의 `send_hour`·`timezone` 과 같아야 한다 — 다르면 오류 없이 메일이 안 나간다(due.users_due_now).
+    - `BRIEFING_WEEKLY_SCHEDULES=0`: 주간 스케줄 2개를 만들지 않는다(주간 코드는 그대로 둔다).
+    """
+    daily = dict(SCHEDULES[0])
+    daily["expr"] = (env.get("BRIEFING_DAILY_CRON") or "").strip() or daily["expr"]
+    daily["tz"] = (env.get("BRIEFING_DAILY_TZ") or "").strip() or daily["tz"]
+    weekly_on = (env.get("BRIEFING_WEEKLY_SCHEDULES") or "").strip().lower() not in _OFF
+    return (daily, *(SCHEDULES[1:] if weekly_on else ()))
 _MANAGED_BASIC = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 
 _G, _Y, _B, _R, _NC = "\033[0;32m", "\033[1;33m", "\033[0;34m", "\033[0;31m", "\033[0m"
@@ -126,10 +142,14 @@ def _ensure_table(ddb, name: str, *, pk: str, sk: str | None = None) -> None:
 
 
 def _ensure_schedule(sched, spec: dict, lambda_arn, sched_role_arn) -> None:
-    """SCHEDULES 한 항목 create-or-update. Input 은 명세 그대로(주간만 mode)."""
+    """스케줄 명세 한 항목 create-or-update. Input 은 명세 그대로(주간만 mode).
+
+    ★ 켜짐/꺼짐은 배포가 정하지 않는다 — 새 스케줄은 꺼진 채로 만들고(`scheduler/switch.py on` 으로 켠다),
+      이미 있는 스케줄은 현재 상태를 유지한다. 예전엔 State="ENABLED" 고정이라 꺼 둔 시스템이 재배포로 다시 켜졌다.
+    """
     args = dict(
         Name=spec["name"], ScheduleExpression=spec["expr"],
-        ScheduleExpressionTimezone=spec["tz"], FlexibleTimeWindow={"Mode": "OFF"}, State="ENABLED",
+        ScheduleExpressionTimezone=spec["tz"], FlexibleTimeWindow={"Mode": "OFF"}, State="DISABLED",
         Target={
             "Arn": lambda_arn, "RoleArn": sched_role_arn,
             "Input": json.dumps(spec["input"]),
@@ -138,10 +158,11 @@ def _ensure_schedule(sched, spec: dict, lambda_arn, sched_role_arn) -> None:
     )
     try:
         sched.create_schedule(**args)
-        print(f"   schedule 생성: {spec['name']} ({spec['expr']} {spec['tz']})")
+        print(f"   schedule 생성: {spec['name']} ({spec['expr']} {spec['tz']}) · 꺼진 상태 — switch.py on 으로 켠다")
     except sched.exceptions.ConflictException:
+        args["State"] = sched.get_schedule(Name=spec["name"])["State"]
         sched.update_schedule(**args)
-        print(f"   schedule 업데이트: {spec['name']} ({spec['expr']} {spec['tz']})")
+        print(f"   schedule 업데이트: {spec['name']} ({spec['expr']} {spec['tz']}) · 상태 유지={args['State']}")
 
 
 # ───────────────────────── main ─────────────────────────
@@ -188,8 +209,9 @@ def main() -> None:
     sched_role_arn = _ensure_role(iam, SCHED_ROLE, sched_trust, "BriefingSchedulerInvokeLambda", sched_perm)
     time.sleep(10)
 
-    print(f"{_Y}[5/6] EventBridge Scheduler schedule × {len(SCHEDULES)}{_NC}")
-    for spec in SCHEDULES:
+    specs = schedules_from_env(os.environ)   # `.env` 의 BRIEFING_DAILY_CRON/TZ · BRIEFING_WEEKLY_SCHEDULES
+    print(f"{_Y}[5/6] EventBridge Scheduler schedule × {len(specs)}{_NC}")
+    for spec in specs:
         _ensure_schedule(sched, spec, lambda_arn, sched_role_arn)
 
     print(f"{_Y}[6/6] 루트 .env writeback{_NC}")

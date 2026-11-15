@@ -1,11 +1,14 @@
 # per-user 운영(operational) 설정 — 전달/포맷. 편집 개인화는 skill.md.
 # (다중 사용자: users/<id>/ 디렉토리 하나 = 사용자 1명. design-for-N, run-for-1.)
 id: gonsoo
-recipient: moongons@amazon.com    # 수신 이메일 (SES sandbox: 사전 verify 필요). 기존: gonsoomoon@gmail.com
+recipient: ""                     # 수신 이메일은 여기 쓰지 않는다(저장소 공개) — `.env` 의 SEED_RECIPIENTS=gonsoo=<email> (scripts/seed_users.py)
 type: ai-news                     # TYPE: ai-news / stock-news ...
-sources: [aitimes, aws-ml, openai, deepmind, anthropic]   # 전역 CATALOG 키 선택(UI가 채움); 생략 시 전체
+# 전역 CATALOG 키 선택(UI가 채움); 생략 시 전체. 2026-11-14 운영 중인 관리자 행(19개)과 맞춤.
+sources: [aitimes, aws-ml, aws-kr-tech, aws-ai-news, anthropic, anthropic-eng, claude-blog, deepmind,
+          google-research, google-ai, google-dev, the-decoder, pytorch-kr-news, claude-dev,
+          anthropic-research, gcloud-ai, meta-research, hf-blog, simon-willison]
 depth: full                       # DEPTH: title-only / summary / full
 lens: engineer                    # LENS: 해석 관점 — 정본 목록은 core/lenses.yaml
                                   #   (general / engineer / business / researcher / agent-builder)
-send_hour: 6                      # 발송 시각(시) — 06:00 KST (2026-07-01 변경, 기존 7)
+send_hour: 5                      # 발송 시각(시) — 05:00 KST. ★ 스케줄을 하루 1회로 쓰면 `.env` BRIEFING_DAILY_CRON 의 시각과 같아야 한다
 timezone: Asia/Seoul              # 발송 타임존 (KST)
