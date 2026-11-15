@@ -52,7 +52,7 @@
 | `same_site_replay.sh <저장소 루트> <since> <until> <출력 접두사> [추가 인자…]` | 구현한 코드로 재생하고 판정한 쌍 전부를 JSON 으로 | `same-site-replay-*.txt` · `.json` |
 | `same_site_diff.py <replay.json> <measure.json>` | 재생 결과를 측정과 기계적으로 대조 — 제외 집합 일치 · 측정 후보 밖 판정 · 다른 판정(Bedrock 호출 없음) | `same-site-diff-20261028-1113.txt` |
 | `same_site_mutate.py <저장소 루트>` | 같은 사이트 규칙의 가드 7개를 하나씩 지워 테스트가 잡는지 확인(소스를 잠깐 고치고 되돌린다) | (화면) |
-| `judge_raw_probe.py <replay.json> <B 제목 조각> [N]` | 판정이 실패한 쌍을 N 회 다시 물어 응답 원문과 파서가 읽는지 | `judge-raw-probe-lechonk.txt` |
+| `judge_raw_probe.py <replay.json> <B 제목 조각> [N] [same-first]` | 판정이 실패한 쌍을 N 회 다시 물어 응답 원문과 파서가 읽는지. `same-first` = 옛 답 순서로 | `judge-raw-probe-lechonk*.txt` |
 | `judge_fail_scan.py <이 폴더>` | 판정 실패 빈도 — 저장된 판정 결과 + 운영 로그(10-28 이후) | `judge-fail-scan-20261115.txt` |
 
 ## 데이터
@@ -66,7 +66,8 @@
   - ★ `same-site-measure.txt` 끝줄의 "2회 모두 다름 617"은 **다름 616 + 2회 모두 판정 실패 1** 이다. 그때 집계가 판정 실패를 "다름"에 섞어 셌다(도구는 고쳤다). 정확한 수는 `same-site-analyze.txt`.
 - `same-site-replay-20261028-1113.txt` · `.json`(17회: 판정 323 · 제외 10) · `same-site-replay-20261021-1027.txt` · `.json`(게이트 주간: 판정 222 · 제외 10) · `same-site-diff-20261028-1113.txt`(17회 재생과 측정의 대조).
   - ★ `same-site-replay-20261028-1113.txt` 끝의 `FAIL` · `exit=1` 은 판정 결과와 무관하다. 그때 스크립트가 그 기간에 없는 두 제목(게이트 주간의 유지 확인용)을 기간과 상관없이 걸어서 "유지 확인 불가"가 찍혔다(스크립트는 고쳤다).
-- `judge-raw-probe-lechonk.txt`(판정이 실패하는 쌍의 응답 원문 6회 — 전부 `"same": true` 인데 파서가 못 읽음) · `judge-fail-scan-20261115.txt`(저장된 판정 1,799회 중 실패 3회 = 그 한 쌍 · 운영 로그의 `판정 실패` 줄 0건).
+- `judge-raw-probe-lechonk.txt`(판정이 실패하는 쌍의 응답 원문 6회 — 전부 `"same": true` 인데 파서가 못 읽음) · `judge-raw-probe-lechonk-same-first.txt`(같은 쌍을 옛 답 순서로 6회 — 5회 못 읽음) · `judge-fail-scan-20261115.txt`(저장된 판정 1,799회 중 실패 3회 = 그 한 쌍 · 운영 로그의 `판정 실패` 줄 0건).
+  - 47쌍 실험 결과(`judge-exp-results-*.jsonl`, 671회)에는 첫 JSON 을 못 읽은 호출이 없다 — 전달 기록 §6 의 표는 그대로다.
 
 ## 다시 돌릴 때 주의
 
