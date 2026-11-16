@@ -22,7 +22,7 @@ def test_run_author_records_cost(monkeypatch):
     monkeypatch.setattr(author.shutil, "rmtree", lambda *a, **k: None)
     monkeypatch.setattr(author.tempfile, "mkdtemp", lambda *a, **k: "/tmp/x")
     rec = UsageRecorder()
-    s = type("S", (), {"author_model_id": "m", "author_effort": "", "region": "r"})()
+    s = type("S", (), {"author_model_id": "m", "author_effort": "", "region": "r", "author_provider": "bedrock"})()
     out = author._run_author("sys", "usr", s, recorder=rec)
     assert out == "R"
     assert rec.total() == 0.05
@@ -41,7 +41,7 @@ def _fake_run(seen, stdout='{"result":"R","total_cost_usd":0.05}'):
 
 
 def _settings():
-    return type("S", (), {"author_model_id": "m", "author_effort": "", "region": "r"})()
+    return type("S", (), {"author_model_id": "m", "author_effort": "", "region": "r", "author_provider": "bedrock"})()
 
 
 def test_run_author_timeout_s_overrides_default(monkeypatch):

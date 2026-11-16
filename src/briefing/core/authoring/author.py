@@ -4,7 +4,8 @@
 - **Skill 이 Claude Code 의 유일 레버**("왜 두 하니스인가"의 답). Strands 는 author 가 아니다(향후 curation 전담).
 - **런타임 격리(비협상):** `claude -p` 는 **clean(빈) dir 에서 실행** — repo `CLAUDE.md`/`AGENTS.md` 자동 로드 금지.
   `--system-prompt` 로 build_system_prompt 가 *유일* 통제(repo 아키텍처 컨텍스트 오염 0).
-- Bedrock 라우팅 = *호출 env*(claude 기본 설정엔 없음): `bedrock_author_env()`(스모크 검증된 조합).
+- 모델 라우팅 = *호출 env*(claude 기본 설정엔 없음): `author_env()` — 기본 `bedrock_author_env()`(스모크 검증된 조합),
+  `AUTHOR_PROVIDER=subscription` 이면 `subscription_author_env()`(Claude 구독 로그인으로 직접 호출).
 - author 는 *동결본 read 만*. 자기 채점 금지 — certifier 직접 호출 안 함(gate 가 함). **certifier 를 import 안 함**(불변식).
 - 출력 = 카드별 {summary, why_it_matters, claims[]}; **headline 은 안 만든다** — 카드 제목 = 기사 원제목(사실층 앵커=source.title). claims 는 원자적(검증 단위). JSON 파서는 순수(테스트가능).
 """
@@ -135,6 +136,33 @@ def bedrock_author_env(settings: Settings, model_id: str = "") -> dict[str, str]
         "AWS_REGION": settings.region,
         "ENABLE_TOOL_SEARCH": "false",
     }
+
+
+# 구독 토큰(CLAUDE_CODE_OAUTH_TOKEN)보다 먼저 쓰이는 인증 변수 — 하나라도 남으면 claude 가 그쪽으로 간다(유료 경로).
+_OVERRIDES_SUBSCRIPTION = (
+    "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY",
+    "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY",
+)
+
+
+def subscription_author_env(settings: Settings, model_id: str = "") -> dict[str, str]:
+    """`claude -p` 를 Claude 구독 로그인으로 직접 호출하는 env(2026-11-16).
+
+    인증 = 프로세스 env 의 `CLAUDE_CODE_OAUTH_TOKEN`(런타임은 run 시작 때 넣는다) 또는 로컬 `/login`.
+    모델 이름은 직접 호출용(예: claude-sonnet-5-5 — Bedrock inference-profile id 가 아니다).
+    """
+    env = {k: v for k, v in os.environ.items() if k not in _OVERRIDES_SUBSCRIPTION}
+    return {**env, "ANTHROPIC_MODEL": model_id or settings.author_model_id, "ENABLE_TOOL_SEARCH": "false"}
+
+
+def author_env(settings: Settings, model_id: str = "", provider: str | None = None) -> dict[str, str]:
+    """호출 경로에 맞는 `claude -p` env. 기본 = Bedrock(종전 동작).
+
+    `provider` — 생략하면 `settings.author_provider`. 보조 판정은 자기 경로(`judge_provider`)를 넘긴다.
+    """
+    if (provider or settings.author_provider) == "subscription":
+        return subscription_author_env(settings, model_id)
+    return bedrock_author_env(settings, model_id)
 
 
 def build_system_prompt(*, lens_guidance: str, skill_md: str) -> str:
@@ -304,11 +332,12 @@ def _parse_interp(text: str) -> Interpretation:
 def _run_author(
     system_prompt: str, user_prompt: str, settings: Settings, *, recorder=None,
     model_id: str = "", effort: str | None = None, prompt_via_stdin: bool = False, timeout_s: int | None = None,
+    tools: bool = True, provider: str | None = None,
 ) -> str:
     """headless `claude -p`(Claude Code) on Bedrock → 최종 답변 텍스트.
 
     **clean dir 에서 실행**(repo CLAUDE.md/AGENTS.md 미로드) + `--system-prompt`(build_system_prompt 가 *유일* 통제,
-    Claude Code 기본 프롬프트 대체) + Bedrock env 주입(`bedrock_author_env`). 모델 = ANTHROPIC_MODEL(env).
+    Claude Code 기본 프롬프트 대체) + 호출 경로별 env 주입(`author_env` — 기본 Bedrock). 모델 = ANTHROPIC_MODEL(env).
     certifier(`codex exec`)와 대칭 — 둘 다 별도 프로세스 + clean dir + stdin 닫음.
 
     `recorder`(옵션, 기본 None) — 주어지면 봉투의 정확한 total_cost_usd 를 기록(`UsageRecorder`).
@@ -319,6 +348,8 @@ def _run_author(
     넘으므로 stdin 으로 넘긴다. 기본 False = 종전과 같은 argv + stdin 닫음(데일리 무변경).
     `timeout_s`(2026-11-07, 주간) — subprocess 상한(초). None = `_AUTHOR_TIMEOUT_S`(360, 데일리 무변경).
     recorder 에는 비용과 함께 봉투 `num_turns` · 측정 벽시계 ms 를 남긴다(다턴 루프 크기 관찰).
+    `tools`(2026-11-16, 보조 판정) — False 면 `--tools ""`(도구 0 · 호출마다 붙는 도구 정의 약 22K 토큰 제거). 기본 True = 종전 명령.
+    `provider`(2026-11-16, 보조 판정) — 호출 경로를 직접 지정. None = `settings.author_provider`(요약·해석 무변경).
     """
     model_id = model_id or settings.author_model_id
     effort = settings.author_effort if effort is None else effort
@@ -330,7 +361,9 @@ def _run_author(
     effort_args = ["--effort", effort] if effort and effort != "default" else []
     clean_dir = tempfile.mkdtemp(prefix="author-clean-")  # 빈 dir → repo 컨텍스트 미상속(격리)
     t0 = time.monotonic()
-    argv = ["claude", "-p", "--system-prompt", system_prompt, "--output-format", "json", *effort_args]
+    # ★ `--tools` 는 가변 인자 — 프롬프트 바로 앞에 두면 프롬프트를 도구 이름으로 삼킨다 → 다른 옵션 앞(-p 바로 뒤)에 둔다
+    tools_args = [] if tools else ["--tools", ""]
+    argv = ["claude", "-p", *tools_args, "--system-prompt", system_prompt, "--output-format", "json", *effort_args]
     try:
         proc = subprocess.run(
             argv if prompt_via_stdin else [*argv, user_prompt],
@@ -338,7 +371,7 @@ def _run_author(
             capture_output=True,
             text=True,
             timeout=timeout_s or _AUTHOR_TIMEOUT_S,
-            env=bedrock_author_env(settings, model_id),
+            env=author_env(settings, model_id, provider),
             check=False,
             **({"input": user_prompt} if prompt_via_stdin else {"stdin": subprocess.DEVNULL}),
         )

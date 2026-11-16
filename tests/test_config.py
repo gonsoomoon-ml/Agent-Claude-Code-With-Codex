@@ -10,9 +10,10 @@ from briefing.core.config import _user_from_fields, list_users, load_settings, l
 def test_settings_defaults(monkeypatch):
     monkeypatch.delenv("AWS_REGION", raising=False)
     monkeypatch.delenv("SUPERVISOR_MODEL_ID", raising=False)
+    monkeypatch.delenv("AUTHOR_MODEL_ID", raising=False)   # 이 폴더 .env 의 값이 아니라 코드 기본값을 본다(구독 경로는 이름 규칙이 다르다)
     s = load_settings()
     assert s.region == "us-east-1"
-    assert s.author_model_id.startswith(("global.", "us."))  # inference-profile prefix
+    assert s.author_model_id.startswith(("global.", "us."))  # inference-profile prefix — 기본 경로(Bedrock)의 기본 모델
     assert s.supervisor_model_id == s.author_model_id  # per-role: 미설정 → author 재사용
 
 
@@ -137,3 +138,38 @@ def test_label_model_id_defaults_empty_and_reads_env(monkeypatch):
     assert load_settings().label_model_id == ""
     monkeypatch.setenv("LABEL_MODEL_ID", "global.anthropic.claude-sonnet-5-5")
     assert load_settings().label_model_id == "global.anthropic.claude-sonnet-5-5"
+
+
+def test_providers_default_to_bedrock(monkeypatch):
+    """호출 경로 스위치(2026-11-16): 키가 없거나 비어 있으면 종전 동작(Bedrock) — 스위치를 모르는 배포는 영향 0."""
+    for k in ("AUTHOR_PROVIDER", "CERTIFIER_PROVIDER", "JUDGE_PROVIDER"):
+        monkeypatch.delenv(k, raising=False)
+    s = load_settings()
+    assert (s.author_provider, s.certifier_provider, s.judge_provider) == ("bedrock", "bedrock", "bedrock")
+    monkeypatch.setenv("AUTHOR_PROVIDER", "")
+    monkeypatch.setenv("CERTIFIER_PROVIDER", "  ")
+    monkeypatch.setenv("JUDGE_PROVIDER", "")
+    s = load_settings()
+    assert (s.author_provider, s.certifier_provider, s.judge_provider) == ("bedrock", "bedrock", "bedrock")
+
+
+def test_providers_read_subscription_from_env(monkeypatch):
+    """요약·검증·보조 판정을 따로 고른다 — 대소문자·공백은 허용."""
+    monkeypatch.setenv("AUTHOR_PROVIDER", " Subscription ")
+    monkeypatch.setenv("CERTIFIER_PROVIDER", "bedrock")
+    monkeypatch.setenv("JUDGE_PROVIDER", "bedrock")
+    s = load_settings()
+    assert (s.author_provider, s.certifier_provider, s.judge_provider) == ("subscription", "bedrock", "bedrock")
+    monkeypatch.setenv("CERTIFIER_PROVIDER", "subscription")
+    assert load_settings().certifier_provider == "subscription"
+    monkeypatch.setenv("JUDGE_PROVIDER", "SUBSCRIPTION")
+    s = load_settings()
+    assert (s.author_provider, s.judge_provider) == ("subscription", "subscription")
+
+
+@pytest.mark.parametrize("key", ["AUTHOR_PROVIDER", "CERTIFIER_PROVIDER", "JUDGE_PROVIDER"])
+def test_unknown_provider_fails_at_startup(monkeypatch, key):
+    """오타(예: subscripton)가 조용히 Bedrock 으로 돌면 안 된다 — 시작 시 실패."""
+    monkeypatch.setenv(key, "subscripton")
+    with pytest.raises(ValueError, match=key):
+        load_settings()

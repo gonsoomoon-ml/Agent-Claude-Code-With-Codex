@@ -31,6 +31,7 @@ from pathlib import Path
 import boto3
 
 from ..core.config import Settings, load_settings
+from .harness_auth import PARAM_CLAUDE_TOKEN, PARAM_CODEX_AUTH, needs_claude_token
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]      # …/briefing-lane-b
 PACKAGE_DIR = PROJECT_ROOT / "src" / "briefing"
@@ -90,10 +91,32 @@ def configure_kwargs(region: str, env) -> dict:
     )
 
 
+# 구독 변형 codex 설정 폴더(Dockerfile 이 codex_config_subscription.toml 을 여기에 굽는다) — 런타임 env CODEX_HOME 값
+CONTAINER_CODEX_SUBSCRIPTION_HOME = "/home/bedrock_agentcore/.codex-subscription"
+
+
+def _provider_env(settings: Settings) -> dict[str, str]:
+    """호출 경로(AUTHOR_PROVIDER·CERTIFIER_PROVIDER·JUDGE_PROVIDER)에 따른 컨테이너 env. 셋 다 bedrock 이면 종전과 같은 한 줄뿐.
+
+    ★ 컨테이너는 `.env` 를 안 읽는다 — 스위치를 여기서 넘기지 않으면 컨테이너는 조용히 Bedrock 으로 돈다.
+    """
+    env: dict[str, str] = {}
+    if settings.author_provider == "subscription":
+        env["AUTHOR_PROVIDER"] = "subscription"       # claude 는 구독 토큰으로 — Bedrock 플래그를 넣지 않는다
+    else:
+        env["CLAUDE_CODE_USE_BEDROCK"] = "1"          # author=claude -p → Bedrock
+    if settings.certifier_provider == "subscription":
+        env["CERTIFIER_PROVIDER"] = "subscription"
+        env["CODEX_HOME"] = CONTAINER_CODEX_SUBSCRIPTION_HOME   # codex 가 구독용 config.toml · auth.json 을 여기서 읽는다
+    if settings.judge_provider == "subscription":
+        env["JUDGE_PROVIDER"] = "subscription"        # 보조 판정도 claude -p 로(요약과 같은 Claude 토큰)
+    return env
+
+
 def runtime_env(settings: Settings) -> dict[str, str]:
     """컨테이너에 주입할 env (컨테이너는 `.env` 미독). ★ 호스트 `DEBUG` 를 그대로 forward(on/off).
 
-    author=`claude -p` 의 Bedrock 라우팅 키도 포함 — ②b 에서 CLI 번들 시 그대로 사용.
+    author=`claude -p` 의 라우팅 키도 포함(`_provider_env` — 기본 Bedrock) — ②b 에서 CLI 번들 시 그대로 사용.
     """
     return {
         "AWS_REGION": settings.region,
@@ -118,7 +141,7 @@ def runtime_env(settings: Settings) -> dict[str, str]:
         # SOURCE_STORE_PATH 는 local backend 폴백용(dynamo 경로는 미사용). 비-root writable 절대경로 유지.
         "SOURCE_STORE_PATH": CONTAINER_STORE_PATH,
         "USERS_DIR": settings.users_dir,
-        "CLAUDE_CODE_USE_BEDROCK": "1",   # author=claude -p → Bedrock
+        **_provider_env(settings),        # 호출 경로 — 셋 다 bedrock 이면 종전과 같은 CLAUDE_CODE_USE_BEDROCK=1 하나뿐
         "ENABLE_TOOL_SEARCH": "false",    # Bedrock 가 tool def 선로드(Gateway MCP 사용 시 필수)
         "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",  # 컨테이너: 텔레메트리/업데이트 등 비필수 네트워크 차단
         "OTEL_RESOURCE_ATTRIBUTES": f"service.name={AGENT_NAME}",
@@ -149,6 +172,10 @@ def _upsert_env_lines(text: str, updates: dict[str, str], *, section: str) -> st
 
 # ───────────────────────── [1] 빌드 컨텍스트 staging ─────────────────────────
 
+# 빌드 컨텍스트 루트로 복사하는 컨테이너 자산 — Dockerfile 이 COPY 로 집는 파일은 전부 여기 있어야 한다(없으면 docker build 실패)
+CONTAINER_ASSETS = ("Dockerfile", "requirements.txt", "codex_config.toml", "codex_config_subscription.toml",
+                    "claude_config.json")
+
 def stage_build_context() -> Path:
     """`src/briefing` 패키지 + 컨테이너 requirements 를 self-contained 빌드 컨텍스트로 복사.
 
@@ -169,7 +196,7 @@ def stage_build_context() -> Path:
     #   - requirements.txt  → uv pip install
     #   - {codex,claude} config → 컨테이너 ~/.codex/config.toml · ~/.claude.json 으로 굽기(비밀 0)
     rt = PACKAGE_DIR / "runtime" / "container"
-    for fname in ("Dockerfile", "requirements.txt", "codex_config.toml", "claude_config.json"):
+    for fname in CONTAINER_ASSETS:
         shutil.copy2(rt / fname, BUILD_DIR / fname)
     # ⑤: users/ 도 컨테이너로 — mode=scheduled/real 이 실 사용자(send_hour/timezone/recipient) 로드(USERS_DIR=./users → /app/users).
     users_src = PROJECT_ROOT / "users"
@@ -218,9 +245,28 @@ def launch_runtime(runtime, settings: Settings):
 DYNAMO_ACTIONS = ("dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:Scan",
                   "dynamodb:UpdateItem", "dynamodb:BatchGetItem")
 
-def runtime_extras_policy(account: str) -> dict:
+def _harness_login_statements(account: str, settings: Settings) -> list[dict]:
+    """구독 경로일 때만 붙는 SSM 권한 — harness_auth 가 run 시작 때 로그인을 꺼내고(Get), codex 가 갱신한 로그인 파일을 되쓴다(Put).
+
+    쓰는 파라미터만 연다: Claude 토큰은 읽기만, codex 로그인 파일은 읽기 + 쓰기. 셋 다 bedrock 이면 빈 목록.
+    """
+    arn = f"arn:aws:ssm:{settings.region}:{account}:parameter"
+    use_claude = needs_claude_token(settings)
+    use_codex = settings.certifier_provider == "subscription"
+    read = [arn + p for on, p in ((use_claude, PARAM_CLAUDE_TOKEN), (use_codex, PARAM_CODEX_AUTH)) if on]
+    out: list[dict] = []
+    if read:
+        out.append({"Sid": "SsmHarnessLoginRead", "Effect": "Allow",
+                    "Action": ["ssm:GetParameter"], "Resource": read})
+    if use_codex:
+        out.append({"Sid": "SsmHarnessLoginWriteBack", "Effect": "Allow",
+                    "Action": ["ssm:PutParameter"], "Resource": [arn + PARAM_CODEX_AUTH]})
+    return out
+
+
+def runtime_extras_policy(account: str, settings: Settings | None = None) -> dict:
     """런타임 role inline 정책(순수 — 테스트가능). Bedrock invoke(author) · mantle(certifier) · SES · DDB briefing-* ·
-    주간 게이트의 inference profile 조회."""
+    주간 게이트의 inference profile 조회. `settings` 가 구독 경로면 SSM 로그인 파라미터 권한이 붙는다."""
     return {
         "Version": "2012-10-17",
         "Statement": [
@@ -266,11 +312,12 @@ def runtime_extras_policy(account: str) -> dict:
                     f"arn:aws:dynamodb:*:{account}:table/briefing-*/index/*",
                 ],
             },
+            *(_harness_login_statements(account, settings) if settings else []),
         ],
     }
 
 
-def attach_runtime_extras(result, region: str) -> None:
+def attach_runtime_extras(result, region: str, settings: Settings) -> None:
     """toolkit 자동 role 에 *우리 워크로드* 권한만 inline 부착 — `runtime_extras_policy`.
 
     ★ 최소권한 TODO: Resource 를 실제 inference-profile/SES identity ARN 으로 좁히면 더 안전
@@ -283,7 +330,7 @@ def attach_runtime_extras(result, region: str) -> None:
     account = role_arn.split(":")[4]
     boto3.client("iam").put_role_policy(
         RoleName=role_name, PolicyName="BriefingRuntimeExtras",
-        PolicyDocument=json.dumps(runtime_extras_policy(account)),
+        PolicyDocument=json.dumps(runtime_extras_policy(account, settings)),
     )
     print(f"{_G}✅ {role_name}/BriefingRuntimeExtras 부착{_NC}\n")
 
@@ -426,7 +473,7 @@ def main() -> None:
         result = launch_runtime(runtime, settings)
     finally:
         os.chdir(cwd0)                       # cwd 복원(이후 .env 등 상대경로 안전)
-    attach_runtime_extras(result, region)
+    attach_runtime_extras(result, region, settings)
     wait_until_ready(result, region)
     save_runtime_metadata(result)
     prune_old_images(result, region, os.environ)   # 옵션 — `.env` BRIEFING_ECR_KEEP_LATEST=1 일 때만(기본 꺼짐)

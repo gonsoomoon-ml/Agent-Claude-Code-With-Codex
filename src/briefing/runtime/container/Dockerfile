@@ -2,10 +2,13 @@
 #
 # ★ toolkit 동작: 빌드 dir 에 Dockerfile 이 *이미 있으면* 생성 대신 이걸 사용(container.py "Using existing Dockerfile").
 #   빌드 컨텍스트 = deploy_runtime.stage_build_context() 가 만든 .agentcore_build/ —
-#   {briefing/ 패키지, requirements.txt, codex_config.toml, claude_config.json, Dockerfile(이 파일)}
-#   ★ 이 파일과 4종 자산의 출처: src/briefing/runtime/container/
+#   {briefing/ 패키지, requirements.txt, codex_config.toml, codex_config_subscription.toml, claude_config.json,
+#    Dockerfile(이 파일)} — 목록의 진실 = deploy_runtime.CONTAINER_ASSETS
+#   ★ 이 파일과 자산의 출처: src/briefing/runtime/container/
 # ★ 비밀값 0: claude(CLAUDE_CODE_USE_BEDROCK=1) · codex(config.toml model_provider=amazon-bedrock) 둘 다
 #   **Bedrock SigV4 = execution role** 로 인증 → Anthropic/OpenAI API 키 안 구움.
+#   구독 변형(AUTHOR_PROVIDER/CERTIFIER_PROVIDER=subscription)도 같다 — 로그인은 이미지가 아니라 SSM 에 있고
+#   run 시작 때 runtime/harness_auth 가 꺼낸다.
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 WORKDIR /app
 ENV UV_SYSTEM_PYTHON=1 \
@@ -59,6 +62,8 @@ RUN python -m playwright install --with-deps chromium \
 # ── 비-root 유저 + 하니스 설정 굽기(비밀 아님: 둘 다 Bedrock SigV4) ──
 RUN useradd -m -u 1000 bedrock_agentcore
 COPY codex_config.toml  /home/bedrock_agentcore/.codex/config.toml
+# 구독 변형(CERTIFIER_PROVIDER=subscription) — 런타임 env CODEX_HOME 이 이 폴더를 가리킬 때만 쓰인다. 로그인 파일은 굽지 않는다.
+COPY codex_config_subscription.toml /home/bedrock_agentcore/.codex-subscription/config.toml
 COPY claude_config.json /home/bedrock_agentcore/.claude.json
 RUN chown -R bedrock_agentcore:bedrock_agentcore /home/bedrock_agentcore
 USER bedrock_agentcore

@@ -65,6 +65,11 @@ class Settings:
     # ── 핵심 3·분야 라벨 호출 모델(2026-10-24 결정: Sonnet 5.5). 빈 값 = relevance_model_id 상속(해석은 호출 시점,
     #    relevance_bedrock.make_bedrock_labels). 관련성 판정(기사마다 호출)은 RELEVANCE_MODEL_ID 그대로 — 비용 분리. ──
     label_model_id: str = ""
+    # ── 모델 호출 경로(2026-11-16) — 기본 "bedrock" = 종전 동작. "subscription" = 구독 로그인으로 직접 호출
+    #    (요약·보조 판정 = Claude 구독 토큰 · 검증 = ChatGPT 로그인). 셋을 따로 고른다. ──
+    author_provider: str = "bedrock"
+    certifier_provider: str = "bedrock"
+    judge_provider: str = "bedrock"      # 보조 판정(관련성·선별·재보도·헤드라인·라벨): bedrock = Converse · subscription = claude -p
 
 
 # claude -p --effort 에 넘길 수 있는 값 + 빈 값·"default"(플래그 생략). 오타는 시작 시 실패시킨다.
@@ -87,6 +92,17 @@ def _positive_int(raw: str, name: str) -> int:
         raise ValueError(f"{name} 는 양의 정수여야 함 (got {raw!r})") from None
     if v < 1:
         raise ValueError(f"{name} 는 양의 정수여야 함 (got {raw!r})")
+    return v
+
+
+PROVIDERS = ("bedrock", "subscription")
+
+
+def _provider(raw: str, name: str) -> str:
+    """호출 경로 env 파싱 — 빈 값은 bedrock. 오타는 시작 시 실패(조용히 Bedrock 로 도는 것보다 낫다)."""
+    v = raw.strip().lower() or "bedrock"
+    if v not in PROVIDERS:
+        raise ValueError(f"{name} 는 {', '.join(repr(x) for x in PROVIDERS)} 중 하나여야 함 (got {raw!r})")
     return v
 
 
@@ -127,6 +143,9 @@ def load_settings() -> Settings:
         interp_model_id=g("INTERP_MODEL_ID", "").strip(),
         interp_effort=_effort(g("INTERP_EFFORT", ""), "INTERP_EFFORT"),
         label_model_id=g("LABEL_MODEL_ID", "").strip(),
+        author_provider=_provider(g("AUTHOR_PROVIDER", ""), "AUTHOR_PROVIDER"),
+        certifier_provider=_provider(g("CERTIFIER_PROVIDER", ""), "CERTIFIER_PROVIDER"),
+        judge_provider=_provider(g("JUDGE_PROVIDER", ""), "JUDGE_PROVIDER"),
     )
 
 

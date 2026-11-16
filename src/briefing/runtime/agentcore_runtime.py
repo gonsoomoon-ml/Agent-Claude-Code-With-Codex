@@ -19,6 +19,7 @@ from ..core import _debug
 from ..core.stores.backends import make_stores
 from ..core.config import list_users, load_settings, load_user
 from ..core.pipeline import run_briefing
+from . import harness_auth
 from ._smoke import harness_fns, smoke_fns, smoke_users
 
 
@@ -34,23 +35,45 @@ def _production_fns(settings) -> dict:
         from ..core.retrieval.gateway_client import gateway_fetch_factory
         fns["fetch_article_fn"] = gateway_fetch_factory(settings)
     if settings.relevance_llm_enabled:   # 판정자(같은 플래그): 관련성 + top-K 선별 + 헤드라인 선별(Haiku) · 헤드라인 분야 + 핵심 3/분야 라벨(LABEL_MODEL_ID)
-        from ..core.retrieval.relevance_bedrock import (
-            make_bedrock_headline_areas,
-            make_bedrock_headline_select,
-            make_bedrock_labels,
-            make_bedrock_relevance,
-            make_bedrock_rereport,
-            make_bedrock_select,
-        )
-        fns["relevance_fn"] = make_bedrock_relevance(settings)   # require_ai 소스(키워드 폴백)
-        fns["select_fn"] = make_bedrock_select(settings)         # select=llm 카드 소스(최신순 폴백)
-        fns["headline_select_fn"] = make_bedrock_headline_select(settings)   # 헤드라인 칸(키워드·최신순 폴백)
-        fns["headline_area_fn"] = make_bedrock_headline_areas(settings)       # 헤드라인 분야 소제목(실패 시 한 목록)
-        fns["label_fn"] = make_bedrock_labels(settings)          # 핵심 3 + 분야 라벨 1콜(LABEL_MODEL_ID; 실패 시 평평)
-        fns["rereport_fn"] = make_bedrock_rereport(settings)     # 재보도 판정(인용 쌍만; 실패 시 B 유지)
+        # 호출 경로(JUDGE_PROVIDER): 기본 = Bedrock Converse · subscription = claude -p(Claude 구독 로그인). 판정 함수·폴백은 같다.
+        if settings.judge_provider == "subscription":
+            from ..core.retrieval.relevance_claude import (
+                make_claude_headline_areas as make_headline_areas,
+                make_claude_headline_select as make_headline_select,
+                make_claude_labels as make_labels,
+                make_claude_relevance as make_relevance,
+                make_claude_rereport as make_rereport,
+                make_claude_select as make_select,
+            )
+        else:
+            from ..core.retrieval.relevance_bedrock import (
+                make_bedrock_headline_areas as make_headline_areas,
+                make_bedrock_headline_select as make_headline_select,
+                make_bedrock_labels as make_labels,
+                make_bedrock_relevance as make_relevance,
+                make_bedrock_rereport as make_rereport,
+                make_bedrock_select as make_select,
+            )
+        fns["relevance_fn"] = make_relevance(settings)   # require_ai 소스(키워드 폴백)
+        fns["select_fn"] = make_select(settings)         # select=llm 카드 소스(최신순 폴백)
+        fns["headline_select_fn"] = make_headline_select(settings)   # 헤드라인 칸(키워드·최신순 폴백)
+        fns["headline_area_fn"] = make_headline_areas(settings)       # 헤드라인 분야 소제목(실패 시 한 목록)
+        fns["label_fn"] = make_labels(settings)          # 핵심 3 + 분야 라벨 1콜(LABEL_MODEL_ID; 실패 시 평평)
+        fns["rereport_fn"] = make_rereport(settings)     # 재보도 판정(인용 쌍만; 실패 시 B 유지)
     return fns
 
 app = BedrockAgentCoreApp()
+
+
+def _finish_async(settings, task_id) -> None:
+    """백그라운드 run 의 마무리 — codex 로그인 파일 되쓰기(구독 경로에서 바뀐 때만) → 세션 busy 해제.
+
+    되쓰기가 예외를 내도 busy 해제는 반드시 한다(안 하면 세션이 최대 8시간 떠 있는다).
+    """
+    try:
+        harness_auth.save(settings)
+    finally:
+        app.complete_async_task(task_id)
 
 
 @app.entrypoint
@@ -89,13 +112,14 @@ async def briefing_entrypoint(payload, context):
 
         def _bg():
             try:
+                harness_auth.prepare(settings)   # 구독 경로면 로그인 복원(bedrock 이면 no-op). 실패 = 이 run 중단·아래에서 로깅
                 # ★ production fns(Haiku 판정·선별) — 2026-10-17 까지 누락돼 정기 발송만 키워드·최신순으로 돌았다
                 dispatch(settings, store, s_users, now, deliver_fn=deliver_fn, run_date=rd,
                          card_cache=card_cache, ledger=ledger, sent_log=sent, **_production_fns(settings))
             except Exception as e:  # noqa: BLE001 — 백그라운드 실패는 보수적으로 로깅(이미 accepted 반환)
                 _debug.warn("scheduled bg", f"{type(e).__name__}: {e}")
             finally:
-                app.complete_async_task(task_id)
+                _finish_async(settings, task_id)
 
         threading.Thread(target=_bg, daemon=True).start()
         _debug.dprint("entrypoint", f"scheduled accepted · users={len(s_users)} · now={now.isoformat()} · dry={dry}")
@@ -121,13 +145,14 @@ async def briefing_entrypoint(payload, context):
 
         def _bg():
             try:
+                harness_auth.prepare(settings)   # 구독 경로면 로그인 복원(bedrock 이면 no-op). 실패 = 이 run 중단·아래에서 로깅
                 r = run_cloud(mode, w_payload, settings, ws, stores=(store, card_cache, ledger),
                               issue_store=issue_store, sent_log=sent)
                 _debug.dprint(f"entrypoint ← {mode}", str(r), "green" if r.get("status") in ("ready", "sent", "dry-run") else "yellow")
             except Exception as e:  # noqa: BLE001 — build 는 자기 실패를 표에 적고, send 는 07:00 에 실패 통지로 드러난다
                 _debug.warn(f"{mode} bg", f"{type(e).__name__}: {e}")
             finally:
-                app.complete_async_task(task_id)
+                _finish_async(settings, task_id)
 
         threading.Thread(target=_bg, daemon=True).start()
         _debug.dprint("entrypoint", f"{mode} accepted · issue_date={issue_date} · dry={dry}")
@@ -172,6 +197,7 @@ async def briefing_entrypoint(payload, context):
 
         def _bg():
             try:
+                harness_auth.prepare(settings)   # 구독 경로면 로그인 복원(bedrock 이면 no-op). 실패 = 이 run 중단·아래에서 로깅
                 # ★ 정기 발송과 **같은** 필터를 쓴다 — 맨 run_briefing 을 넘기면 판정자·선별자가 빠져
                 #   체험 메일이 키워드 전용으로 나간다(2026-07-27 실측 결함).
                 msg = run_trial(settings, store, card_cache, payload, ses=ses,
@@ -185,7 +211,7 @@ async def briefing_entrypoint(payload, context):
                 _status("failed")
                 _debug.warn("trial bg", f"{type(e).__name__}: {e}")
             finally:
-                app.complete_async_task(task_id)
+                _finish_async(settings, task_id)
 
         threading.Thread(target=_bg, daemon=True).start()
         _debug.dprint("entrypoint", f"trial accepted · {email} · dry={dry}")
@@ -208,18 +234,23 @@ async def briefing_entrypoint(payload, context):
                   f"mode={mode} · backend={settings.backend} · users={len(users)} · run_date={run_date}")
     yield {"type": "stage", "stage": "run_briefing", "mode": mode, "users": len(users),
            "backend": settings.backend, "run_date": run_date}
-    for b in run_briefing(settings, store, users, window_hours=window_hours,
-                          card_cache=None if test_mode else card_cache,
-                          ledger=None if test_mode else ledger,
-                          run_date=run_date, sent_at=datetime.now(timezone.utc), **fns):
-        # 격리(QUARANTINE) 카드도 ⚠ 표시로 메일에 싣는다(N5, 2026-10-18 사용자 결정) — 별도 사람-검토 큐 없음.
-        _debug.dprint("entrypoint ← briefing",
-                      f"{b.user_id}: published={b.published} quarantined={b.quarantined}",
-                      "green" if b.published else "yellow")
-        yield {
-            "type": "user", "user": b.user_id, "recipient": b.recipient,
-            "published": b.published, "quarantined": b.quarantined, "bytes": len(b.email),
-        }
+    if mode != "smoke":   # smoke 는 전부 fake — 로그인 없이도 돌아야 한다
+        harness_auth.prepare(settings)
+    try:
+        for b in run_briefing(settings, store, users, window_hours=window_hours,
+                              card_cache=None if test_mode else card_cache,
+                              ledger=None if test_mode else ledger,
+                              run_date=run_date, sent_at=datetime.now(timezone.utc), **fns):
+            # 격리(QUARANTINE) 카드도 ⚠ 표시로 메일에 싣는다(N5, 2026-10-18 사용자 결정) — 별도 사람-검토 큐 없음.
+            _debug.dprint("entrypoint ← briefing",
+                          f"{b.user_id}: published={b.published} quarantined={b.quarantined}",
+                          "green" if b.published else "yellow")
+            yield {
+                "type": "user", "user": b.user_id, "recipient": b.recipient,
+                "published": b.published, "quarantined": b.quarantined, "bytes": len(b.email),
+            }
+    finally:
+        harness_auth.save(settings)
     yield {"type": "workflow_complete"}
 
 

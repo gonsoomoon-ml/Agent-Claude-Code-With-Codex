@@ -24,7 +24,8 @@ _USER = UserConfig(id="u", recipient="u@example.com", type="ai-news", sources=()
 
 
 def _settings(**kw):
-    base = dict(author_model_id="M-author", author_effort="", interp_model_id="", interp_effort="")
+    base = dict(author_model_id="M-author", author_effort="", interp_model_id="", interp_effort="",
+                author_provider="bedrock")   # 이 폴더 .env 가 subscription 이어도 기존 테스트는 Bedrock 경로를 본다
     return dataclasses.replace(load_settings(), **(base | kw))
 
 
@@ -111,3 +112,61 @@ def test_prompt_via_stdin_moves_user_prompt_off_argv(monkeypatch):
     author._run_author("SYS", "가" * 200_000, _settings(author_effort="medium"), prompt_via_stdin=True)
     assert seen[1]["argv"] == ["claude", "-p", "--system-prompt", "SYS", "--output-format", "json", "--effort", "medium"]
     assert seen[1]["input"] == "가" * 200_000 and seen[1]["stdin"] is None
+
+
+# ───────────────────────── 호출 경로(AUTHOR_PROVIDER) 별 env ─────────────────────────
+
+_PAID_OR_CLOUD_KEYS = ("CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY",
+                       "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY")
+
+
+def test_author_env_default_is_the_bedrock_env():
+    """기본(bedrock) = 종전 env 그대로 — 스위치를 모르는 배포는 영향 0."""
+    s = _settings()
+    assert author.author_env(s, "M-x") == author.bedrock_author_env(s, "M-x")
+    assert author.author_env(s)["CLAUDE_CODE_USE_BEDROCK"] == "1"
+
+
+def test_subscription_env_drops_everything_that_outranks_the_token(monkeypatch):
+    """구독 경로: 토큰보다 먼저 쓰이는 인증 변수(Bedrock 플래그·API 키)가 상속 env 에 있어도 넘기지 않는다."""
+    for k in _PAID_OR_CLOUD_KEYS:
+        monkeypatch.setenv(k, "1")
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "tok-test")
+    env = author.author_env(_settings(author_provider="subscription", author_model_id="claude-sonnet-5-5"))
+    assert not [k for k in _PAID_OR_CLOUD_KEYS if k in env]
+    assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "tok-test"
+    assert (env["ANTHROPIC_MODEL"], env["ENABLE_TOOL_SEARCH"]) == ("claude-sonnet-5-5", "false")
+    assert author.author_env(_settings(author_provider="subscription"), "M-interp")["ANTHROPIC_MODEL"] == "M-interp"
+
+
+def test_run_author_uses_the_provider_env(calls, monkeypatch):
+    """`_run_author` 가 실제 subprocess 에 넘기는 env 가 스위치를 따른다."""
+    monkeypatch.setenv("CLAUDE_CODE_USE_BEDROCK", "1")
+    author._run_author("SYS", "USR", _settings(author_provider="subscription"))
+    author._run_author("SYS", "USR", _settings())
+    assert "CLAUDE_CODE_USE_BEDROCK" not in calls[0]["env"]
+    assert calls[1]["env"]["CLAUDE_CODE_USE_BEDROCK"] == "1"
+
+
+# ───────────────────────── 보조 판정용 선택 인자: tools=False · provider ─────────────────────────
+
+def test_tools_off_puts_flag_right_after_p_and_keeps_prompt_last(calls):
+    """`--tools` 는 가변 인자 — 프롬프트 바로 앞에 두면 프롬프트를 도구 이름으로 삼킨다(2026-11-16 실측: 입력 없음 오류)."""
+    author._run_author("SYS", "USR", _settings(), tools=False)
+    assert calls[0]["argv"] == ["claude", "-p", "--tools", "", "--system-prompt", "SYS", "--output-format", "json", "USR"]
+
+
+def test_tools_default_sends_no_tools_flag(calls):
+    author._run_author("SYS", "USR", _settings(author_effort="medium"))
+    assert "--tools" not in calls[0]["argv"]
+
+
+def test_explicit_provider_overrides_author_provider_both_ways(calls, monkeypatch):
+    """보조 판정은 자기 경로(judge_provider)를 넘긴다 — 요약 경로(author_provider)와 달라도 그 경로의 env 로 실행."""
+    monkeypatch.setenv("CLAUDE_CODE_USE_BEDROCK", "1")
+    author._run_author("SYS", "USR", _settings(), provider="subscription")
+    author._run_author("SYS", "USR", _settings(author_provider="subscription"), provider="bedrock")
+    author._run_author("SYS", "USR", _settings(author_provider="subscription"))
+    assert "CLAUDE_CODE_USE_BEDROCK" not in calls[0]["env"]
+    assert calls[1]["env"]["CLAUDE_CODE_USE_BEDROCK"] == "1"
+    assert "CLAUDE_CODE_USE_BEDROCK" not in calls[2]["env"]     # 생략 = author_provider

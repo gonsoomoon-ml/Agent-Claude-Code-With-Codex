@@ -17,16 +17,16 @@ from briefing.core.config import Settings, load_settings
 
 def _settings(tmp_path, *, users_dir: str | None = None, **overrides) -> Settings:
     # load_settings() 기본값 위에 override — Settings 에 필드가 추가돼도(③ DB 등) 깨지지 않게(replace).
-    return dataclasses.replace(
-        load_settings(),
+    base = dict(
         region="us-east-1",
         author_model_id="global.anthropic.claude-sonnet-4-6",
         supervisor_model_id="global.anthropic.claude-sonnet-4-6",
         ses_sender="briefing@example.com",
         source_store_path=str(tmp_path / "store"),
         users_dir=users_dir or str(tmp_path / "nousers"),
-        **overrides,
+        author_provider="bedrock", certifier_provider="bedrock", judge_provider="bedrock",   # 이 폴더 .env 가 subscription 이어도 기본 경로를 본다
     )
+    return dataclasses.replace(load_settings(), **(base | overrides))
 
 
 # ───────────────────────── runtime_env (DEBUG on/off forward) ─────────────────────────
@@ -171,6 +171,43 @@ def test_production_fns_wires_judge_when_enabled(tmp_path):
     assert "label_fn" in fns   # 핵심 3 + 분야 라벨(한 호출) — 정기·체험·수동이 같은 묶음을 쓴다
     assert "headline_area_fn" in fns   # 헤드라인 칸 분야 묶음
     assert "rereport_fn" in fns   # 재보도 판정자(2026-10-28) — 정기·체험이 같은 판정자
+
+
+def test_production_fns_use_claude_cli_when_judge_provider_is_subscription(tmp_path, monkeypatch):
+    """JUDGE_PROVIDER=subscription → 판정 6종이 `claude -p` 경로(relevance_claude)로 · Bedrock 클라이언트는 만들지 않는다."""
+    from briefing.core.retrieval import relevance_bedrock as rb
+    from briefing.core.retrieval import relevance_claude as rc
+    from briefing.runtime.agentcore_runtime import _production_fns
+
+    calls = []
+    monkeypatch.setattr(rc, "_run_author", lambda system, user, settings, **kw: calls.append(kw) or "YES")
+    monkeypatch.setattr(rb, "_client", lambda region: (_ for _ in ()).throw(AssertionError("Bedrock 클라이언트 생성 금지")))
+    fns = _production_fns(_settings(tmp_path, relevance_llm_enabled=True, judge_provider="subscription"))
+    assert set(fns) == {"relevance_fn", "select_fn", "headline_select_fn", "headline_area_fn", "label_fn", "rereport_fn"}
+    assert fns["relevance_fn"]("제목", "본문") is True
+    fns["rereport_fn"]("A 본문", "B 본문")
+    fns["headline_area_fn"](["제목 1"])
+    assert len(calls) == 3 and all(c["provider"] == "subscription" and c["tools"] is False for c in calls)
+
+
+def test_production_fns_default_judge_provider_stays_on_bedrock(tmp_path, monkeypatch):
+    """기본(bedrock) = 종전대로 Converse — `claude -p` 판정 경로는 호출되지 않는다."""
+    from briefing.core.retrieval import relevance_bedrock as rb
+    from briefing.core.retrieval import relevance_claude as rc
+    from briefing.runtime.agentcore_runtime import _production_fns
+
+    sent = []
+
+    class C:
+        def converse(self, **kw):
+            sent.append(kw["modelId"])
+            return {"output": {"message": {"content": [{"text": "YES"}]}}}
+
+    monkeypatch.setattr(rb, "_client", lambda region: C())
+    monkeypatch.setattr(rc, "_run_author", lambda *a, **kw: (_ for _ in ()).throw(AssertionError("claude -p 판정 금지")))
+    s = _settings(tmp_path, relevance_llm_enabled=True)
+    assert _production_fns(s)["relevance_fn"]("제목", "본문") is True
+    assert sent == [s.relevance_model_id]
 
 
 def test_production_fns_empty_when_disabled(tmp_path):
@@ -539,3 +576,167 @@ def test_prune_error_is_a_warning_not_a_failed_deploy(capsys):
 
     out = capsys.readouterr().out
     assert ecr.deletes == [] and "정리 실패" in out and "AccessDenied" in out
+
+
+# ───────────────────────── 구독 로그인 훅(harness_auth) — run 시작 복원 · 끝 되쓰기 ─────────────────────────
+
+def test_finish_async_saves_login_then_releases_session(monkeypatch):
+    import briefing.runtime.agentcore_runtime as rt
+
+    order = []
+    monkeypatch.setattr(rt.harness_auth, "save", lambda settings: order.append(("save", settings)))
+    monkeypatch.setattr(rt.app, "complete_async_task", lambda task_id: order.append(("done", task_id)))
+    rt._finish_async("S", 7)
+    assert order == [("save", "S"), ("done", 7)]
+
+
+def test_finish_async_releases_session_even_if_save_raises(monkeypatch):
+    """되쓰기가 예외를 내도 busy 해제는 반드시 — 안 하면 세션이 최대 8시간 떠 있는다."""
+    import pytest
+
+    import briefing.runtime.agentcore_runtime as rt
+
+    done = []
+
+    def boom(settings):
+        raise RuntimeError("ssm down")
+
+    monkeypatch.setattr(rt.harness_auth, "save", boom)
+    monkeypatch.setattr(rt.app, "complete_async_task", done.append)
+    with pytest.raises(RuntimeError):
+        rt._finish_async("S", 7)
+    assert done == [7]
+
+
+def test_every_non_smoke_path_restores_and_saves_subscription_login():
+    """구조 불변식(소스 검사 — 위 trial·scheduled 테스트와 같은 이유): 한 경로라도 훅이 빠지면 그 모드는
+    스위치를 켠 채 로그인 없이 돈다(카드 전부 실패) · 갱신된 codex 로그인 파일을 잃는다."""
+    import pathlib
+    import re
+
+    import briefing.runtime.agentcore_runtime as rt
+
+    src = pathlib.Path(rt.__file__).read_text(encoding="utf-8")
+    cut = [src.index('mode == "scheduled"'), src.index('mode in ("weekly_build"'),
+           src.index('mode == "trial"'), src.index('if mode == "smoke"')]
+    for name, part in zip(("scheduled", "weekly", "trial"), (src[a:b] for a, b in zip(cut, cut[1:]))):
+        assert "harness_auth.prepare(settings)" in part, f"{name}: 로그인 복원 누락"
+        assert "_finish_async(settings, task_id)" in part, f"{name}: 되쓰기·busy 해제 누락"
+        assert "app.complete_async_task" not in part, f"{name}: 되쓰기 없이 busy 만 해제"
+    sync = src[cut[3]:]
+    assert re.search(r'if mode != "smoke":[^\n]*\n\s+harness_auth\.prepare\(settings\)', sync), \
+        "real·harness: 복원 누락(smoke 는 제외)"
+    assert re.search(r"finally:\n\s+harness_auth\.save\(settings\)", sync), "real·harness: 되쓰기 누락"
+
+
+# ───────────────────────── 컨테이너 자산 — 구독용 codex 설정 · Dockerfile COPY ─────────────────────────
+
+def test_subscription_codex_config_uses_chatgpt_login_and_file_store(monkeypatch, tmp_path):
+    """구독 변형: provider 를 적지 않고(= codex 기본 OpenAI · ChatGPT 로그인) 로그인은 파일로 — harness_auth 가 복원·되쓴다."""
+    import shutil
+    import tomllib
+
+    from briefing.core.verification import certifier as cert
+    from briefing.runtime import deploy_runtime as dr
+
+    src = dr.PACKAGE_DIR / "runtime" / "container" / "codex_config_subscription.toml"
+    cfg = tomllib.loads(src.read_text(encoding="utf-8"))
+    assert "model_provider" not in cfg and "model_providers" not in cfg
+    assert (cfg["model"], cfg["model_reasoning_effort"], cfg["cli_auth_credentials_store"]) == (
+        "gpt-6-luna", "medium", "file")
+    shutil.copy(src, tmp_path / "config.toml")
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path))
+    assert cert.codex_model_id() == "gpt-6-luna"             # 운영 함수가 이 파일에서 모델 이름을 읽는다
+
+
+def test_dockerfile_copies_only_staged_assets():
+    """Dockerfile 이 COPY 로 집는 파일은 전부 빌드 컨텍스트에 실려야 한다 — 빠지면 배포 중 docker build 에서야 드러난다."""
+    import re
+
+    from briefing.runtime import deploy_runtime as dr
+
+    container = dr.PACKAGE_DIR / "runtime" / "container"
+    dockerfile = (container / "Dockerfile").read_text(encoding="utf-8")
+    copied = [m.group(1) for m in re.finditer(r"^COPY\s+(\S+)\s+\S+\s*$", dockerfile, re.M) if m.group(1) != "."]
+    assert "codex_config_subscription.toml" in copied and "codex_config.toml" in copied
+    missing = [f for f in copied if f not in dr.CONTAINER_ASSETS or not (container / f).exists()]
+    assert not missing, f"빌드 컨텍스트에 없는 COPY 원본: {missing}"
+    assert "Dockerfile" in dr.CONTAINER_ASSETS
+
+
+# ───────────────────────── 호출 경로 스위치 → 컨테이너 env · IAM(SSM) ─────────────────────────
+
+_SWITCH_KEYS = ("AUTHOR_PROVIDER", "CERTIFIER_PROVIDER", "JUDGE_PROVIDER", "CODEX_HOME")
+_ACCOUNT = "123456789012"
+_SSM = f"arn:aws:ssm:us-east-1:{_ACCOUNT}:parameter"
+
+
+def _ssm_statements(policy: dict) -> dict:
+    return {st["Sid"]: st for st in policy["Statement"] if st["Sid"].startswith("Ssm")}
+
+
+def test_default_providers_change_nothing_in_env_or_policy(tmp_path):
+    """둘 다 bedrock = 컨테이너 env 에 새 키 0 · 정책 문장 종전 5개 그대로(스위치를 모르는 배포는 영향 0)."""
+    from briefing.runtime.deploy_runtime import runtime_env, runtime_extras_policy
+
+    s = _settings(tmp_path)
+    env = runtime_env(s)
+    assert env["CLAUDE_CODE_USE_BEDROCK"] == "1" and not [k for k in _SWITCH_KEYS if k in env]
+    assert runtime_extras_policy(_ACCOUNT, s) == runtime_extras_policy(_ACCOUNT)
+    assert [st["Sid"] for st in runtime_extras_policy(_ACCOUNT)["Statement"]] == [
+        "BedrockInvokeAuthor", "BedrockMantleCertifier", "BedrockListProfilesWeeklyGate", "SesTrialAndSend",
+        "DynamoStores"]
+
+
+def test_author_subscription_drops_bedrock_flag_and_reads_only_the_claude_token(tmp_path):
+    from briefing.runtime.deploy_runtime import runtime_env, runtime_extras_policy
+    from briefing.runtime.harness_auth import PARAM_CLAUDE_TOKEN
+
+    s = _settings(tmp_path, author_provider="subscription")
+    env = runtime_env(s)
+    assert "CLAUDE_CODE_USE_BEDROCK" not in env and env["AUTHOR_PROVIDER"] == "subscription"
+    assert "CERTIFIER_PROVIDER" not in env and "CODEX_HOME" not in env
+    ssm = _ssm_statements(runtime_extras_policy(_ACCOUNT, s))
+    assert list(ssm) == ["SsmHarnessLoginRead"]                       # 쓰기 권한 없음 — Claude 토큰은 갱신되지 않는다
+    assert (ssm["SsmHarnessLoginRead"]["Action"], ssm["SsmHarnessLoginRead"]["Resource"]) == (
+        ["ssm:GetParameter"], [_SSM + PARAM_CLAUDE_TOKEN])
+
+
+def test_certifier_subscription_points_codex_home_and_allows_write_back(tmp_path):
+    from briefing.runtime import deploy_runtime as dr
+    from briefing.runtime.harness_auth import PARAM_CODEX_AUTH
+
+    s = _settings(tmp_path, certifier_provider="subscription")
+    env = dr.runtime_env(s)
+    assert env["CLAUDE_CODE_USE_BEDROCK"] == "1" and "AUTHOR_PROVIDER" not in env   # 요약은 그대로 Bedrock
+    assert (env["CERTIFIER_PROVIDER"], env["CODEX_HOME"]) == ("subscription", dr.CONTAINER_CODEX_SUBSCRIPTION_HOME)
+    dockerfile = (dr.PACKAGE_DIR / "runtime" / "container" / "Dockerfile").read_text(encoding="utf-8")
+    assert f"COPY codex_config_subscription.toml {env['CODEX_HOME']}/config.toml" in dockerfile   # env ↔ 이미지 경로 일치
+    ssm = _ssm_statements(dr.runtime_extras_policy(_ACCOUNT, s))
+    assert ssm["SsmHarnessLoginRead"]["Resource"] == [_SSM + PARAM_CODEX_AUTH]
+    assert (ssm["SsmHarnessLoginWriteBack"]["Action"], ssm["SsmHarnessLoginWriteBack"]["Resource"]) == (
+        ["ssm:PutParameter"], [_SSM + PARAM_CODEX_AUTH])
+
+
+def test_both_subscription_reads_both_parameters_writes_only_codex(tmp_path):
+    from briefing.runtime.deploy_runtime import runtime_extras_policy
+    from briefing.runtime.harness_auth import PARAM_CLAUDE_TOKEN, PARAM_CODEX_AUTH
+
+    s = _settings(tmp_path, author_provider="subscription", certifier_provider="subscription")
+    ssm = _ssm_statements(runtime_extras_policy(_ACCOUNT, s))
+    assert ssm["SsmHarnessLoginRead"]["Resource"] == [_SSM + PARAM_CLAUDE_TOKEN, _SSM + PARAM_CODEX_AUTH]
+    assert ssm["SsmHarnessLoginWriteBack"]["Resource"] == [_SSM + PARAM_CODEX_AUTH]
+
+
+def test_judge_subscription_forwards_switch_and_reads_only_the_claude_token(tmp_path):
+    """보조 판정만 구독: 스위치를 컨테이너로 넘기고(안 넘기면 컨테이너는 조용히 Bedrock), 요약용 Bedrock 플래그는 그대로."""
+    from briefing.runtime.deploy_runtime import runtime_env, runtime_extras_policy
+    from briefing.runtime.harness_auth import PARAM_CLAUDE_TOKEN
+
+    s = _settings(tmp_path, judge_provider="subscription")
+    env = runtime_env(s)
+    assert env["JUDGE_PROVIDER"] == "subscription" and env["CLAUDE_CODE_USE_BEDROCK"] == "1"
+    assert not [k for k in ("AUTHOR_PROVIDER", "CERTIFIER_PROVIDER", "CODEX_HOME") if k in env]
+    ssm = _ssm_statements(runtime_extras_policy(_ACCOUNT, s))
+    assert list(ssm) == ["SsmHarnessLoginRead"]
+    assert ssm["SsmHarnessLoginRead"]["Resource"] == [_SSM + PARAM_CLAUDE_TOKEN]
