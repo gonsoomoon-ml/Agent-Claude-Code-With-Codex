@@ -21,6 +21,8 @@ from .stores.source_store import SourceMeta
 MIN_TITLE_KEY_CHARS = 15  # 정규화 후 이보다 짧은 제목은 키 없음 — "Release notes" 류 일반 제목 오탐 방지
 TITLE_KEY_WINDOW_DAYS = 14  # 제목 키는 이 기간 안의 이전 발행에만 — 같은 제목 연재(월간 호 등)의 새 호를 막지 않게.
 #                            실측 제목 일치는 slug 수정 1일 간격뿐(2026-10 감사). 해시·URL 키는 lookback 전체(90일).
+SAME_SITE_WINDOW_DAYS = 7  # 재보도 "같은 사이트 다른 페이지" 후보는 이 기간 안에 보낸 기사만 — 실측(2026-11-14, 17회 발송)
+#                            중복 10쌍의 날짜 차는 0~5일. 3일로 줄이면 8쌍, 4일이면 9쌍만 잡힌다. 넓힐수록 판정 호출이 는다.
 
 _NON_WORD = re.compile(r"\W+")
 # 첫 경로 조각이 언어 코드인 번역판 URL(`/de/`·`/ko/`·`/zh-cn/`·`/es-419/`) — 같은 글의 다른 언어판을 한 키로.
@@ -66,6 +68,11 @@ def cite_key(url: str) -> str:
     return f"{host}/{tail}" if sep else f"{host}{q}{query}"
 
 
+def cite_host(key: str) -> str:
+    """인용 키 → 호스트(`claude.com/solutions/x` → `claude.com`). 같은 사이트의 다른 페이지인지 볼 때 쓴다."""
+    return key.partition("/")[0].partition("?")[0]
+
+
 def title_key(title: str) -> str:
     """제목 → 정규화 키(NFKC·소문자·기호/공백 제거). MIN_TITLE_KEY_CHARS 미만이면 "" — 키 없음."""
     norm = _NON_WORD.sub("", unicodedata.normalize("NFKC", title or "").lower())
@@ -93,7 +100,8 @@ def match_kind(candidate: Iterable[str], seen: Collection[str]) -> str:
 
 def published_keys(ledger: Any, store: Any, user_id: str, run_date: str, lookback_days: int,
                    memo: dict[str, SourceMeta | None],
-                   url_index: dict[str, str] | None = None) -> frozenset[str]:
+                   url_index: dict[str, str] | None = None,
+                   recent_hosts: dict[str, list[str]] | None = None) -> frozenset[str]:
     """user 가 run_date 이전 lookback_days 안에 메일로 받은 기사들(PUBLISH·QUARANTINE)의 신원 키 합집합.
 
     의미론(선행 설계 2026-07-11): strictly-earlier(run_date 미만 — 같은 날 재실행 = 강제 재발송 런북 보존).
@@ -106,12 +114,16 @@ def published_keys(ledger: Any, store: Any, user_id: str, run_date: str, lookbac
     ledger: `query(user_id, since_date)` · store: `get_meta(ids)` 를 가진 객체(Local·Dynamo 공통).
     url_index(선택) = 재보도 dedup 의 역참조 — 메타가 있는 받은 기사마다 `{cite_key(url): source_id}` 를 채운다
     (같은 키면 더 최근에 받은 쪽). 오늘 기사가 인용한 링크에서 원문(A) 본문을 찾아 읽는 데 쓴다.
+    recent_hosts(선택) = 같은 사이트 색인 — 최근 SAME_SITE_WINDOW_DAYS 일 안에 받은 기사를 `{호스트: [source_id, …]}`
+    (최근에 받은 순)로 채운다. 재보도가 원문 대신 같은 사이트의 다른 페이지를 링크했을 때 원문 후보를 찾는 데 쓴다.
+    run_date 형식이 깨져 창을 잴 수 없으면 채우지 않는다(90일치를 전부 후보로 넣지 않는다).
     """
     try:
         since = (date.fromisoformat(run_date) - timedelta(days=lookback_days)).isoformat()
         title_since = (date.fromisoformat(run_date) - timedelta(days=TITLE_KEY_WINDOW_DAYS)).isoformat()
+        recent_since = (date.fromisoformat(run_date) - timedelta(days=SAME_SITE_WINDOW_DAYS)).isoformat()
     except ValueError:
-        since = title_since = ""  # 형식 밖 run_date — 전체 조회(기존 동작 유지)
+        since = title_since = recent_since = ""  # 형식 밖 run_date — 전체 조회(기존 동작 유지) · 같은 사이트 색인은 비움
     latest: dict[str, str] = {}  # source_id → 가장 최근에 받은 run_date (제목 키 창 판단용)
     for r in ledger.query(user_id, since_date=since):
         if r.get("decision") in ("PUBLISH", "QUARANTINE") and r.get("run_date", "") < run_date:
@@ -122,16 +134,22 @@ def published_keys(ledger: Any, store: Any, user_id: str, run_date: str, lookbac
         for i in missing:
             memo[i] = found.get(i)
     keys: set[str] = set()
-    index_on: dict[str, str] = {}  # cite_key → 그 키를 채운 기사의 run_date (최근 쪽이 이긴다)
+    index: dict[str, tuple[str, str]] = {}  # cite_key → (source_id, 받은 run_date) — 같은 키면 최근에 받은 쪽이 이긴다
     for i, sent_on in latest.items():
         m = memo[i]
         if m is None:
             keys.add(f"sid:{i}")
             continue
-        if url_index is not None and (c := cite_key(m.url)) and sent_on >= index_on.get(c, ""):
-            url_index[c], index_on[c] = i, sent_on
+        if (c := cite_key(m.url)) and sent_on >= index.get(c, ("", ""))[1]:
+            index[c] = (i, sent_on)
         k = identity_keys(source_id=i, url=m.url, title=m.title, media=m.media)
         if sent_on < title_since:  # 제목 키 창(14일) 밖 — 해시·URL 키만 남긴다
             k = frozenset(x for x in k if not x.startswith("title:"))
         keys |= k
+    if url_index is not None:
+        url_index.update({c: i for c, (i, _on) in index.items()})
+    if recent_hosts is not None and recent_since:
+        for c, (i, sent_on) in sorted(index.items(), key=lambda kv: kv[1][1], reverse=True):
+            if sent_on >= recent_since:
+                recent_hosts.setdefault(cite_host(c), []).append(i)
     return frozenset(keys)

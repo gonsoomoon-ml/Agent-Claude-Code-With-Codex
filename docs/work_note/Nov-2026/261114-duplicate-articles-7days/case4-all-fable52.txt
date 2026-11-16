@@ -1,0 +1,19 @@
+원장 행 4건
+2026-11-09 PUBLISH    [Claude Developer Blog] Safely scaling multi-agent teams with Claude Fable 5.2
+    https://claude.dev/blog/safely-scaling-multi-agent-teams-with-fable-5-2/
+2026-11-10 PUBLISH    [The Decoder] Claude Fable 5.2 and Mythos 5.2 cement Anthropic's AI lead just before its IPO
+    https://the-decoder.com/claude-fable-5-2-and-mythos-5-2-cement-anthropics-ai-lead-just-before-its-ipo/
+2026-11-10 PUBLISH    [The Decoder] Anthropic's Fable 5.2 completes 41 percent of real freelance jobs, up from 2.5 percent a y
+    https://the-decoder.com/anthropics-fable-5-2-completes-41-percent-of-real-freelance-jobs-up-from-2-5-percent-a-year-ago/
+2026-11-11 PUBLISH    [PyTorch Korea 읽을거리] Anthropic, Claude Fable 5.2와 Mythos 5.2 출시: 가격 인하와 최대 30% 빠른 출력 (feat. Opus 5.5)
+    https://discuss.pytorch.kr/t/anthropic-claude-fable-5-2-mythos-5-2-30-feat-opus-5-5/12478
+
+source-store 에서 제목에 'Fable 5.2'/'Mythos 5.2' 가 든 글 4건
+2026-11-09 발송 [Claude Developer Blog] Safely scaling multi-agent teams with Claude Fable 5.2
+    https://claude.dev/blog/safely-scaling-multi-agent-teams-with-fable-5-2/
+2026-11-09 발송 [The Decoder] Claude Fable 5.2 and Mythos 5.2 cement Anthropic's AI lead just before its IPO
+    https://the-decoder.com/claude-fable-5-2-and-mythos-5-2-cement-anthropics-ai-lead-just-before-its-ipo/
+2026-11-10 발송 [The Decoder] Anthropic's Fable 5.2 completes 41 percent of real freelance jobs, up from 2.5 percent a y
+    https://the-decoder.com/anthropics-fable-5-2-completes-41-percent-of-real-freelance-jobs-up-from-2-5-percent-a-year-ago/
+2026-11-11 발송 [PyTorch Korea 읽을거리] Anthropic, Claude Fable 5.2와 Mythos 5.2 출시: 가격 인하와 최대 30% 빠른 출력 (feat. Opus 5.5)
+    https://discuss.pytorch.kr/t/anthropic-claude-fable-5-2-mythos-5-2-30-feat-opus-5-5/12478

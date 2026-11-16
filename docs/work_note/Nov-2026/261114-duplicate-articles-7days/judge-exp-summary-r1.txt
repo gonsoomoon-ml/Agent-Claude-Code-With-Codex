@@ -1,0 +1,34 @@
+
+===== V0: 호출 104 · 오류 0 · 사고 블록 31/104 · 평균 출력 131토큰 · 평균 입력 7107 · max_tokens 잘림 0 · JSON 2개 이상 5 · JSON 없음 0
+  [first JSON] 정답 90/100 · dropped/제외 36/36 · gate/유지 6/6 · gate/제외 18/18 · sent/유지 30/30 · sent/제외 0/10 · 흔들린 쌍 0
+     ✗ sent    정답=제외 판정=['F', 'F', 'F', 'F', 'F'] PyTorch Korea  '특정 프레임워크에서 모델이 버그없이 동작하는지를 확인하기 위한 Transformer' ← 'Transformers Model Integration Con'
+     ✗ sent    정답=제외 판정=['F', 'F', 'F', 'F', 'F'] PyTorch Korea  '에이전트 메모리, 많이 저장하기보다 검증하고 다시 정리하기 (feat. Anthro' ← 'The components of agent memory'
+  [last JSON] 정답 94/100 · dropped/제외 36/36 · gate/유지 6/6 · gate/제외 18/18 · sent/유지 30/30 · sent/제외 4/10 · 흔들린 쌍 1
+     (경계) ['F', 'F'] 'Mistral Large 4 가중치 공개: 토큰을 절반 가량 적게 쓰면서 GLM-5' ← 'Welcome Le Chonk: Mistral Large 4 '
+     (경계) ['T', 'F'] 'Introducing Gemini 4 Hydrogen' ← 'Google Search gets a major upgrade'
+
+===== V1: 호출 104 · 오류 0 · 사고 블록 34/104 · 평균 출력 122토큰 · 평균 입력 7106 · max_tokens 잘림 0 · JSON 2개 이상 0 · JSON 없음 0
+  [first JSON] 정답 100/100 · dropped/제외 36/36 · gate/유지 6/6 · gate/제외 18/18 · sent/유지 30/30 · sent/제외 10/10 · 흔들린 쌍 0
+  [last JSON] 정답 100/100 · dropped/제외 36/36 · gate/유지 6/6 · gate/제외 18/18 · sent/유지 30/30 · sent/제외 10/10 · 흔들린 쌍 0
+     (경계) ['T', 'T'] 'Mistral Large 4 가중치 공개: 토큰을 절반 가량 적게 쓰면서 GLM-5' ← 'Welcome Le Chonk: Mistral Large 4 '
+     (경계) ['F', 'F'] 'Introducing Gemini 4 Hydrogen' ← 'Google Search gets a major upgrade'
+
+===== V2: 호출 104 · 오류 0 · 사고 블록 90/104 · 평균 출력 195토큰 · 평균 입력 7107 · max_tokens 잘림 0 · JSON 2개 이상 0 · JSON 없음 0
+  [first JSON] 정답 98/100 · dropped/제외 36/36 · gate/유지 6/6 · gate/제외 18/18 · sent/유지 30/30 · sent/제외 8/10 · 흔들린 쌍 1
+     ✗ sent    정답=제외 판정=['F', 'T', 'T', 'F', 'T'] PyTorch Korea  '에이전트 메모리, 많이 저장하기보다 검증하고 다시 정리하기 (feat. Anthro' ← 'The components of agent memory'
+  [last JSON] 정답 98/100 · dropped/제외 36/36 · gate/유지 6/6 · gate/제외 18/18 · sent/유지 30/30 · sent/제외 8/10 · 흔들린 쌍 1
+     (경계) ['T', 'T'] 'Mistral Large 4 가중치 공개: 토큰을 절반 가량 적게 쓰면서 GLM-5' ← 'Welcome Le Chonk: Mistral Large 4 '
+     (경계) ['T', 'T'] 'Introducing Gemini 4 Hydrogen' ← 'Google Search gets a major upgrade'
+
+===== V3: 호출 104 · 오류 0 · 사고 블록 21/104 · 평균 출력 113토큰 · 평균 입력 10757 · max_tokens 잘림 0 · JSON 2개 이상 1 · JSON 없음 0
+  [first JSON] 정답 98/100 · dropped/제외 34/36 · gate/유지 6/6 · gate/제외 18/18 · sent/유지 30/30 · sent/제외 10/10 · 흔들린 쌍 0
+     ✗ dropped 정답=제외 판정=['F', 'F'] PyTorch Korea  'Apple 음성 API로 오픈 모델 쓰는 AnySpeechRecognizer와 결정' ← 'Introducing AnySpeechRecognizer an'
+  [last JSON] 정답 98/100 · dropped/제외 34/36 · gate/유지 6/6 · gate/제외 18/18 · sent/유지 30/30 · sent/제외 10/10 · 흔들린 쌍 0
+     (경계) ['T', 'T'] 'Mistral Large 4 가중치 공개: 토큰을 절반 가량 적게 쓰면서 GLM-5' ← 'Welcome Le Chonk: Mistral Large 4 '
+     (경계) ['T', 'F'] 'Introducing Gemini 4 Hydrogen' ← 'Google Search gets a major upgrade'
+
+===== V4: 호출 104 · 오류 0 · 사고 블록 26/104 · 평균 출력 106토큰 · 평균 입력 10756 · max_tokens 잘림 0 · JSON 2개 이상 0 · JSON 없음 0
+  [first JSON] 정답 100/100 · dropped/제외 36/36 · gate/유지 6/6 · gate/제외 18/18 · sent/유지 30/30 · sent/제외 10/10 · 흔들린 쌍 0
+  [last JSON] 정답 100/100 · dropped/제외 36/36 · gate/유지 6/6 · gate/제외 18/18 · sent/유지 30/30 · sent/제외 10/10 · 흔들린 쌍 0
+     (경계) ['T', 'T'] 'Mistral Large 4 가중치 공개: 토큰을 절반 가량 적게 쓰면서 GLM-5' ← 'Welcome Le Chonk: Mistral Large 4 '
+     (경계) ['T', 'F'] 'Introducing Gemini 4 Hydrogen' ← 'Google Search gets a major upgrade'

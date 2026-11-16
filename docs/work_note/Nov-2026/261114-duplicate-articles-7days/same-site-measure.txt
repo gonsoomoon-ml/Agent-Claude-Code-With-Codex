@@ -1,0 +1,70 @@
+2026-10-28: 발송 21 · 후보 쌍 +46
+2026-10-29: 발송 24 · 후보 쌍 +24
+2026-10-30: 발송 14 · 후보 쌍 +24
+2026-10-31: 발송 8 · 후보 쌍 +8
+2026-11-01: 발송 8 · 후보 쌍 +27
+2026-11-02: 발송 18 · 후보 쌍 +31
+2026-11-03: 발송 24 · 후보 쌍 +36
+2026-11-04: 발송 17 · 후보 쌍 +50
+2026-11-05: 발송 15 · 후보 쌍 +18
+2026-11-06: 발송 23 · 후보 쌍 +40
+2026-11-07: 발송 8 · 후보 쌍 +18
+2026-11-08: 발송 5 · 후보 쌍 +6
+2026-11-09: 발송 22 · 후보 쌍 +66
+2026-11-10: 발송 30 · 후보 쌍 +115
+2026-11-11: 발송 24 · 후보 쌍 +26
+2026-11-12: 발송 21 · 후보 쌍 +47
+2026-11-13: 발송 19 · 후보 쌍 +45
+정확히 걸린 링크 18 · 같은 사이트 다른 페이지 후보 627쌍 → 판정 2회씩
+
+2회 모두 같은 발표 10 · 갈림 0 · 2회 모두 다름 617
+
+10-28 같음 B [The Decoder] Google Deepmind releases Gemini 4 Carbon just two weeks after Ar
+        A [Google DeepMind] (10-28) Gemini 4 Carbon: Our next frontier model
+        B 가 건 링크: deepmind.google/fairwind-program
+        A 주소: https://deepmind.google/blog/gemini-4-carbon-our-next-frontier-model/
+
+10-28 같음 B [The Decoder] Nvidia's open Nemotron 3.5 Transcribe combines transcription, tr
+        A [Hugging Face Blo] (10-28) NVIDIA Nemotron 3.5 Transcribe and Granary v2: Intelligent M
+        B 가 건 링크: huggingface.co/collections/nvidia/nemotron-speech
+        A 주소: https://huggingface.co/blog/nvidia/nemotron-transcribe-granary
+
+11-01 같음 B [PyTorch Korea 읽을] Google, Gemini 4 Carbon 출시: Argon과 같은 가격에 AA 지수 1위, 사이버 방어 기관부터 
+        A [Google DeepMind] (10-28) Gemini 4 Carbon: Our next frontier model
+        B 가 건 링크: deepmind.google/fairwind-program
+        A 주소: https://deepmind.google/blog/gemini-4-carbon-our-next-frontier-model/
+
+11-03 같음 B [PyTorch Korea 읽을] Mistral Large 4 가중치 공개: 토큰을 절반 가량 적게 쓰면서 GLM-5.3과 비슷한 코딩 성능을 기록한
+        A [Hugging Face Blo] (10-29) Welcome Le Chonk: Mistral Large 4 on Hugging Face
+        B 가 건 링크: huggingface.co/collections/mistralai/mistral-large-4
+        A 주소: https://huggingface.co/blog/mistral-large4
+
+11-04 같음 B [The Decoder] Anthropic's new prototype proves which model wrote an AI respons
+        A [Anthropic Resear] (11-03) Progress on provable inference for large language models
+        B 가 건 링크: anthropic.com/document/flashprove-technical-report
+        A 주소: https://www.anthropic.com/research/provable-inference
+
+11-05 같음 B [PyTorch Korea 읽을] 특정 프레임워크에서 모델이 버그없이 동작하는지를 확인하기 위한 Transformers 모델 통합 계약(MIC) 제안
+        A [Hugging Face Blo] (11-03) Transformers Model Integration Contracts
+        B 가 건 링크: huggingface.co/datasets/huggingface-mic/transformers-fleet
+        A 주소: https://huggingface.co/blog/transformers-mic
+
+11-09 같음 B [PyTorch Korea 읽을] 에이전트 메모리, 많이 저장하기보다 검증하고 다시 정리하기 (feat. Anthropic)
+        A [Anthropic Engine] (11-07) The components of agent memory
+        B 가 건 링크: anthropic.com
+        A 주소: https://www.anthropic.com/research/components-of-agent-memory
+
+11-10 같음 B [The Decoder] Gemini 4 Carbon arrives just in time to feel like yesterday's ne
+        A [Google DeepMind] (11-10) Gemini 4 Carbon is now available
+        B 가 건 링크: deepmind.google/fairwind-program
+        A 주소: https://deepmind.google/blog/gemini-4-carbon-is-now-available/
+
+11-12 같음 B [The Decoder] Google's Gemini 4 Hydrogen outscores the bigger Argon just four 
+        A [Google AI (The K] (11-12) Google Search gets a major upgrade with Gemini 4 Hydrogen
+        B 가 건 링크: blog.google/innovation-and-ai/models-and-research/gemini-models/multimodal-knowledge-agent-benchmark
+        A 주소: https://blog.google/products-and-platforms/products/search/gemini-4-hydrogen-search-upgrade/
+
+11-13 같음 B [The Decoder] Anthropic's Claude for Manufacturing plugs AI directly into fact
+        A [Claude Blog] (11-12) Claude for Manufacturing: AI plugin for plant teams
+        B 가 건 링크: claude.com/solutions/manufacturing
+        A 주소: https://claude.com/resources/articles/claude-for-manufacturing

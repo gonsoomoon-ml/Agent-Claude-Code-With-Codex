@@ -1,0 +1,16 @@
+2026-11-05T17:00 [Google Cloud AI & ML] 6300자 · Gemini Omni 1.2 Flash: Fast, cost-effective, and reliable video generation and e
+    https://cloud.google.com/blog/products/ai-machine-learning/gemini-omni-1-2-flash-generally-available/
+2026-11-05T17:05 [Google DeepMind] 6172자 · Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips
+    https://deepmind.google/blog/gemini-omni-12-flash-fast-and-cost-effective-with-longer-clips/
+2026-11-10T13:00 [Google AI (The Keyword)] 1129자 · Google Cloud launches Gemini for healthcare.
+    https://blog.google/innovation-and-ai/infrastructure-and-cloud/google-cloud/gemini-for-healthcare/
+2026-11-12T18:00 [Google AI (The Keyword)] 1751자 · Google Search gets a major upgrade with Gemini 4 Hydrogen
+    https://blog.google/products-and-platforms/products/search/gemini-4-hydrogen-search-upgrade/
+2026-11-05T19:05 [The Decoder] 2481자 · Google's Gemini Omni 1.2 Flash stretches AI video clips to 15 seconds and cuts p
+    https://the-decoder.com/googles-gemini-omni-1-2-flash-stretches-ai-video-clips-to-15-seconds-and-cuts-pricing-by-30-percent/
+2026-11-12T19:58 [The Decoder] 7131자 · Google's Gemini 4 Hydrogen outscores the bigger Argon just four weeks after its 
+    https://the-decoder.com/googles-gemini-4-hydrogen-outscores-the-bigger-argon-just-four-weeks-after-its-launch/
+2026-11-10T12:00 [Google Cloud AI & ML] 16635자 · Introducing Gemini for healthcare
+    https://cloud.google.com/blog/products/ai-machine-learning/gemini-for-healthcare/
+2026-11-12T18:00 [Google DeepMind] 9775자 · Introducing Gemini 4 Hydrogen
+    https://deepmind.google/blog/introducing-gemini-4-hydrogen/

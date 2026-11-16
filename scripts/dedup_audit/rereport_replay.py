@@ -9,19 +9,28 @@ drop_rereports(파이프라인과 같은 코드)를 돌려 판정한 쌍·제외
         --since 2026-10-21 --until 2026-10-27 --expect-dropped 10 \\
         --expect-kept-title gitai --expect-kept-title "AAIF에 Agent Skills"
 
+★ 기대값은 페이지가 바뀌면 달라진다 — 기사 페이지를 매번 다시 받기 때문이다. 2026-10-28 에는 판정 13·제외 10 이었고,
+  2026-11-14 부터는 판정 12·제외 9 다(10-25 The Decoder 기사가 수정돼 본문에 원문 링크가 없어졌다 — 코드와 무관).
+  수가 어긋나면 날짜별 "판정 N" 줄에서 어느 날 쌍이 사라졌는지부터 본다.
+★ 2026-11-14 부터 같은 사이트 다른 페이지 쌍(rereport_dedup (c))도 판정한다 — 위 수(12·9)는 `--exact-only`(정확히 링크한
+  쌍만)일 때의 값이고, 기본 실행은 같은 주에서 판정 222(같은 사이트 210)·제외 10(같은 사이트 1 = 위에서 링크가 사라진
+  10-25 The Decoder 기사가 다시 잡힌다)이다. 출력의 LINK = 원문 주소를 정확히 링크한 쌍, SITE = 같은 사이트의 다른 페이지로 걸린 쌍.
+  SITE 쌍은 수가 많아(run당 ~22) 제외·실패만 나열한다 — 유지된 쌍까지 보려면 `--show-site-keeps`.
+  `--json-out` 은 판정한 쌍 전부를 파일로 남긴다(측정 결과와 기계적으로 대조할 때).
 판정자는 temperature 를 고정할 수 없다(Haiku 5.5 거부) — 1건 차이는 1회 재실행, 같은 쌍이 또 갈리면 프롬프트를 의심.
 설계: docs/superpowers/specs/2026-10-28-cited-rereport-dedup-design.md §7
 """
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 
 import boto3
 
-from briefing.core.article_identity import published_keys
+from briefing.core.article_identity import cite_key, published_keys
 from briefing.core.config import DEFAULT_DEDUP_LOOKBACK_DAYS, load_settings
 from briefing.core.rereport_dedup import drop_rereports
 from briefing.core.retrieval.relevance_bedrock import make_bedrock_rereport
@@ -64,6 +73,9 @@ def main() -> int:
     ap.add_argument("--expect-dropped", type=int)
     ap.add_argument("--expect-kept-title", action="append", default=[],
                     help="판정은 받았지만 남아야 하는 B 제목의 부분 문자열(여러 번 가능)")
+    ap.add_argument("--exact-only", action="store_true", help="정확히 링크한 쌍만 — 같은 사이트 다른 페이지 판정을 끈다")
+    ap.add_argument("--show-site-keeps", action="store_true", help="같은 사이트로 걸렸지만 유지된 쌍도 나열한다")
+    ap.add_argument("--json-out", help="판정한 쌍 전부(날짜·A·B·경로·판정)를 이 파일에 JSON 으로 남긴다")
     args = ap.parse_args()
 
     settings = load_settings()
@@ -75,8 +87,8 @@ def main() -> int:
     print(f"user={uid[:8]}… model={settings.relevance_model_id} rows={len(rows)}")
 
     meta_memo: dict = {}
-    judged: list[tuple[str, object, object, object]] = []   # (run_date, A, B, 판정)
-    dropped: set[tuple[str, str]] = set()                    # (run_date, B source_id)
+    judged: list[tuple[str, object, object, object, str]] = []   # (run_date, A, B, 판정, 경로 LINK|SITE)
+    dropped: set[tuple[str, str]] = set()                         # (run_date, B source_id)
     for d in _days(args.since, args.until):
         sids = sorted({r["source_id"] for r in rows
                        if r.get("run_date") == d and r.get("decision") in ("PUBLISH", "QUARANTINE")})
@@ -92,30 +104,52 @@ def main() -> int:
         with ThreadPoolExecutor(8) as ex:
             cited = {fs.source_id: c for (fs, _), c in zip(survivors, ex.map(lambda x: _cited(x[0]), survivors)) if c}
         sent_index: dict[str, str] = {}
-        published_keys(ledger, store, uid, d, DEFAULT_DEDUP_LOOKBACK_DAYS, meta_memo, url_index=sent_index)
+        recent_hosts: dict[str, list[str]] = {}
+        published_keys(ledger, store, uid, d, DEFAULT_DEDUP_LOOKBACK_DAYS, meta_memo, url_index=sent_index,
+                       recent_hosts=recent_hosts)
         memo: dict = {}   # run 단위 메모(프로덕션과 같음)
         drops = drop_rereports(survivors, cited=cited, sent_index=sent_index, get_source=store.get_source,
-                               judge=judge, memo=memo)
+                               judge=judge, memo=memo, recent_hosts=None if args.exact_only else recent_hosts)
         by_sid = {fs.source_id: fs for fs, _ in survivors}
+        n_site = 0
         for (a_sid, b_sid), v in memo.items():
             a = by_sid.get(a_sid) or store.get_source(a_sid)   # 같은 날 A 는 생존자, 과거 A 는 source-store
-            judged.append((d, a, by_sid[b_sid], v))
+            how = "LINK" if cite_key(a.url) in cited.get(b_sid, ()) else "SITE"
+            n_site += how == "SITE"
+            judged.append((d, a, by_sid[b_sid], v, how))
         dropped |= {(d, b) for b in drops}
-        print(f"{d}: 생존자 {len(survivors)} · 인용 키 있는 기사 {len(cited)} · 판정 {len(memo)} · 제외 {len(drops)}")
+        print(f"{d}: 생존자 {len(survivors)} · 인용 키 있는 기사 {len(cited)} · 판정 {len(memo)}"
+              f"(같은 사이트 {n_site}) · 제외 {len(drops)}", flush=True)
+
+    def tag_of(d, b, v) -> str:
+        # 한 B 가 여러 A 와 판정받으면 "같다"고 나온 쌍만 DROP — 나머지 쌍은 그 B 가 빠졌더라도 KEEP(다름)으로 적는다
+        return "DROP" if (d, b.source_id) in dropped and v.same is True else ("FAIL" if v.same is None else "KEEP")
 
     print()
-    for d, a, b, v in judged:
-        tag = "DROP" if (d, b.source_id) in dropped else ("FAIL" if v.same is None else "KEEP")
-        print(f"{d} {tag:4} {b.media[:16]:16} {b.title[:60]!r}\n{'':16}← {a.media[:16]} {a.title[:56]!r}\n"
+    for d, a, b, v, how in judged:
+        tag = tag_of(d, b, v)
+        if how == "SITE" and tag == "KEEP" and not args.show_site_keeps:
+            continue
+        print(f"{d} {tag:4} {how} {b.media[:16]:16} {b.title[:60]!r}\n{'':16}← {a.media[:16]} {a.title[:56]!r}\n"
               f"{'':16}  {v.reason[:140]}")
 
+    if args.json_out:
+        with open(args.json_out, "w", encoding="utf-8") as f:
+            json.dump([dict(run_date=d, how=how, tag=tag_of(d, b, v), same=v.same, reason=v.reason,
+                            a_sid=a.source_id, b_sid=b.source_id, a_media=a.media, b_media=b.media,
+                            a_title=a.title, b_title=b.title, a_url=a.url, b_url=b.url)
+                       for d, a, b, v, how in judged], f, ensure_ascii=False, indent=1)
+
     ok = True
-    print(f"\n판정한 쌍 {len(judged)} · 제외 {len(dropped)}")
+    site = [x for x in judged if x[4] == "SITE"]
+    site_drops = {(d, b.source_id) for d, _a, b, v, _h in site if v.same is True}
+    print(f"\n판정한 쌍 {len(judged)}(정확히 링크 {len(judged) - len(site)} · 같은 사이트 {len(site)}) · "
+          f"제외 {len(dropped)}(정확히 링크 {len(dropped - site_drops)} · 같은 사이트 {len(dropped & site_drops)})")
     if args.expect_dropped is not None and len(dropped) != args.expect_dropped:
         print(f"FAIL: 제외 {len(dropped)} ≠ 기대 {args.expect_dropped}")
         ok = False
     for sub in args.expect_kept_title:
-        hits = [(d, b) for d, _a, b, _v in judged if sub in b.title]
+        hits = [(d, b) for d, _a, b, _v, _how in judged if sub in b.title]
         if not hits:
             print(f"FAIL: '{sub}' 를 포함한 B 가 판정 쌍에 없다(유지 확인 불가)")
             ok = False

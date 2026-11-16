@@ -638,6 +638,65 @@ def test_rereport_judge_called_once_for_two_users(tmp_path):
     assert [x.published for x in d] == [0, 0] and len(calls) == 1
 
 
+def test_rereport_logs_new_judge_calls_once_per_run(tmp_path, capsys):
+    """판정자 호출 수는 run 로그에서 보여야 한다(같은 사이트 판정으로 호출이 늘었다) — 메모를 쓰는 두 번째 사용자는 0 이라 안 찍는다."""
+    from briefing.core.retrieval.rereport import RereportVerdict
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    _rereport_days(store, ledger, [_user("u1", ["aws-ml"]), _user("u2", ["aws-ml"])],
+                   rereport_fn=lambda a, b: RereportVerdict(True, "same"))
+    lines = [ln for ln in capsys.readouterr().err.splitlines() if "새 판정" in ln]
+    assert len(lines) == 1 and "u1: 새 판정 1쌍 · 제외 1건" in lines[0]
+
+
+# ── 같은 사이트 다른 페이지(2026-11-14) — 재보도가 원문 주소 대신 제품 페이지를 링크해도, 최근 7일 안에 보낸
+#    같은 사이트 기사와 판정한다. 통과한 글이 News & Media·Community 매체일 때만 ──
+def _same_site_days(store, ledger, b_source, rereport_fn):
+    """11-12 Claude Blog 원문 발행 → 11-13 같은 사이트의 제품 페이지만 링크한 글이 b_source 로 들어온다. 11-13 결과."""
+    users = [_user("u", ["claude-blog", b_source])]
+
+    def day1(source, _w):
+        if source.key != "claude-blog":
+            return []
+        return [FetchedArticle(source.key, "https://claude.com/blog/claude-for-manufacturing",
+                               "Claude for Manufacturing", "원문 본문. 직원 약 100명.", "2026-11-12T00:00:00Z")]
+    run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-11-12", **_kw(day1))
+
+    def day2(source, _w):
+        if source.key != b_source:
+            return []
+        return [FetchedArticle(source.key, "https://example.org/claude-manufacturing", "Anthropic targets factories",
+                               "재보도 본문. 직원 약 100명.", "2026-11-13T00:00:00Z",
+                               cited=("claude.com/solutions/manufacturing",))]
+    return run_briefing(SimpleNamespace(), store, users, ledger=ledger, run_date="2026-11-13",
+                        rereport_fn=rereport_fn, **_kw(day2))
+
+
+def test_rereport_same_site_drops_news_media_article(tmp_path, capsys):
+    from briefing.core.retrieval.rereport import RereportVerdict
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    d = _same_site_days(store, ledger, "the-decoder", lambda a, b: RereportVerdict(True, "same announcement"))
+    assert d[0].published == 0
+    assert "재보도 제외(같은 사이트)" in capsys.readouterr().err
+
+
+def test_rereport_same_site_does_not_ask_about_first_party_article(tmp_path):
+    from briefing.core.retrieval.rereport import RereportVerdict
+    from briefing.core.stores.ledger import LocalLedger
+
+    store, ledger = SourceStore(str(tmp_path / "store")), LocalLedger(str(tmp_path / "led"))
+    calls = []
+
+    def judge(a, b):
+        calls.append(1)
+        return RereportVerdict(True, "same")
+    d = _same_site_days(store, ledger, "aws-ml", judge)
+    assert d[0].published == 1 and calls == []
+
+
 def test_same_article_from_two_sources_in_one_run_yields_one_card(tmp_path):
     """같은 글을 두 소스가 같은 run 에 가져오면 카드 1장 — curate 가 source_id(본문 해시)로 접고 먼저 온 소스(카탈로그 순)가 남는다.
     회귀 가드(2026-11-01, work_note 261030 +b): anthropic-eng(article_path /research/)와 anthropic-research 가 같은 엔지니어링 글을

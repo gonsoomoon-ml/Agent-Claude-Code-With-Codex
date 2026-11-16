@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from . import _debug, quality_checks, render
-from .article_identity import identity_keys, match_kind, published_keys
+from .article_identity import cite_key, identity_keys, match_kind, published_keys
 from .retrieval import sources as src
 from .authoring.author import INTERP_PROMPT_VERSION, PROMPT_VERSION
 from .stores.cache import CardCache, fact_card_key, interp_card_key
@@ -80,7 +80,8 @@ def run_briefing(
 
     ★ gate/certifier 는 user-blind(trust 경계). 배달(SES)·QUARANTINE 행선지는 호출자(어댑터) 책임 — 여기선 산출만.
     run 내 메모(사실층=출처당 1회, 해석층=(출처,lens)당 1회)는 캐시 유무와 무관하게 보장 — 비용 O(기사)+O(기사×lens).
-    rereport_fn = 재보도 판정자(인용 링크로 걸린 쌍만; Haiku) — None(미주입)이면 재보도 단계 전체 off.
+    rereport_fn = 재보도 판정자(인용 링크로 걸린 쌍만 — 원문 주소를 정확히 링크했거나, News & Media·Community 글이
+    최근 7일 안에 보낸 기사와 같은 사이트의 다른 페이지를 링크한 쌍; Haiku) — None(미주입)이면 재보도 단계 전체 off.
     """
     fetch_targets = src.fetch_set(u.sources for u in users)  # 모든 사용자 선택의 합집합 1회
     cited: dict[str, tuple[str, ...]] = {}   # source_id → 본문 인용 키(재보도 dedup; run 동안만 — source-store 미저장)
@@ -115,9 +116,11 @@ def run_briefing(
         #   의미론 3결정(PUBLISH 만 · strictly-earlier · run_date 빈값이면 off)은 published_keys 가 보존.
         seen: frozenset[str] = frozenset()
         sent_index: dict[str, str] = {}   # cite_key(보낸 URL) → source_id — 재보도 (a) 과거 쌍의 A 를 찾는다
+        recent_hosts: dict[str, list[str]] = {}   # 호스트 → 최근 7일 안에 보낸 기사 — 재보도 (c) 같은 사이트 다른 페이지
         if ledger is not None and run_date:
             try:
-                seen = published_keys(ledger, store, u.id, run_date, lookback_days, meta_memo, url_index=sent_index)
+                seen = published_keys(ledger, store, u.id, run_date, lookback_days, meta_memo, url_index=sent_index,
+                                      recent_hosts=recent_hosts)
             except Exception as e:  # noqa: BLE001 — dedup 은 보조 장치: DDB 오류가 전 사용자 브리핑을 막으면 안 된다
                 _debug.warn("pipeline dedup", f"{u.id}: 이전 발행 조회 실패 — 이번 run 은 dedup off(fail-open): "
                                               f"{type(e).__name__}: {e}")   # 빈 메일함보다 중복 1건이 낫다
@@ -133,7 +136,8 @@ def run_briefing(
                 continue
             survivors.append((fs, cat))
         if rereport_fn is not None:
-            survivors, n = _drop_rereports_for(u.id, survivors, cited, sent_index, store, rereport_fn, rereport_memo)
+            survivors, n = _drop_rereports_for(u.id, survivors, cited, sent_index, recent_hosts, store, rereport_fn,
+                                               rereport_memo)
             deduped += n
         # ★ 카드별 격리(비협상): 한 카드의 author/certify 실패(TimeoutExpired·throttle rc≠0·네트워크)가
         #   *브리핑 전체*를 무너뜨리지 않게 각 카드를 개별 try 로 감싼다 — 실패 카드만 드롭하고 나머지는 발행.
@@ -182,27 +186,32 @@ def run_briefing(
     return out
 
 
-def _drop_rereports_for(user_id, survivors, cited, sent_index, store, judge, memo) -> tuple[list, int]:
+def _drop_rereports_for(user_id, survivors, cited, sent_index, recent_hosts, store, judge, memo) -> tuple[list, int]:
     """재보도 단계(한 사용자) → (남은 생존자, 뺀 건수). 제외·판정 실패를 warn(DEBUG 무관 → CloudWatch).
 
-    판정 실패 warn 은 이번 호출에서 새로 메모된 쌍만 — 같은 run 의 두 번째 사용자부터는 반복하지 않는다.
+    판정 실패 warn 과 "새 판정 N쌍" 줄은 이번 호출에서 새로 메모된 쌍만 — 같은 run 의 두 번째 사용자부터는 반복하지 않는다.
+    제외 줄은 걸린 경로를 구분한다: B 가 A 주소를 정확히 링크했으면 `재보도 제외`, 같은 사이트의 다른 페이지를 링크해
+    걸렸으면 `재보도 제외(같은 사이트)`(2026-11-14).
     drop_rereports 자체 예외는 이 사용자의 재보도 단계만 끈다(fail-open — 중복 1장이 빈 메일보다 낫다).
     """
     before = set(memo)
     try:
         drops = drop_rereports(survivors, cited=cited, sent_index=sent_index, get_source=store.get_source,
-                               judge=judge, memo=memo)
+                               judge=judge, memo=memo, recent_hosts=recent_hosts)
     except Exception as e:  # noqa: BLE001 — 재보도 제외는 보조 장치
         _debug.warn("pipeline rereport", f"{user_id}: 재보도 단계 실패 — 이번 사용자는 off(fail-open): "
                                          f"{type(e).__name__}: {e}")
         return survivors, 0
     titles = {fs.source_id: fs.title for fs, _ in survivors}
-    for a_sid, b_sid in sorted(set(memo) - before):
+    new = sorted(set(memo) - before)
+    for a_sid, b_sid in new:
         if memo[(a_sid, b_sid)].same is None:
             _debug.warn("pipeline rereport", f"{user_id}: 판정 실패 — 통과(fail-open): {titles.get(b_sid, b_sid)[:50]}")
+    if new:  # 판정자 호출 수 — 같은 사이트 판정으로 run 당 ~2 → 평균 약 23·최대 50(재생 24회)으로 늘었다. 크게 벗어나면 신호
+        _debug.warn("pipeline rereport", f"{user_id}: 새 판정 {len(new)}쌍 · 제외 {len(drops)}건")
     for b_sid, (a, v) in drops.items():
-        _debug.warn("pipeline rereport",
-                    f"{user_id}: 재보도 제외 — {titles[b_sid][:50]} ← {a.title[:50]} ({v.reason[:80]})")
+        how = "재보도 제외" if cite_key(a.url) in cited.get(b_sid, ()) else "재보도 제외(같은 사이트)"
+        _debug.warn("pipeline rereport", f"{user_id}: {how} — {titles[b_sid][:50]} ← {a.title[:50]} ({v.reason[:80]})")
     return [(fs, cat) for fs, cat in survivors if fs.source_id not in drops], len(drops)
 
 

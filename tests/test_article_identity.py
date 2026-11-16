@@ -105,6 +105,60 @@ def test_published_keys_fills_url_index(tmp_path):
     assert idx == {"claude.com/resources/articles/a": fs.source_id}
 
 
+# --- 같은 사이트 색인(2026-11-14) — 재보도가 원문 대신 같은 사이트의 다른 페이지를 링크할 때 원문 후보를 찾는다 ---
+
+def test_cite_host_is_the_host_part_of_a_cite_key():
+    from briefing.core.article_identity import cite_host
+    assert cite_host("claude.com/solutions/manufacturing") == "claude.com"
+    assert cite_host("huggingface.co") == "huggingface.co"
+    assert cite_host("example.com?utm=1") == "example.com"
+
+
+def _sent(store, led, run_date, url, media="Claude Blog"):
+    fs = store.freeze(url=url, title=f"Title long enough {url}", raw_text=f"본문 {url}", fetched_at=run_date, media=media)
+    led.append(run_date, "u", fs.source_id, "k", "PUBLISH", "H")
+    return fs.source_id
+
+
+def test_published_keys_recent_hosts_keeps_only_the_last_seven_days(tmp_path):
+    """11-13 run: 7일 전(11-06)에 보낸 기사는 후보, 8일 전(11-05)은 아니다 — 실측한 중복의 날짜 차는 0~5일."""
+    from briefing.core.article_identity import published_keys
+    from briefing.core.stores.ledger import LocalLedger
+    from briefing.core.stores.source_store import SourceStore
+    store, led = SourceStore(str(tmp_path / "s")), LocalLedger(str(tmp_path / "l"))
+    day7 = _sent(store, led, "2026-11-06", "https://claude.com/blog/seven")
+    _sent(store, led, "2026-11-05", "https://claude.com/blog/eight")
+    other = _sent(store, led, "2026-11-12", "https://deepmind.google/blog/x", media="Google DeepMind")
+    recent: dict = {}
+    published_keys(led, store, "u", "2026-11-13", 90, {}, recent_hosts=recent)
+    assert recent == {"claude.com": [day7], "deepmind.google": [other]}
+
+
+def test_published_keys_recent_hosts_lists_latest_first(tmp_path):
+    from briefing.core.article_identity import published_keys
+    from briefing.core.stores.ledger import LocalLedger
+    from briefing.core.stores.source_store import SourceStore
+    store, led = SourceStore(str(tmp_path / "s")), LocalLedger(str(tmp_path / "l"))
+    older = _sent(store, led, "2026-11-08", "https://claude.com/blog/older")
+    newer = _sent(store, led, "2026-11-12", "https://claude.com/blog/newer")
+    mid = _sent(store, led, "2026-11-10", "https://claude.com/blog/mid")
+    recent: dict = {}
+    published_keys(led, store, "u", "2026-11-13", 90, {}, recent_hosts=recent)
+    assert recent == {"claude.com": [newer, mid, older]}
+
+
+def test_published_keys_recent_hosts_stays_empty_for_malformed_run_date(tmp_path):
+    """run_date 형식이 깨지면 7일 창을 잴 수 없다 — 90일치를 전부 후보로 넣지 않고 비워 둔다(같은 사이트 판정 off)."""
+    from briefing.core.article_identity import published_keys
+    from briefing.core.stores.ledger import LocalLedger
+    from briefing.core.stores.source_store import SourceStore
+    store, led = SourceStore(str(tmp_path / "s")), LocalLedger(str(tmp_path / "l"))
+    _sent(store, led, "2026-11-12", "https://claude.com/blog/a")
+    recent: dict = {}
+    published_keys(led, store, "u", "not-a-date", 90, {}, recent_hosts=recent)
+    assert recent == {}
+
+
 def test_cite_key_keeps_english_word_segments():
     """언어 코드이면서 흔한 영어 경로(uk·id·it·ar…)는 지우지 않는다 — 다른 글끼리 키가 겹쳐 잘못 빠지는 것보다
     번역판 링크 하나를 못 잇는 쪽(B 유지)이 낫다(최종 리뷰 2026-10-28). 대소문자는 구분하지 않는다."""

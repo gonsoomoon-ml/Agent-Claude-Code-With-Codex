@@ -74,11 +74,12 @@ def test_label_converse_reads_text_block_even_after_reasoning(monkeypatch):
     assert rb._converse_label_text(C(), "global.anthropic.claude-sonnet-5-5", "s", "u") == '[{"n": 1}]'
 
 
-def test_make_bedrock_rereport_uses_relevance_model_thinking_on(monkeypatch):
-    """재보도 판정자(2026-10-28) — RELEVANCE_MODEL_ID(Haiku 5.5)·thinking 기본(켬)·1500 토큰·temperature 없음.
+def test_make_bedrock_rereport_uses_relevance_model_thinking_not_disabled(monkeypatch):
+    """재보도 판정자(2026-10-28) — RELEVANCE_MODEL_ID(Haiku 5.5)·thinking 을 끄지 않음·1500 토큰·temperature 없음.
 
     ★ 관련성 판정자와 달리 thinking 을 끄지 않는다: 끄면 재생 게이트에서 AAIF 기증 쌍을 3/3 놓치고 run 간 제외 수가
-      흔들렸다(9→8). 실험판(thinking 켬) 설정은 13쌍×3회 39/39·흔들림 0(2026-10-28 실측).
+      흔들렸다(9→8). 끄지 않은 설정은 그 13쌍×3회 39/39(2026-10-28 실측).
+      끄지 않아도 모델이 늘 사고하는 것은 아니다(2026-11-14 실측: 104회 중 31회) — 답 순서는 test_rereport 가 고정한다.
     """
     from briefing.core.retrieval.rereport import RereportVerdict
     sent = {}

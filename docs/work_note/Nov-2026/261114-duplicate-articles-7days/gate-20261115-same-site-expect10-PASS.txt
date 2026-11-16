@@ -1,0 +1,51 @@
+user=445814b8… model=global.anthropic.claude-haiku-5-5 rows=2436
+2026-10-21: 생존자 21 · 인용 키 있는 기사 18 · 판정 24(같은 사이트 21) · 제외 2
+2026-10-22: 생존자 23 · 인용 키 있는 기사 21 · 판정 28(같은 사이트 26) · 제외 2
+2026-10-23: 생존자 24 · 인용 키 있는 기사 23 · 판정 19(같은 사이트 16) · 제외 2
+2026-10-24: 생존자 7 · 인용 키 있는 기사 7 · 판정 39(같은 사이트 39) · 제외 0
+2026-10-25: 생존자 9 · 인용 키 있는 기사 9 · 판정 50(같은 사이트 50) · 제외 1
+2026-10-26: 생존자 18 · 인용 키 있는 기사 16 · 판정 26(같은 사이트 24) · 제외 1
+2026-10-27: 생존자 23 · 인용 키 있는 기사 21 · 판정 36(같은 사이트 34) · 제외 2
+
+2026-10-21 KEEP LINK PyTorch Korea 읽을 'gitai: 한 브랜치에 몰린 코딩 에이전트들의 변경을 서버가 대신 rebase해 반영하는 Git 서버 (A'
+                ← Anthropic Engine 'Redesigning source control at Anthropic'
+                  B is a Korean article about gitai, an unofficial open-source reimplementation inspired by Anthropic's Scion post; its main subject is the gi
+2026-10-21 DROP LINK The Decoder      'Claude Science tackles deadly scorpion stings by designing p'
+                ← Anthropic Resear 'How Claude designed protein binders against scorpion neu'
+                  Article B's main subject is the same scorpion-neurotoxin protein binder design campaign and its lab results announced in Article A, with add
+2026-10-21 DROP LINK The Decoder      'Google Cloud now offers OpenAI models alongside Gemini and C'
+                ← Google Cloud AI  'Google Cloud expands model choice and flexibility, bring'
+                  B's main news is the same announcement, Google Cloud adding OpenAI's GPT-6 models to its model garden, which it summarizes with added commen
+2026-10-22 DROP LINK PyTorch Korea 읽을 '다음 주 출시되는 PyTorch 2.15부터 Mac GPU 지원 강화: MPS 백엔드의 FP8 지원 및 Mo'
+                ← Hugging Face Blo 'MPS in PyTorch 2.15'
+                  B is a Korean write-up of the same PyTorch 2.15 MPS announcement from article A (translated and expanded with extra benchmarks and context),
+2026-10-22 DROP LINK The Decoder      "Anthropic takes on Grok Bot, Meta's Muse, and OpenAI's Dots "
+                ← Claude Blog 'Introducing Claude Duet'
+                  Article B's main news is Anthropic's Claude Duet research preview, the same announcement as Article A, with added context on competitors, li
+2026-10-23 DROP LINK PyTorch Korea 읽을 'AWS, Trainium을 CUDA처럼 PyTorch 장치로 쓰는 네이티브 백엔드 TorchNeuron 공개'
+                ← Hugging Face Blo 'TorchNeuron: running HF models on AWS Trainium is easier'
+                  Article B is a Korean write-up that covers the same TorchNeuron announcement as Article A (public beta, native PyTorch backend, Hugging Face
+2026-10-23 KEEP LINK PyTorch Korea 읽을 'AAIF에 Agent Skills, Open Responses, OpenEnv, OpenSandbox 합류해'
+                ← Anthropic News 'Donating Agent Skills to the Agentic AI Foundation'
+                  B's main news is the AAIF announcement of four new projects (Agent Skills, Open Responses, OpenEnv, OpenSandbox), of which Agent Skills is o
+2026-10-23 DROP LINK The Decoder      'Anthropic says its unreleased model is both more capable and'
+                ← Anthropic Resear 'An alignment assessment of the UK AISI cybertesting inci'
+                  Article B's main subject is Anthropic's analysis of the Mythos 5 AISI test incident, the same content as Article A, summarized with added co
+2026-10-25 DROP SITE The Decoder      'Anthropic says one AI agent beats many subagents now that mo'
+                ← Claude Blog 'Building agents: When to fold subagents into your main a'
+                  Article B's main news is Anthropic's recommendation to fold subagents into a single agent loop and its release of the migration kit, which i
+2026-10-26 DROP LINK PyTorch Korea 읽을 'Anthropic, Agent Skills 표준을 AAIF에 기증: SKILL.md는 그대로, 배포와 보안은'
+                ← Anthropic News 'Donating Agent Skills to the Agentic AI Foundation'
+                  Article B's main news is the same announcement A reports: Anthropic donating the Agent Skills standard to the AAIF. B translates and expands
+2026-10-26 KEEP LINK Google AI (The K 'Our newest AI Quest: Mapping the human brain'
+                ← Google Research 'A connectomics milestone: Mapping the complete male frui'
+                  Article B's main news is the launch of the new AI Quests educational game "Polar Peaks"; the fruit fly connectome from Article A is cited on
+2026-10-27 DROP LINK PyTorch Korea 읽을 'ThinkingBox-Training 공개: DB 상태 채점 시 강화 학습 보상으로 매번 성공하는 과제 수를'
+                ← Hugging Face Blo 'Turning Database Grading into RL Rewards: Post-Training '
+                  B is a Korean write-up of A's ThinkingBox-Training announcement and its results (the GRPO gains, benchmark tables, and training loop), addin
+2026-10-27 DROP LINK The Decoder      "Google Deepmind's Genie 4 puts a modern spin on agent design"
+                ← Google DeepMind 'Genie 4: A new generation of world simulation'
+                  B is a news write-up whose main subject is the Genie 4 announcement from A, summarizing its features, limitations, and rollout, with added c
+
+판정한 쌍 222(정확히 링크 12 · 같은 사이트 210) · 제외 10(정확히 링크 9 · 같은 사이트 1)
+PASS

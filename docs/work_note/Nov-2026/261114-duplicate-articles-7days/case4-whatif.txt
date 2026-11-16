@@ -1,0 +1,21 @@
+== 1) 목록 https://www.anthropic.com/news: 수정 전 규칙(`/news/<slug>` 만)이 고르는 글 링크 19개
+   원 발표 글을 수정 전 규칙이 고르나: False
+   목록 HTML 에 원 발표 글 링크가 있나: True
+   목록에 있는 최상위(한 단계) 경로 9개: ['/claude-fable-and-mythos-5-2', '/claude-haiku-5-5', '/claude-opus-5-5', '/claude-sonnet-5-5', '/favicon.ico', '/news', '/press-kit', '/science', '/search']
+
+== 2) 원 발표 글: 선언된 종류='website' · 제목='Introducing Claude Fable 5.2 and Claude Mythos 5.2' · 본문 19994자 · 날짜=2026-11-09 · canonical=https://www.anthropic.com/claude-fable-and-mythos-5-2
+   기사로 추출되나: True
+
+== 3) 판정(3회씩)
+A=원문 ← B=The Decoder: [True, True, True]
+     True: Article B is a news write-up covering the same Claude Fable 5.2 and Mythos 5.2 release announced in Article A, summarizing its benchmarks, pricing, and claims with added independent analysis.
+     True: Article B is a news write-up covering the same Anthropic release of Claude Fable 5.2 and Mythos 5.2 that Article A announces, adding Artificial Analysis data, pricing comparisons, and reactions.
+     True: B is a news write-up covering the same Anthropic Fable 5.2 and Mythos 5.2 release announced in A, adding Artificial Analysis comparisons and reactions but centered on that same announcement.
+A=원문 ← B=PyTorch Korea: [True, True, True]
+     True: B is a Korean write-up that translates and summarizes the same Claude Fable 5.2 / Mythos 5.2 announcement as A, adding benchmark tables, pricing, and reactions from A's content rather than covering a different product.
+     True: B is a Korean write-up that translates and summarizes the same Claude Fable 5.2 / Mythos 5.2 announcement as A, adding benchmark tables, pricing, and reactions from the original.
+     True: Article B is a Korean translation and expanded summary of Article A's Claude Fable 5.2 and Mythos 5.2 announcement, adding comparisons and commentary on the same release.
+A=The Decoder ← B=PyTorch Korea: [True, True, True]
+     True: Article B is a Korean write-up of the same Claude Fable 5.2 and Mythos 5.2 release covered in Article A, adding translation, pricing, benchmark, and cost detail.
+     True: B is a Korean translation/summary of A's Anthropic announcement of Claude Fable 5.2 and Mythos 5.2, adding its own explanations, tables, and quotes about the same release.
+     True: B is a Korean translation and summary of A's announcement of Claude Fable 5.2 and Mythos 5.2, covering the same pricing, benchmarks, cybersecurity and RSI details, with added quotes and comparisons.

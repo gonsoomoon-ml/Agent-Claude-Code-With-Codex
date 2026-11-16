@@ -52,6 +52,10 @@ class Source:
     listing_urls: tuple[str, ...] = ()  # html 리스팅의 *보조* 목록 페이지들(같은 사이트의 섹션·팀 페이지). url(주 목록) 뒤에 이어 읽고
     #                                     글 링크를 합친다(URL 중복 1회). 경로 규칙은 주 목록 기준. 2026-11-01 +d: Anthropic /research 메인이
     #                                     22편만 보여 Frontier Red Team 글이 19일간 4편 누락 → 팀 페이지 5개를 보조 목록으로
+    extra_article_prefixes: tuple[str, ...] = ()  # html 리스팅 경로 *밖*이지만 기사로 받는 경로 접두('/claude-' 등). 목록이 링크한
+    #                                     `{접두}{slug}` **한 단계** 페이지만 후보가 되고 page_type 관문을 면제한다(날짜 창·exclude_paths·
+    #                                     신원 dedup 은 그대로). 2026-11-15: Anthropic 은 모델 출시 글을 `/news/` 가 아니라 사이트 최상위에
+    #                                     og:type=website 로 올려 Opus 5.5·Sonnet 5.5·Haiku 5.5·Fable 5.2 출시 글이 한 번도 수집되지 않았다
 
 
 _KINDS = frozenset({"rss", "html", "auto", "sitemap"})
@@ -104,6 +108,9 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
         lu = e.get("listing_urls", [])
         if not isinstance(lu, list) or any(not isinstance(u, str) or not u.startswith(("http://", "https://")) for u in lu):
             raise ValueError(f"catalog[{i}] '{e['key']}': listing_urls 는 http(s) URL 목록 (got {lu!r})")
+        xp = e.get("extra_article_prefixes", [])   # '/' 하나뿐인 접두는 최상위 페이지 전부(허브 포함)를 기사로 만든다 — 거부
+        if not isinstance(xp, list) or any(not isinstance(p, str) or not p.startswith("/") or len(p) < 2 for p in xp):
+            raise ValueError(f"catalog[{i}] '{e['key']}': extra_article_prefixes 는 '/' 로 시작하는 경로 접두 목록 (got {xp!r})")
         out.append(
             Source(
                 key=e["key"],
@@ -123,6 +130,7 @@ def _load_catalog(path: Path = _CATALOG_PATH) -> tuple[Source, ...]:
                 exclude_paths=tuple(ex),
                 page_type=pt,
                 listing_urls=tuple(lu),
+                extra_article_prefixes=tuple(xp),
             )
         )
     return tuple(out)
@@ -360,8 +368,15 @@ def _excerpt(text: str, limit: int = MAX_SOURCE_CHARS) -> str:
     return (cut[:sp] if sp > limit * 0.6 else cut).strip()
 
 
+def _is_extra_article(path: str, prefixes: Sequence[str]) -> bool:
+    """목록 경로 밖이지만 기사로 받는 경로인가 — 접두 뒤에 slug 가 있고 그 뒤로 `/` 가 없다(한 페이지, 하위 트리 아님)."""
+    p = path.rstrip("/")
+    return any(p.startswith(x) and len(p) > len(x) and "/" not in p[len(x):] for x in prefixes)
+
+
 def _article_links(
-    listing_html: str, listing_url: str, article_path: str = "", exclude_paths: Sequence[str] = ()
+    listing_html: str, listing_url: str, article_path: str = "", exclude_paths: Sequence[str] = (),
+    extra_prefixes: Sequence[str] = (),
 ) -> list[str]:
     """리스팅에서 기사 링크만 — 제너릭 휴리스틱, 사이트별 코드 아님.
 
@@ -369,6 +384,8 @@ def _article_links(
     목록 `/c/news/14` 의 글 = `/t/<slug>/<id>` — 목록 경로 밖). href 는 큰·작은따옴표 둘 다(Discourse = 작은따옴표).
     exclude_paths(카탈로그 데이터) 의 경로는 모양이 맞아도 뺀다 — 허브(`/news/partnerships`)는 `{path}/{slug}` 모양이
     기사와 같아 모양만으로는 못 가른다(2026-11-01 +a).
+    extra_prefixes(카탈로그 데이터) 로 시작하는 한 단계 페이지는 목록 경로 밖이어도 받는다(`_is_extra_article`) —
+    Anthropic 모델 출시 글은 `/news/` 가 아니라 사이트 최상위에 있다(2026-11-15). 목록 순서는 그대로다.
     """
     base = urlparse(listing_url)
     path = (article_path or base.path).rstrip("/")
@@ -381,7 +398,8 @@ def _article_links(
         tail = p[len(path) + 1:]
         if p in excluded:
             continue
-        if p.startswith(path + "/") and tail and (article_path or "/" not in tail):
+        in_listing = p.startswith(path + "/") and tail and (article_path or "/" not in tail)
+        if in_listing or _is_extra_article(p, extra_prefixes):
             absu = f"{base.scheme}://{base.netloc}{p}"
             if absu not in seen:
                 seen.add(absu)
@@ -566,14 +584,15 @@ def fetch_generic_html(
     listing = _http_get(source.url)
     if not listing:
         raise RuntimeError(f"html listing fetch 실패: {source.url}")
-    links = _article_links(listing, source.url, source.article_path, source.exclude_paths)
+    links = _article_links(listing, source.url, source.article_path, source.exclude_paths, source.extra_article_prefixes)
     for extra in source.listing_urls:   # 보조 목록(섹션·팀 페이지) — 주 목록 뒤에 이어 붙이고 URL 중복 1회. 실패는 그 목록만 skip(비무음)
         html_extra = _http_get(extra)
         if not html_extra:
             _debug.warn("fetch listing", f"{source.key}: 보조 목록 fetch 실패 — 이 목록만 건너뜀: {extra}")
             continue
         seen_links = set(links)
-        for u in _article_links(html_extra, source.url, source.article_path, source.exclude_paths):  # 경로 규칙 = 주 목록 기준
+        for u in _article_links(html_extra, source.url, source.article_path, source.exclude_paths,
+                                source.extra_article_prefixes):  # 경로 규칙 = 주 목록 기준
             if u not in seen_links:
                 seen_links.add(u)
                 links.append(u)
@@ -590,7 +609,9 @@ def fetch_generic_html(
         page = _http_get(url)
         if not page:
             continue
-        if source.page_type == "article":   # 허브/목록 관문(opt-in) — 선언이 기사가 아니면 skip, 비무음(새 허브는 여기서 보인다)
+        # 허브/목록 관문(opt-in) — 선언이 기사가 아니면 skip, 비무음(새 허브는 여기서 보인다). extra_article_prefixes 로 받은
+        # 페이지는 면제: 출시 글은 website 로 선언한다. 그 페이지가 옛 글·허브인지는 아래 날짜 창과 신원 dedup 이 가른다
+        if source.page_type == "article" and not _is_extra_article(urlparse(url).path, source.extra_article_prefixes):
             declared = _declared_page_type(page)
             if declared and declared != "article":
                 _debug.warn("fetch non-article",
