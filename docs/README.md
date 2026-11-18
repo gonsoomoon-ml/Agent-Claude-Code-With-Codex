@@ -10,6 +10,7 @@
 | `deliveries/` | 배포·검증 전달 기록 |
 | `deck/` | 발표자료 작업장 — `make_slide.py`(생성기) · `prd.md`(덱 요구사항) · `*.pptx`(미커밋, 재생성 가능) |
 | `assets/` | 스크린샷·이미지 |
+| `backlog/` | **데일리 브리핑 백로그** — 열린 문제·아이디어(고정 번호 `B-NNN` · 상태 · 다음 행동)와 기각·보류 목록. `backlog/README.md` 한 파일이 목록의 진실 |
 
 ## 기능별 색인 (상태: LIVE=프로덕션 가동 · SHIPPED=구현·배포됨 · DRAFT=설계 중 · SUPERSEDED=대체됨)
 
